@@ -1,10 +1,10 @@
 {
-  "name": "order-lambda",
+  "name": "order-update",
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
     "aws-sdk": "2.1430.0"
