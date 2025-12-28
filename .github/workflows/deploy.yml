@@ -93,11 +93,20 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Debug OIDC Token
+        run: |
+          echo "GitHub Token Claims:"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Event: ${{ github.event_name }}"
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: arn:aws:iam::272916400750:role/CDK-Github-test
+          aws-region: ap-south-1
 
       - name: Deploy CDK stack
         run: |
