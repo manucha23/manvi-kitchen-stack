@@ -3,11 +3,9 @@ name: Build and Deploy CDK Stack
 on:
   push:
     branches:
-      - main
       - develop
   pull_request:
     branches:
-      - main
       - develop
 
 permissions:
@@ -96,8 +94,8 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::272916400750:role/CDK-Github-test
-          aws-region: ap-south-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
       
       - name: Debug JWT Token Claims
         env:
