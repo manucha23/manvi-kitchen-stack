@@ -54,11 +54,11 @@ jobs:
       - name: Run tests
         run: npm run test
 
+      - name: Build all Lambda functions
+        run: ./build-all-lambdas.sh
+
       - name: Build TypeScript
         run: npm run build
-
-      - name: Build lambdas
-        run: node build-lambdas.js
 
       - name: CDK synth
         run: npx cdk synth
