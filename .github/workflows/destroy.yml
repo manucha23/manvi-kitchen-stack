@@ -40,51 +40,13 @@ jobs:
             exit 1
           fi
 
-  build:
-    needs: validate-confirmation
-    if: needs.validate-confirmation.outputs.confirmed == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: ['22.x']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Build TypeScript
-        run: npm run build
-
-      - name: CDK synth
-        run: npx cdk synth
-
-      - name: Upload CDK artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cdk-artifacts
-          path: cdk.out/
-          retention-days: 5
-
   destroy:
-    needs: [validate-confirmation, build]
+    needs: [validate-confirmation]
     if: needs.validate-confirmation.outputs.confirmed == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download CDK artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: cdk-artifacts
-          path: cdk.out/
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
