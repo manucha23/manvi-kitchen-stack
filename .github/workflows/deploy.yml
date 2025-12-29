@@ -1,0 +1,106 @@
+name: Build and Deploy CDK Stack
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should-deploy: ${{ steps.env.outputs.should-deploy }}
+    steps:
+      - id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" && "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" && "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['22.x']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build all Lambda functions
+        run: ./build-all-lambdas.sh
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: CDK synth
+        run: npx cdk synth
+
+      - name: Upload CDK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-artifacts
+          path: cdk.out/
+          retention-days: 5
+
+  deploy:
+    needs: [determine-environment, build-and-test]
+    if: needs.determine-environment.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download CDK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cdk-artifacts
+          path: cdk.out/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy CDK stack
+        run: |
+          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
+          export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
