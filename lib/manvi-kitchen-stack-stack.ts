@@ -52,7 +52,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
         otp: true,
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: cdk.RemovalPolicy.RETAIN, // Keep user data
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // User Pool Client
