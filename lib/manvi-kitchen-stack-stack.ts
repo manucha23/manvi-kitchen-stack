@@ -4,11 +4,15 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
 
+interface ManviKitchenStackProps extends cdk.StackProps {
+  environment: string;
+}
+
 export class ManviKitchenStackStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ManviKitchenStackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
+    const { environment } = props;
 
     const orderTable = new dynamodb.Table(this, 'OrderDb', {
       partitionKey: { name: 'orderId', type: dynamodb.AttributeType.STRING },
@@ -70,7 +74,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
 
     // API Gateway to expose endpoints
     const api = new apigw.RestApi(this, 'OrderApi', {
-      restApiName: 'Order Service',
+      restApiName: `Order Service - ${environment}`,
+      deployOptions: {
+        stageName: environment,
+      },
     });
 
     const orders = api.root.addResource('orders');
@@ -86,5 +93,11 @@ export class ManviKitchenStackStack extends cdk.Stack {
     order.addMethod('PUT', new apigw.LambdaIntegration(orderUpdateFn));
     // DELETE /orders/{orderId} -> cancel
     order.addMethod('DELETE', new apigw.LambdaIntegration(orderDeleteFn));
+
+    // Output the API URL
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: api.url,
+      description: `API Gateway URL for ${environment} environment`,
+    });
   }
 }

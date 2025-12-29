@@ -96,20 +96,11 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
-      
-      - name: Debug JWT Token Claims
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-        run: |
-          IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "JWT Payload (contains the sub claim):"
-          echo $IDTOKEN | cut -d. -f2 | base64 -d 2>/dev/null | jq . || echo "Could not decode payload"
 
       - name: Deploy CDK stack
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy --require-approval=never
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
