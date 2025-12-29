@@ -41,7 +41,7 @@ jobs:
           fi
 
   destroy:
-    needs: [validate-confirmation, build]
+    needs: [validate-confirmation]
     if: needs.validate-confirmation.outputs.confirmed == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
