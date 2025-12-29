@@ -58,7 +58,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     // User Pool Client
     const userPoolClient = userPool.addClient('AdminAppClient', {
       authFlows: {
-        userPassword: true,
+        adminUserPassword: true,
         userSrp: true,
       },
       generateSecret: false,
