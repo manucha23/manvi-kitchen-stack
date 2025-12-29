@@ -48,12 +48,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download CDK artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: cdk-artifacts
-          path: cdk.out/
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
