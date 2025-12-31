@@ -131,7 +131,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: ['http://localhost:3000'], // Add your admin frontend URL
+        allowOrigins: ['http://localhost:3000', 'http://localhost:4200'], // Add your admin frontend URL
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
