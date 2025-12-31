@@ -5,7 +5,13 @@ export const TABLE = process.env.ORDER_TABLE as string;
 
 export const json = (statusCode: number, body: any) => ({
   statusCode,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Amz-Security-Token',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Credentials': 'true'
+  },
   body: JSON.stringify(body),
 });
 
