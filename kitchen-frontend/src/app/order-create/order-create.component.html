@@ -1,0 +1,43 @@
+<div class="popup-overlay" *ngIf="isVisible" (click)="close()">
+  <div class="popup-content" (click)="$event.stopPropagation()">
+    <div class="popup-header">
+      <h3>Create New Order</h3>
+      <button class="close-btn" (click)="close()">&times;</button>
+    </div>
+    <div class="popup-body">
+      <form (ngSubmit)="createOrder()" #orderForm="ngForm">
+        <div class="form-group">
+          <label>Customer Name:</label>
+          <input type="text" [(ngModel)]="order.name" name="name" required>
+        </div>
+        <div class="form-group">
+          <label>Address:</label>
+          <textarea [(ngModel)]="order.address" name="address" required></textarea>
+        </div>
+        <div class="form-group">
+          <label>Pin Code:</label>
+          <input type="number" [(ngModel)]="order.pinCode" name="pinCode" required>
+        </div>
+        <div class="form-group">
+          <label>Instructions:</label>
+          <textarea [(ngModel)]="order.instructions" name="instructions"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Items:</label>
+          <div *ngFor="let item of order.items; let i = index" class="item-row">
+            <input type="text" [(ngModel)]="item.name" [name]="'itemName' + i" placeholder="Item name" required>
+            <input type="number" [(ngModel)]="item.quantity" [name]="'itemQty' + i" placeholder="Qty" required>
+            <input type="number" [(ngModel)]="item.amount" [name]="'itemAmount' + i" placeholder="Amount" required>
+            <button type="button" (click)="removeItem(i)" class="remove-btn">Remove</button>
+          </div>
+          <button type="button" (click)="addItem()" class="add-btn">Add Item</button>
+        </div>
+        <div class="form-actions">
+          <button type="submit" [disabled]="!orderForm.valid || creating" class="submit-btn">
+            {{creating ? 'Creating...' : 'Create Order'}}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
