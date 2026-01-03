@@ -1,5 +1,6 @@
 *.js
 !jest.config.js
+!kitchen-frontend/src/assets/env.template.js
 *.d.ts
 node_modules
 

@@ -48,10 +48,8 @@ jobs:
 
       - name: Build frontend
         run: |
-          # Transform TypeScript template to JavaScript and substitute variables
-          npx tsc src/assets/env.template.ts --outDir src/assets --target es5 --module none --removeComments
+          # Substitute variables in JavaScript template
           envsubst < src/assets/env.template.js > src/assets/env.js
-          rm src/assets/env.template.js
           npm run build
         working-directory: kitchen-frontend
         env:

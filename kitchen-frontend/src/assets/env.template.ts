@@ -1,1 +1,0 @@
-declare global {\n  interface Window {\n    env: {\n      apiUrl: string;\n      region: string;\n      userPoolId: string;\n      userPoolClientId: string;\n    };\n  }\n}\n\nwindow.env = {\n  apiUrl: '${API_URL}',\n  region: '${REGION}',\n  userPoolId: '${USER_POOL_ID}',\n  userPoolClientId: '${USER_POOL_CLIENT_ID}'\n};\n\nexport {};
