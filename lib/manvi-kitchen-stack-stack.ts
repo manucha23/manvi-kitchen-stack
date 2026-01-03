@@ -1,8 +1,10 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigw from 'aws-cdk-lib/aws-apigateway';
+import { OrderDatabase } from './constructs/database/order-database';
+import { CognitoAuth } from './constructs/auth/cognito-auth';
+import { OrderLambdas } from './constructs/compute/order-lambdas';
+import { OrderApi } from './constructs/api/order-api';
+import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 
 interface ManviKitchenStackProps extends cdk.StackProps {
   environment: string;
@@ -14,90 +16,59 @@ export class ManviKitchenStackStack extends cdk.Stack {
 
     const { environment } = props;
 
-    const orderTable = new dynamodb.Table(this, 'OrderDb', {
-      partitionKey: { name: 'orderId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'version', type: dynamodb.AttributeType.NUMBER },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    // Create constructs
+    const database = new OrderDatabase(this, 'Database');
+    const auth = new CognitoAuth(this, 'Auth', { environment });
+    const lambdas = new OrderLambdas(this, 'Lambdas', {
+      orderTable: database.table,
     });
-
-    // Order Lambdas - source code in lambda/ folders
-    const orderCreateFn = new lambda.Function(this, 'OrderCreateHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/order-create'),
-      environment: { ORDER_TABLE: orderTable.tableName },
-      timeout: cdk.Duration.seconds(30),
+    const api = new OrderApi(this, 'Api', {
+      functions: lambdas.functions,
+      userPool: auth.userPool,
+      environment,
     });
+    const frontend = new FrontendHosting(this, 'Frontend', { environment });
 
-    const orderListFn = new lambda.Function(this, 'OrderListHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/order-list'),
-      environment: { ORDER_TABLE: orderTable.tableName },
-      timeout: cdk.Duration.seconds(30),
-    });
-
-    const orderGetFn = new lambda.Function(this, 'OrderGetHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/order-get'),
-      environment: { ORDER_TABLE: orderTable.tableName },
-      timeout: cdk.Duration.seconds(30),
-    });
-
-    const orderUpdateFn = new lambda.Function(this, 'OrderUpdateHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/order-update'),
-      environment: { ORDER_TABLE: orderTable.tableName },
-      timeout: cdk.Duration.seconds(30),
-    });
-
-    const orderDeleteFn = new lambda.Function(this, 'OrderDeleteHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/order-delete'),
-      environment: { ORDER_TABLE: orderTable.tableName },
-      timeout: cdk.Duration.seconds(30),
-    });
-
-    // Grant the functions least-privilege access to the order table
-    // create: write only
-    orderTable.grantWriteData(orderCreateFn);
-    // list + get: read only
-    orderTable.grantReadData(orderListFn);
-    orderTable.grantReadData(orderGetFn);
-    // update + delete: read + write
-    orderTable.grantReadWriteData(orderUpdateFn);
-    orderTable.grantReadWriteData(orderDeleteFn);
-
-    // API Gateway to expose endpoints
-    const api = new apigw.RestApi(this, 'OrderApi', {
-      restApiName: `Order Service - ${environment}`,
-      deployOptions: {
-        stageName: environment,
-      },
-    });
-
-    const orders = api.root.addResource('orders');
-    // GET /orders  -> search / filter via query params
-    orders.addMethod('GET', new apigw.LambdaIntegration(orderListFn));
-    // POST /orders -> create
-    orders.addMethod('POST', new apigw.LambdaIntegration(orderCreateFn));
-
-    const order = orders.addResource('{orderId}');
-    // GET /orders/{orderId} -> get
-    order.addMethod('GET', new apigw.LambdaIntegration(orderGetFn));
-    // PUT /orders/{orderId} -> update
-    order.addMethod('PUT', new apigw.LambdaIntegration(orderUpdateFn));
-    // DELETE /orders/{orderId} -> cancel
-    order.addMethod('DELETE', new apigw.LambdaIntegration(orderDeleteFn));
-
-    // Output the API URL
+    // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
-      value: api.url,
-      description: `API Gateway URL for ${environment} environment`,
+      value: api.api.url,
+      description: 'API Gateway URL',
+      exportName: `${environment}-api-url`,
+    });
+
+    new cdk.CfnOutput(this, 'FrontendUrl', {
+      value: `https://${frontend.distribution.distributionDomainName}`,
+      description: 'Frontend CloudFront URL',
+      exportName: `${environment}-frontend-url`,
+    });
+
+    new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: frontend.bucket.bucketName,
+      description: 'Frontend S3 Bucket Name',
+      exportName: `${environment}-frontend-bucket-name`,
+    });
+
+    new cdk.CfnOutput(this, 'DistributionId', {
+      value: frontend.distribution.distributionId,
+      description: 'CloudFront Distribution ID',
+      exportName: `${environment}-distribution-id`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolId', {
+      value: auth.userPool.userPoolId,
+      description: 'Cognito User Pool ID',
+      exportName: `${environment}-user-pool-id`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolClientId', {
+      value: auth.userPoolClient.userPoolClientId,
+      description: 'Cognito App Client ID',
+      exportName: `${environment}-user-pool-client-id`,
+    });
+
+    new cdk.CfnOutput(this, 'Region', {
+      value: this.region,
+      description: 'AWS Region',
     });
   }
 }
