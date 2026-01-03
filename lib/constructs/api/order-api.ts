@@ -8,6 +8,7 @@ export interface OrderApiProps {
   functions: { [key: string]: lambda.Function };
   userPool: cognito.UserPool;
   environment: string;
+  cloudfrontDomainName: string
 }
 
 export class OrderApi extends Construct {
@@ -15,6 +16,16 @@ export class OrderApi extends Construct {
 
   constructor(scope: Construct, id: string, props: OrderApiProps) {
     super(scope, id);
+
+    const getCorsOrigins = (env: string, cloudfrontDomain: string) => {
+      const baseOrigins = ['http://localhost:4200', 'http://localhost:3000'];
+      
+      if (env === 'prod') {
+        return [`https://${cloudfrontDomain}`];
+      } else {
+        return [...baseOrigins, `https://${cloudfrontDomain}`];
+      }
+    };
 
     this.api = new apigw.RestApi(this, 'Api', {
       restApiName: `Order Service - ${props.environment}`,
@@ -27,7 +38,7 @@ export class OrderApi extends Construct {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: ['http://localhost:3000', 'http://localhost:4200'],
+        allowOrigins: getCorsOrigins(props.environment, props.cloudfrontDomainName),
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',

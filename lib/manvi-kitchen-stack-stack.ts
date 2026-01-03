@@ -22,12 +22,13 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const lambdas = new OrderLambdas(this, 'Lambdas', {
       orderTable: database.table,
     });
+    const frontend = new FrontendHosting(this, 'Frontend', { environment });
     const api = new OrderApi(this, 'Api', {
       functions: lambdas.functions,
       userPool: auth.userPool,
       environment,
+      cloudfrontDomainName: frontend.distribution.distributionDomainName,
     });
-    const frontend = new FrontendHosting(this, 'Frontend', { environment });
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
