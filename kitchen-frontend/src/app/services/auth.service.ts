@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, AuthFlowType } from '@aws-sdk/client-cognito-identity-provider';
 import { BehaviorSubject } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -11,10 +12,8 @@ export class AuthService {
   public isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
   private idToken: string | null = null;
 
-  private readonly clientId = '3maiip2ul9cl0v0h6huq8ngpqq';
-
   constructor() {
-    this.client = new CognitoIdentityProviderClient({ region: 'ap-south-1' });
+    this.client = new CognitoIdentityProviderClient({ region: environment.aws.region });
     this.checkAuthState();
   }
 
@@ -22,7 +21,7 @@ export class AuthService {
     try {
       const command = new InitiateAuthCommand({
         AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
-        ClientId: this.clientId,
+        ClientId: environment.aws.userPoolClientId,
         AuthParameters: {
           USERNAME: username,
           PASSWORD: password
