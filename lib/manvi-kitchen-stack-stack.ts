@@ -42,6 +42,18 @@ export class ManviKitchenStackStack extends cdk.Stack {
       exportName: `${environment}-frontend-url`,
     });
 
+    new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: frontend.bucket.bucketName,
+      description: 'Frontend S3 Bucket Name',
+      exportName: `${environment}-frontend-bucket-name`,
+    });
+
+    new cdk.CfnOutput(this, 'DistributionId', {
+      value: frontend.distribution.distributionId,
+      description: 'CloudFront Distribution ID',
+      exportName: `${environment}-distribution-id`,
+    });
+
     new cdk.CfnOutput(this, 'UserPoolId', {
       value: auth.userPool.userPoolId,
       description: 'Cognito User Pool ID',
