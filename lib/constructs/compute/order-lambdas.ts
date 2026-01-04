@@ -15,15 +15,9 @@ export class OrderLambdas extends Construct {
 
     this.orderFunction = new lambda.Function(this, 'OrderHandler', {
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'index.handler',
+      handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/orders', {
-        bundling: {
-          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
-          command: [
-            'bash', '-c',
-            'npm ci && npm run build && cp -r dist/* /asset-output/ && cp package*.json /asset-output/'
-          ],
-        },
+        exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
       }),
       environment: { 
         ORDER_TABLE: props.orderTable.tableName
