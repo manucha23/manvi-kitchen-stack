@@ -54,6 +54,9 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
+      - name: Build Lambda functions
+        run: ./build-lambdas.sh
+
       - name: CDK synth
         run: npx cdk synth
 
@@ -61,7 +64,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cdk-artifacts
-          path: cdk.out/
+          path: |
+            cdk.out/
+            lambda/*/dist/
+            lambda/*/node_modules/
           retention-days: 5
 
   deploy:
@@ -86,9 +92,6 @@ jobs:
 
       - name: Install root dependencies
         run: npm ci
-
-      - name: Build Lambda functions
-        run: ./build-lambdas.sh
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
