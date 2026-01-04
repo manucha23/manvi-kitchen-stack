@@ -89,9 +89,6 @@ jobs:
 
       - name: Install root dependencies
         run: npm ci
-      
-      - name: Build all Lambda functions
-        run: ./build-all-lambdas.sh
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
