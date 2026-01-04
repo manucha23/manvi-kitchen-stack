@@ -19,8 +19,16 @@ export class ItemLambdas extends Construct {
 
     this.itemFunction = new lambda.Function(this, 'ItemHandler', {
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/items'),
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/items', {
+        bundling: {
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
+          command: [
+            'bash', '-c',
+            'npm ci && npm run build && cp -r dist/* /asset-output/ && cp package*.json /asset-output/'
+          ],
+        },
+      }),
       environment: { 
         ITEM_TABLE: props.itemTable.tableName,
         IMAGE_BUCKET: props.imageBucket.bucketName,
