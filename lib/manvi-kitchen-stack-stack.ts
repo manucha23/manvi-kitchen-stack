@@ -1,10 +1,13 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { OrderDatabase } from './constructs/database/order-database';
+import { ItemDatabase } from './constructs/database/item-database';
+import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
-import { OrderApi } from './constructs/api/order-api';
+import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
+import { OrderApi } from './constructs/api/order-api';
 
 interface ManviKitchenStackProps extends cdk.StackProps {
   environment: string;
@@ -17,14 +20,22 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const { environment } = props;
 
     // Create constructs
-    const database = new OrderDatabase(this, 'Database');
+    const orderdatabase = new OrderDatabase(this, 'Database');
+    const itemdatabase = new ItemDatabase(this, 'ItemDatabase');
     const auth = new CognitoAuth(this, 'Auth', { environment });
     const lambdas = new OrderLambdas(this, 'Lambdas', {
-      orderTable: database.table,
+      orderTable: orderdatabase.table,
+    });
+    const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
+    const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
+      itemTable: itemdatabase.table,
+      imageBucket: imageStorage.bucket,
+      imageDistribution: imageStorage.distribution,
     });
     const frontend = new FrontendHosting(this, 'Frontend', { environment });
     const api = new OrderApi(this, 'Api', {
-      functions: lambdas.functions,
+      orderFunction: lambdas.orderFunction,
+      itemFunction: itemLambdas.itemFunction,
       userPool: auth.userPool,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,

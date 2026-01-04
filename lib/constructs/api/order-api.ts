@@ -5,7 +5,8 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
 
 export interface OrderApiProps {
-  functions: { [key: string]: lambda.Function };
+  orderFunction: lambda.Function;
+  itemFunction: lambda.Function;
   userPool: cognito.UserPool;
   environment: string;
   cloudfrontDomainName: string
@@ -60,12 +61,24 @@ export class OrderApi extends Construct {
     };
 
     const orders = this.api.root.addResource('orders');
-    orders.addMethod('GET', new apigw.LambdaIntegration(props.functions.list), authOptions);
-    orders.addMethod('POST', new apigw.LambdaIntegration(props.functions.create), authOptions);
+    orders.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+    orders.addMethod('POST', new apigw.LambdaIntegration(props.orderFunction), authOptions);
 
     const order = orders.addResource('{orderId}');
-    order.addMethod('GET', new apigw.LambdaIntegration(props.functions.get), authOptions);
-    order.addMethod('PUT', new apigw.LambdaIntegration(props.functions.update), authOptions);
-    order.addMethod('DELETE', new apigw.LambdaIntegration(props.functions.delete), authOptions);
+    order.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+    order.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+    order.addMethod('DELETE', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+
+    const items = this.api.root.addResource('items');
+    items.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+    items.addMethod('POST', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+
+    const itemsUpload = items.addResource('upload-url');
+    itemsUpload.addMethod('POST', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+
+    const item = items.addResource('{itemId}');
+    item.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+    item.addMethod('PUT', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+    item.addMethod('DELETE', new apigw.LambdaIntegration(props.itemFunction), authOptions);
   }
 }
