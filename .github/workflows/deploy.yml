@@ -82,7 +82,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cdk-artifacts
-          path: cdk.out/
+          path: .
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -103,6 +103,6 @@ jobs:
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out"
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
