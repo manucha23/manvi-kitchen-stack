@@ -33,10 +33,10 @@ export class OrderAuditLambda extends Construct {
       startingPosition: lambda.StartingPosition.LATEST,
       filters: [
         lambda.FilterCriteria.filter({
-          eventName: lambda.FilterRule.or(
-            lambda.FilterRule.isEqual('INSERT'),
-            lambda.FilterRule.isEqual('MODIFY')
-          )
+          eventName: lambda.FilterRule.isEqual('INSERT')
+        }),
+        lambda.FilterCriteria.filter({
+          eventName: lambda.FilterRule.isEqual('MODIFY')
         })
       ]
     }));
