@@ -10,14 +10,14 @@
   },
   "private": true,
   "dependencies": {
-    "@angular/animations": "^20.3.15",
-    "@angular/common": "^20.3.15",
-    "@angular/compiler": "^20.3.15",
-    "@angular/core": "^20.3.15",
-    "@angular/forms": "^20.3.15",
-    "@angular/platform-browser": "^20.3.15",
-    "@angular/platform-browser-dynamic": "^20.3.15",
-    "@angular/router": "^20.3.15",
+    "@angular/animations": "^21.0.6",
+    "@angular/common": "^21.0.6",
+    "@angular/compiler": "^21.0.6",
+    "@angular/core": "^21.0.6",
+    "@angular/forms": "^21.0.6",
+    "@angular/platform-browser": "^21.0.6",
+    "@angular/platform-browser-dynamic": "^21.0.6",
+    "@angular/router": "^21.0.6",
     "@aws-sdk/client-cognito-identity-provider": "^3.958.0",
     "ng": "^0.0.0",
     "rxjs": "~7.8.0",
@@ -25,9 +25,9 @@
     "zone.js": "~0.15.1"
   },
   "devDependencies": {
-    "@angular/build": "^20.3.13",
-    "@angular/cli": "~20.3.13",
-    "@angular/compiler-cli": "^20.3.15",
+    "@angular/build": "^21.0.4",
+    "@angular/cli": "~21.0.4",
+    "@angular/compiler-cli": "^21.0.6",
     "@jefiozie/ngx-aws-deploy": "^4.1.0",
     "@types/jasmine": "~4.3.0",
     "@types/node": "^25.0.3",
@@ -37,6 +37,6 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "typescript": "~5.8.3"
+    "typescript": "~5.9.3"
   }
 }
