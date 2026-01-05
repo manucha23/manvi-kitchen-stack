@@ -1,4 +1,4 @@
-@if (isVisible) {
+@if (isVisible()) {
   <div class="popup-overlay" (click)="close()">
     <div class="popup-content" (click)="$event.stopPropagation()">
       <div class="popup-header">

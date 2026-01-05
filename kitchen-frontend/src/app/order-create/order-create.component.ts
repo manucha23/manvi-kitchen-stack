@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { OrderService } from '../services/order.service';
 
 @Component({
@@ -8,9 +8,9 @@ import { OrderService } from '../services/order.service';
     standalone: false
 })
 export class OrderCreateComponent {
-  @Input() isVisible = false;
-  @Output() orderCreated = new EventEmitter<void>();
-  @Output() closePopup = new EventEmitter<void>();
+  readonly isVisible = input(false);
+  readonly orderCreated = output<void>();
+  readonly closePopup = output<void>();
 
   creating = false;
   order = {
@@ -40,6 +40,7 @@ export class OrderCreateComponent {
     
     this.orderService.createOrder(orderData).subscribe({
       next: () => {
+        // TODO: The 'emit' function requires a mandatory void argument
         this.orderCreated.emit();
         this.close();
       },
@@ -51,6 +52,7 @@ export class OrderCreateComponent {
   }
 
   close(): void {
+    // TODO: The 'emit' function requires a mandatory void argument
     this.closePopup.emit();
     this.resetForm();
   }
