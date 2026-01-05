@@ -5,9 +5,7 @@ import { docClient, createSuccessResponse, createErrorResponse } from './utils';
 export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
     const result = await docClient.send(new ScanCommand({
-      TableName: process.env.ORDER_TABLE,
-      FilterExpression: 'version = :v',
-      ExpressionAttributeValues: { ':v': 1 }
+      TableName: process.env.ORDER_TABLE
     }));
 
     return createSuccessResponse(200, {
