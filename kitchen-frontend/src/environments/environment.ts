@@ -4,6 +4,6 @@ export const environment = {
   aws: {
     region: (window as any).env?.region || 'ap-south-1',
     userPoolId: (window as any).env?.userPoolId || '',
-    userPoolClientId: (window as any).env?.userPoolClientId || ''
+    userPoolClientId: (window as any).env?.userPoolClientId || '3piqi35gdsf73cgbiukb3030k4'
   }
 };
