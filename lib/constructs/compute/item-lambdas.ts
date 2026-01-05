@@ -9,6 +9,8 @@ export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
   imageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
+  inventoryTable: dynamodb.Table;
+  slotAvailabilityTable: dynamodb.Table;
 }
 
 export class ItemLambdas extends Construct {
@@ -26,13 +28,16 @@ export class ItemLambdas extends Construct {
       environment: { 
         ITEM_TABLE: props.itemTable.tableName,
         IMAGE_BUCKET: props.imageBucket.bucketName,
-        IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName
+        IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName,
+        INVENTORY_TABLE: props.inventoryTable.tableName,
+        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName
       },
       timeout: cdk.Duration.seconds(30),
     });
 
-    // Grant permissions
     props.itemTable.grantReadWriteData(this.itemFunction);
     props.imageBucket.grantReadWrite(this.itemFunction);
+    props.inventoryTable.grantReadData(this.itemFunction);
+    props.slotAvailabilityTable.grantReadData(this.itemFunction);
   }
 }

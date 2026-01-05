@@ -1,6 +1,7 @@
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from './utils';
+import { confirmInventory, releaseInventory } from './inventory-manager';
 
 export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
@@ -14,6 +15,13 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
       updateExpression.push('#status = :status');
       expressionAttributeNames['#status'] = 'status';
       expressionAttributeValues[':status'] = body.status;
+      
+      // Handle inventory based on status
+      if (body.status === 'CONFIRMED') {
+        await confirmInventory(orderId);
+      } else if (body.status === 'CANCELLED') {
+        await releaseInventory(orderId);
+      }
     }
     if (body.items) {
       updateExpression.push('#items = :items');

@@ -47,7 +47,7 @@ export class FrontendHosting extends Construct {
           ttl: cdk.Duration.minutes(30),
         },
       ],
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
     });
   }
 }

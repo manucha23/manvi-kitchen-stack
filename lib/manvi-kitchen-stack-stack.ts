@@ -2,10 +2,14 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { OrderDatabase } from './constructs/database/order-database';
 import { ItemDatabase } from './constructs/database/item-database';
+import { InventoryDatabase } from './constructs/database/inventory-database';
+import { SlotAvailabilityDatabase } from './constructs/database/slot-availability-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
+import { SlotManagementLambda } from './constructs/compute/slot-management-lambda';
+import { TtlCleanupLambda } from './constructs/compute/ttl-cleanup-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OrderApi } from './constructs/api/order-api';
 
@@ -22,15 +26,30 @@ export class ManviKitchenStackStack extends cdk.Stack {
     // Create constructs
     const orderdatabase = new OrderDatabase(this, 'Database');
     const itemdatabase = new ItemDatabase(this, 'ItemDatabase');
+    const inventorydatabase = new InventoryDatabase(this, 'InventoryDatabase');
+    const slotAvailability = new SlotAvailabilityDatabase(this, 'SlotAvailability');
     const auth = new CognitoAuth(this, 'Auth', { environment });
     const lambdas = new OrderLambdas(this, 'Lambdas', {
       orderTable: orderdatabase.table,
+      inventoryTable: inventorydatabase.table,
+      itemTable: itemdatabase.table,
+      slotAvailabilityTable: slotAvailability.table,
     });
     const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
       itemTable: itemdatabase.table,
       imageBucket: imageStorage.bucket,
       imageDistribution: imageStorage.distribution,
+      inventoryTable: inventorydatabase.table,
+      slotAvailabilityTable: slotAvailability.table,
+    });
+    const slotManagement = new SlotManagementLambda(this, 'SlotManagement', {
+      itemTable: itemdatabase.table,
+      slotAvailabilityTable: slotAvailability.table,
+    });
+    const ttlCleanup = new TtlCleanupLambda(this, 'TtlCleanup', {
+      inventoryTable: inventorydatabase.table,
+      slotAvailabilityTable: slotAvailability.table,
     });
     const frontend = new FrontendHosting(this, 'Frontend', { environment });
     const api = new OrderApi(this, 'Api', {

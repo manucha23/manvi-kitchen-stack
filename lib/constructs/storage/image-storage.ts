@@ -40,7 +40,7 @@ export class ImageStorage extends Construct {
         compress: true,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
     });
   }
 }

@@ -64,6 +64,9 @@ export class OrderApi extends Construct {
     orders.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
     orders.addMethod('POST', new apigw.LambdaIntegration(props.orderFunction), authOptions);
 
+    const slotAvailability = orders.addResource('slot-availability');
+    slotAvailability.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+
     const order = orders.addResource('{orderId}');
     order.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
     order.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);

@@ -5,6 +5,9 @@ import { Construct } from 'constructs';
 
 export interface OrderLambdasProps {
   orderTable: dynamodb.Table;
+  inventoryTable: dynamodb.Table;
+  itemTable: dynamodb.Table;
+  slotAvailabilityTable: dynamodb.Table;
 }
 
 export class OrderLambdas extends Construct {
@@ -20,12 +23,17 @@ export class OrderLambdas extends Construct {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
       }),
       environment: { 
-        ORDER_TABLE: props.orderTable.tableName
+        ORDER_TABLE: props.orderTable.tableName,
+        INVENTORY_TABLE: props.inventoryTable.tableName,
+        ITEM_TABLE: props.itemTable.tableName,
+        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName
       },
       timeout: cdk.Duration.seconds(30),
     });
 
-    // Grant permissions
     props.orderTable.grantReadWriteData(this.orderFunction);
+    props.inventoryTable.grantReadWriteData(this.orderFunction);
+    props.itemTable.grantReadData(this.orderFunction);
+    props.slotAvailabilityTable.grantReadWriteData(this.orderFunction);
   }
 }

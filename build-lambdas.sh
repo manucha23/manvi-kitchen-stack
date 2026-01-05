@@ -19,4 +19,18 @@ npm ci
 npm run build
 cd ../..
 
+# Build ttl-cleanup Lambda
+echo "Building ttl-cleanup Lambda..."
+cd lambda/ttl-cleanup
+npm ci
+npm run build
+cd ../..
+
+# Build slot-management Lambda
+echo "Building slot-management Lambda..."
+cd lambda/slot-management
+npm ci
+npm run build
+cd ../..
+
 echo "Lambda functions built successfully!"
