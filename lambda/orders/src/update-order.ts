@@ -38,7 +38,7 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
 
     const result = await docClient.send(new UpdateCommand({
       TableName: process.env.ORDER_TABLE,
-      Key: { orderId, version: 1 },
+      Key: { orderId },
       UpdateExpression: `SET ${updateExpression.join(', ')}`,
       ExpressionAttributeValues: expressionAttributeValues,
       ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,

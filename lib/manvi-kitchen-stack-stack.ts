@@ -4,12 +4,14 @@ import { OrderDatabase } from './constructs/database/order-database';
 import { ItemDatabase } from './constructs/database/item-database';
 import { InventoryDatabase } from './constructs/database/inventory-database';
 import { SlotAvailabilityDatabase } from './constructs/database/slot-availability-database';
+import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { SlotManagementLambda } from './constructs/compute/slot-management-lambda';
 import { TtlCleanupLambda } from './constructs/compute/ttl-cleanup-lambda';
+import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OrderApi } from './constructs/api/order-api';
 
@@ -28,12 +30,14 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const itemdatabase = new ItemDatabase(this, 'ItemDatabase');
     const inventorydatabase = new InventoryDatabase(this, 'InventoryDatabase');
     const slotAvailability = new SlotAvailabilityDatabase(this, 'SlotAvailability');
+    const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
     const auth = new CognitoAuth(this, 'Auth', { environment });
     const lambdas = new OrderLambdas(this, 'Lambdas', {
       orderTable: orderdatabase.table,
       inventoryTable: inventorydatabase.table,
       itemTable: itemdatabase.table,
       slotAvailabilityTable: slotAvailability.table,
+      orderHistoryTable: orderHistory.table,
     });
     const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
@@ -50,6 +54,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const ttlCleanup = new TtlCleanupLambda(this, 'TtlCleanup', {
       inventoryTable: inventorydatabase.table,
       slotAvailabilityTable: slotAvailability.table,
+    });
+    const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
+      orderTable: orderdatabase.table,
+      orderHistoryTable: orderHistory.table,
     });
     const frontend = new FrontendHosting(this, 'Frontend', { environment });
     const api = new OrderApi(this, 'Api', {

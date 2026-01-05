@@ -8,6 +8,7 @@ export interface OrderLambdasProps {
   inventoryTable: dynamodb.Table;
   itemTable: dynamodb.Table;
   slotAvailabilityTable: dynamodb.Table;
+  orderHistoryTable: dynamodb.Table;
 }
 
 export class OrderLambdas extends Construct {
@@ -26,7 +27,8 @@ export class OrderLambdas extends Construct {
         ORDER_TABLE: props.orderTable.tableName,
         INVENTORY_TABLE: props.inventoryTable.tableName,
         ITEM_TABLE: props.itemTable.tableName,
-        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName
+        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName,
+        ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName
       },
       timeout: cdk.Duration.seconds(30),
     });
@@ -35,5 +37,6 @@ export class OrderLambdas extends Construct {
     props.inventoryTable.grantReadWriteData(this.orderFunction);
     props.itemTable.grantReadData(this.orderFunction);
     props.slotAvailabilityTable.grantReadWriteData(this.orderFunction);
+    props.orderHistoryTable.grantReadData(this.orderFunction);
   }
 }

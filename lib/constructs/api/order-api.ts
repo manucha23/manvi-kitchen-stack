@@ -72,6 +72,9 @@ export class OrderApi extends Construct {
     order.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
     order.addMethod('DELETE', new apigw.LambdaIntegration(props.orderFunction), authOptions);
 
+    const orderHistory = order.addResource('history');
+    orderHistory.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+
     const items = this.api.root.addResource('items');
     items.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
     items.addMethod('POST', new apigw.LambdaIntegration(props.itemFunction), authOptions);

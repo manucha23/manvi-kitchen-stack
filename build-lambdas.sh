@@ -33,4 +33,11 @@ npm ci
 npm run build
 cd ../..
 
+# Build order-audit Lambda
+echo "Building order-audit Lambda..."
+cd lambda/order-audit
+npm ci
+npm run build
+cd ../..
+
 echo "Lambda functions built successfully!"

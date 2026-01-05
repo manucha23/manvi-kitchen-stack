@@ -6,7 +6,7 @@ export const deleteOrder = async (orderId: string): Promise<APIGatewayProxyResul
   try {
     await docClient.send(new DeleteCommand({
       TableName: process.env.ORDER_TABLE,
-      Key: { orderId, version: 1 }
+      Key: { orderId }
     }));
 
     return {

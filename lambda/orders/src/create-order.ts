@@ -80,7 +80,6 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
     
     const order = {
       orderId,
-      version: 1,
       customerId,
       items,
       slot,
