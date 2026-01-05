@@ -1,12 +1,12 @@
 import { Component, OnInit } from '@angular/core';
-import { AuthService } from './services/auth.service';
+import { AuthService } from './shared/services/auth.service';
 import { Observable } from 'rxjs';
 
 @Component({
-    selector: 'app-root',
-    templateUrl: './app.component.html',
-    styleUrls: ['./app.component.sass'],
-    standalone: false
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.sass'],
+  standalone: false
 })
 export class AppComponent implements OnInit {
   title = "Manvi's Kitchen";
@@ -16,7 +16,7 @@ export class AppComponent implements OnInit {
     this.isAuthenticated$ = this.authService.isAuthenticated$;
   }
 
-  ngOnInit() {}
+  ngOnInit() { }
 
   logout() {
     this.authService.logout();

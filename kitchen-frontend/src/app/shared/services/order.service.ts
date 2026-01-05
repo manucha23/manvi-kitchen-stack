@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Order } from '../models/order';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -14,13 +14,13 @@ export class OrderService {
   constructor(private http: HttpClient) { }
 
   getOrders(): Observable<Order[]> {
-    return this.http.get<{items: Order[]}>(this.apiUrl).pipe(
+    return this.http.get<{ items: Order[] }>(this.apiUrl).pipe(
       map(response => response.items)
     );
   }
 
   getOrderAudit(orderId: string): Observable<Order[]> {
-    return this.http.get<{items: Order[]}>(`${this.apiUrl}/${orderId}?trace=true`).pipe(
+    return this.http.get<{ items: Order[] }>(`${this.apiUrl}/${orderId}?trace=true`).pipe(
       map(response => response.items)
     );
   }

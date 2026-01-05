@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, AuthFlowType } from '@aws-sdk/client-cognito-identity-provider';
 import { BehaviorSubject } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -29,7 +29,7 @@ export class AuthService {
       });
 
       const response = await this.client.send(command);
-      
+
       if (response.AuthenticationResult?.IdToken) {
         this.idToken = response.AuthenticationResult.IdToken;
         localStorage.setItem('idToken', this.idToken);

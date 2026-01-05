@@ -1,11 +1,11 @@
 import { Component, input, output } from '@angular/core';
-import { OrderService } from '../services/order.service';
+import { OrderService } from '../../../shared/services/order.service';
 
 @Component({
-    selector: 'app-order-create',
-    templateUrl: './order-create.component.html',
-    styleUrls: ['./order-create.component.sass'],
-    standalone: false
+  selector: 'app-order-create',
+  templateUrl: './order-create.component.html',
+  styleUrls: ['./order-create.component.sass'],
+  standalone: false
 })
 export class OrderCreateComponent {
   readonly isVisible = input(false);
@@ -21,7 +21,7 @@ export class OrderCreateComponent {
     items: [{ name: '', quantity: 1, amount: 0 }]
   };
 
-  constructor(private orderService: OrderService) {}
+  constructor(private orderService: OrderService) { }
 
   addItem(): void {
     this.order.items.push({ name: '', quantity: 1, amount: 0 });
@@ -37,7 +37,7 @@ export class OrderCreateComponent {
       ...this.order,
       status: 'CREATED'
     };
-    
+
     this.orderService.createOrder(orderData).subscribe({
       next: () => {
         // TODO: The 'emit' function requires a mandatory void argument

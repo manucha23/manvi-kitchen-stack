@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { OrderCreateComponent } from './order-create.component';
-import { OrderService } from '../services/order.service';
+import { OrderService } from '../../../shared/services/order.service';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('OrderCreateComponent', () => {
@@ -12,10 +12,10 @@ describe('OrderCreateComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-    declarations: [OrderCreateComponent],
-    imports: [FormsModule],
-    providers: [OrderService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
-});
+      declarations: [OrderCreateComponent],
+      imports: [FormsModule],
+      providers: [OrderService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+    });
     fixture = TestBed.createComponent(OrderCreateComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

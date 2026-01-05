@@ -5,12 +5,13 @@ import { FormsModule } from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
-import { OrderListComponent } from './order-list/order-list.component';
-import { LoginComponent } from './login/login.component';
-import { AuthInterceptor } from './interceptors/auth.interceptor';
-import { OrderCreateComponent } from './order-create/order-create.component';
+import { OrderListComponent } from './feature/order/order-list/order-list.component';
+import { LoginComponent } from './core/login/login.component';
+import { AuthInterceptor } from './core/interceptors/auth.interceptor';
+import { OrderCreateComponent } from './feature/order/order-create/order-create.component';
 
-@NgModule({ declarations: [
+@NgModule({
+    declarations: [
         AppComponent,
         OrderListComponent,
         LoginComponent,
@@ -19,11 +20,12 @@ import { OrderCreateComponent } from './order-create/order-create.component';
     bootstrap: [AppComponent], imports: [BrowserModule,
         AppRoutingModule,
         FormsModule], providers: [
-        {
-            provide: HTTP_INTERCEPTORS,
-            useClass: AuthInterceptor,
-            multi: true
-        },
-        provideHttpClient(withInterceptorsFromDi())
-    ] })
+            {
+                provide: HTTP_INTERCEPTORS,
+                useClass: AuthInterceptor,
+                multi: true
+            },
+            provideHttpClient(withInterceptorsFromDi())
+        ]
+})
 export class AppModule { }

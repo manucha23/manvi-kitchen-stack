@@ -1,12 +1,12 @@
 import { Component, OnInit } from '@angular/core';
-import { OrderService } from '../services/order.service';
-import { Order, OrderItem } from '../models/order';
+import { OrderService } from '../../../shared/services/order.service';
+import { Order, OrderItem } from '../../../shared/models/order';
 
 @Component({
-    selector: 'app-order-list',
-    templateUrl: './order-list.component.html',
-    styleUrls: ['./order-list.component.sass'],
-    standalone: false
+  selector: 'app-order-list',
+  templateUrl: './order-list.component.html',
+  styleUrls: ['./order-list.component.sass'],
+  standalone: false
 })
 export class OrderListComponent implements OnInit {
   orders: Order[] = [];
@@ -16,7 +16,7 @@ export class OrderListComponent implements OnInit {
   auditDetails: Order[] = [];
   selectedOrderId = '';
   showCreatePopup = false;
-  
+
   constructor(private orderService: OrderService) { }
 
   ngOnInit(): void {
@@ -60,7 +60,7 @@ export class OrderListComponent implements OnInit {
     this.selectedOrderId = orderId;
     this.showAuditPopup = true;
     this.auditLoading = true;
-    
+
     this.orderService.getOrderAudit(orderId).subscribe({
       next: (data: Order[]) => {
         this.auditDetails = data.sort((a, b) => b.version - a.version);
