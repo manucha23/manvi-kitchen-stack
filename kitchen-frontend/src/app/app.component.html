@@ -1,11 +1,12 @@
-<div *ngIf="isAuthenticated$ | async; else loginTemplate">
-  <div class="header">
-    <h1>Welcome to {{title}}</h1>
-    <button (click)="logout()">Logout</button>
+@if (isAuthenticated$ | async) {
+  <div>
+    <div class="header">
+      <h1>Welcome to {{title}}</h1>
+      <button (click)="logout()">Logout</button>
+    </div>
+    <app-order-list></app-order-list>
   </div>
-  <app-order-list></app-order-list>
-</div>
-
-<ng-template #loginTemplate>
+} @else {
   <app-login></app-login>
-</ng-template>
+}
+
