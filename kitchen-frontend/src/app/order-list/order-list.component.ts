@@ -3,9 +3,10 @@ import { OrderService } from '../services/order.service';
 import { Order, OrderItem } from '../models/order';
 
 @Component({
-  selector: 'app-order-list',
-  templateUrl: './order-list.component.html',
-  styleUrls: ['./order-list.component.sass']
+    selector: 'app-order-list',
+    templateUrl: './order-list.component.html',
+    styleUrls: ['./order-list.component.sass'],
+    standalone: false
 })
 export class OrderListComponent implements OnInit {
   orders: Order[] = [];

@@ -2,9 +2,10 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { OrderService } from '../services/order.service';
 
 @Component({
-  selector: 'app-order-create',
-  templateUrl: './order-create.component.html',
-  styleUrls: ['./order-create.component.sass']
+    selector: 'app-order-create',
+    templateUrl: './order-create.component.html',
+    styleUrls: ['./order-create.component.sass'],
+    standalone: false
 })
 export class OrderCreateComponent {
   @Input() isVisible = false;
