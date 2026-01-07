@@ -1,12 +1,11 @@
-@if (isAuthenticated$ | async) {
-  <div>
-    <div class="header">
-      <h1>Welcome to {{title}}</h1>
-      <button (click)="logout()">Logout</button>
-    </div>
-    <app-order-list></app-order-list>
+@if (isAuthenticated()) {
+<div>
+  <div class="header">
+    <h1>Welcome to {{title}}</h1>
+    <button (click)="logout()">Logout</button>
   </div>
+  <app-order-list></app-order-list>
+</div>
 } @else {
-  <app-login></app-login>
+<app-login></app-login>
 }
-

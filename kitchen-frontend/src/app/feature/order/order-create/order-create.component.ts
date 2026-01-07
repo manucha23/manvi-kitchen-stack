@@ -1,70 +1,104 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
+
+interface OrderItem {
+  name: string;
+  quantity: number;
+  amount: number;
+}
+
+interface OrderForm {
+  name: string;
+  address: string;
+  pinCode: number | null;
+  instructions: string;
+  items: OrderItem[];
+}
+
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-order-create',
   templateUrl: './order-create.component.html',
   styleUrls: ['./order-create.component.sass'],
-  standalone: false
+  standalone: true,
+  imports: [FormsModule]
 })
 export class OrderCreateComponent {
   readonly isVisible = input(false);
   readonly orderCreated = output<void>();
   readonly closePopup = output<void>();
 
-  creating = false;
-  order = {
+  creating = signal(false);
+
+  order = signal<OrderForm>({
     name: '',
     address: '',
     pinCode: null,
     instructions: '',
     items: [{ name: '', quantity: 1, amount: 0 }]
-  };
+  });
 
   constructor(private orderService: OrderService) { }
 
   addItem(): void {
-    this.order.items.push({ name: '', quantity: 1, amount: 0 });
+    this.order.update(curr => ({
+      ...curr,
+      items: [...curr.items, { name: '', quantity: 1, amount: 0 }]
+    }));
   }
 
   removeItem(index: number): void {
-    this.order.items.splice(index, 1);
+    this.order.update(curr => ({
+      ...curr,
+      items: curr.items.filter((_, i) => i !== index)
+    }));
+  }
+
+  updateItem(index: number, field: keyof OrderItem, value: any): void {
+    this.order.update(curr => {
+      const items = [...curr.items];
+      items[index] = { ...items[index], [field]: value };
+      return { ...curr, items };
+    });
+  }
+
+  updateOrderField(field: keyof OrderForm, value: any): void {
+    this.order.update(curr => ({ ...curr, [field]: value }));
   }
 
   createOrder(): void {
-    this.creating = true;
+    this.creating.set(true);
     const orderData = {
-      ...this.order,
+      ...this.order(),
       status: 'CREATED'
     };
 
     this.orderService.createOrder(orderData).subscribe({
       next: () => {
-        // TODO: The 'emit' function requires a mandatory void argument
         this.orderCreated.emit();
         this.close();
       },
       error: (error) => {
         console.error('Error creating order:', error);
-        this.creating = false;
+        this.creating.set(false);
       }
     });
   }
 
   close(): void {
-    // TODO: The 'emit' function requires a mandatory void argument
     this.closePopup.emit();
     this.resetForm();
   }
 
   resetForm(): void {
-    this.order = {
+    this.order.set({
       name: '',
       address: '',
       pinCode: null,
       instructions: '',
       items: [{ name: '', quantity: 1, amount: 0 }]
-    };
-    this.creating = false;
+    });
+    this.creating.set(false);
   }
 }

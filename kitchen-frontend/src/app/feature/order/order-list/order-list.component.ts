@@ -1,39 +1,34 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
 import { Order, OrderItem } from '../../../shared/models/order';
+
+import { CommonModule } from '@angular/common'; // For pipes: number, date, uppercase
+import { OrderCreateComponent } from '../order-create/order-create.component';
 
 @Component({
   selector: 'app-order-list',
   templateUrl: './order-list.component.html',
   styleUrls: ['./order-list.component.sass'],
-  standalone: false
+  standalone: true,
+  imports: [CommonModule, OrderCreateComponent]
 })
 export class OrderListComponent implements OnInit {
-  orders: Order[] = [];
-  loading = true;
-  showAuditPopup = false;
-  auditLoading = false;
-  auditDetails: Order[] = [];
-  selectedOrderId = '';
-  showCreatePopup = false;
+  orders = this.orderService.orders;
+  loading = this.orderService.loading;
+  showAuditPopup = signal(false);
+  auditLoading = signal(false);
+  auditDetails = signal<Order[]>([]);
+  selectedOrderId = signal('');
+  showCreatePopup = signal(false);
 
   constructor(private orderService: OrderService) { }
 
   ngOnInit(): void {
-    this.loadOrders();
+    this.orderService.loadOrders();
   }
 
   loadOrders(): void {
-    this.orderService.getOrders().subscribe({
-      next: (data: Order[]) => {
-        this.orders = data;
-        this.loading = false;
-      },
-      error: (error) => {
-        console.error('Error fetching orders:', error);
-        this.loading = false;
-      }
-    });
+    this.orderService.loadOrders();
   }
 
   getTotalAmount(items: OrderItem[]): number {
@@ -44,10 +39,7 @@ export class OrderListComponent implements OnInit {
     const newStatus = event.target.value;
     this.orderService.updateOrderStatus(orderId, newStatus).subscribe({
       next: () => {
-        const order = this.orders.find(o => o.orderId === orderId);
-        if (order) {
-          order.status = newStatus;
-        }
+        // State update handled by service
       },
       error: (error) => {
         console.error('Error updating order status:', error);
@@ -57,30 +49,30 @@ export class OrderListComponent implements OnInit {
 
   showAuditDetails(orderId: string, event: Event): void {
     event.preventDefault();
-    this.selectedOrderId = orderId;
-    this.showAuditPopup = true;
-    this.auditLoading = true;
+    this.selectedOrderId.set(orderId);
+    this.showAuditPopup.set(true);
+    this.auditLoading.set(true);
 
     this.orderService.getOrderAudit(orderId).subscribe({
       next: (data: Order[]) => {
-        this.auditDetails = data.sort((a, b) => b.version - a.version);
-        this.auditLoading = false;
+        this.auditDetails.set(data.sort((a, b) => b.version - a.version));
+        this.auditLoading.set(false);
       },
       error: (error) => {
         console.error('Error fetching audit details:', error);
-        this.auditLoading = false;
+        this.auditLoading.set(false);
       }
     });
   }
 
   closeAuditPopup(): void {
-    this.showAuditPopup = false;
-    this.auditDetails = [];
-    this.selectedOrderId = '';
+    this.showAuditPopup.set(false);
+    this.auditDetails.set([]);
+    this.selectedOrderId.set('');
   }
 
   onOrderCreated(): void {
-    this.loadOrders();
-    this.showCreatePopup = false;
+    // List is refreshed by service
+    this.showCreatePopup.set(false);
   }
 }

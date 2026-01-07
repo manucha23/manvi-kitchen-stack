@@ -2,11 +2,14 @@ import { Component, signal } from '@angular/core';
 import { AuthService } from '../../shared/services/auth.service';
 import { Router } from '@angular/router';
 
+import { FormsModule } from '@angular/forms';
+
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.sass'],
-  standalone: false
+  standalone: true,
+  imports: [FormsModule]
 })
 export class LoginComponent {
   username = signal('');
