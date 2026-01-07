@@ -1,4 +1,4 @@
-import { Component, input, output, signal } from '@angular/core';
+import { Component, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
 
 interface OrderItem {
@@ -22,7 +22,8 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './order-create.component.html',
   styleUrls: ['./order-create.component.sass'],
   standalone: true,
-  imports: [FormsModule]
+  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderCreateComponent {
   readonly isVisible = input(false);

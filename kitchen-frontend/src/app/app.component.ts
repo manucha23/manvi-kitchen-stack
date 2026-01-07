@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { AuthService } from './shared/services/auth.service';
 import { Observable } from 'rxjs';
 
@@ -10,7 +10,8 @@ import { OrderListComponent } from './feature/order/order-list/order-list.compon
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.sass'],
   standalone: true,
-  imports: [LoginComponent, OrderListComponent]
+  imports: [LoginComponent, OrderListComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent implements OnInit {
   title = "Manvi's Kitchen";

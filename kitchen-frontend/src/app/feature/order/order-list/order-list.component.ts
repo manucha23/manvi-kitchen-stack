@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
 import { Order, OrderItem } from '../../../shared/models/order';
 
@@ -10,7 +10,8 @@ import { OrderCreateComponent } from '../order-create/order-create.component';
   templateUrl: './order-list.component.html',
   styleUrls: ['./order-list.component.sass'],
   standalone: true,
-  imports: [CommonModule, OrderCreateComponent]
+  imports: [CommonModule, OrderCreateComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderListComponent implements OnInit {
   orders = this.orderService.orders;
