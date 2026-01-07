@@ -60,7 +60,7 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          aws s3 sync kitchen-frontend/dist/kitchen-frontend/ s3://${{ steps.stack-outputs.outputs.bucket-name }}/ --delete
+          aws s3 sync kitchen-frontend/dist/kitchen-frontend/browser s3://${{ steps.stack-outputs.outputs.bucket-name }}/ --delete
 
       - name: Invalidate CloudFront
         run: |
