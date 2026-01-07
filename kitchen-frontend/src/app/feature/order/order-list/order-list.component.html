@@ -1,17 +1,22 @@
 <div class="order-list">
   <div class="header">
     <h2>Orders</h2>
-    <button class="create-btn" (click)="showCreatePopup = true">Create Order</button>
+    <button class="create-btn" (click)="showCreatePopup.set(true)">Create Order</button>
   </div>
-  
-  <div *ngIf="loading" class="loading">Loading orders...</div>
-  
-  <div *ngIf="!loading && orders.length === 0" class="no-orders">
+
+  @if (loading()) {
+  <div class="loading">Loading orders...</div>
+  }
+
+  @if (!loading() && orders().length === 0) {
+  <div class="no-orders">
     No orders found.
   </div>
-  
+  }
+
   <!-- Desktop Table View -->
-  <div class="table-container" *ngIf="!loading && orders.length > 0">
+  @if (!loading() && orders().length > 0) {
+  <div class="table-container">
     <table class="orders-table">
       <thead>
         <tr>
@@ -27,14 +32,17 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let order of orders" [class]="'status-' + order.status.toLowerCase()">
+        @for (order of orders(); track order) {
+        <tr [class]="'status-' + order.status.toLowerCase()">
           <td><a href="#" (click)="showAuditDetails(order.orderId, $event)">{{order.orderId}}</a></td>
           <td>{{order.name}}</td>
           <td>{{order.address}}, {{order.pinCode}}</td>
           <td>
-            <span *ngFor="let item of order.items; let last = last">
+            @for (item of order.items; track item; let last = $last) {
+            <span>
               {{item.name}} ({{item.quantity}}x){{!last ? ', ' : ''}}
             </span>
+            }
           </td>
           <td>₹{{getTotalAmount(order.items) | number:'1.2-2'}}</td>
           <td><span class="status-badge">{{order.status | uppercase}}</span></td>
@@ -50,13 +58,17 @@
           <td>{{order.instructions}}</td>
           <td>{{order.createdAt | date:'short'}}</td>
         </tr>
+        }
       </tbody>
     </table>
   </div>
-  
+  }
+
   <!-- Mobile Card View -->
-  <div class="mobile-cards" *ngIf="!loading && orders.length > 0">
-    <div *ngFor="let order of orders" class="order-card" [class]="'status-' + order.status.toLowerCase()">
+  @if (!loading() && orders().length > 0) {
+  <div class="mobile-cards">
+    @for (order of orders(); track order) {
+    <div class="order-card" [class]="'status-' + order.status.toLowerCase()">
       <div class="card-header">
         <h3><a href="#" (click)="showAuditDetails(order.orderId, $event)">{{order.orderId}}</a></h3>
         <span class="status-badge">{{order.status | uppercase}}</span>
@@ -64,10 +76,12 @@
       <div class="card-content">
         <p><strong>Customer:</strong> {{order.name}}</p>
         <p><strong>Address:</strong> {{order.address}}, {{order.pinCode}}</p>
-        <p><strong>Items:</strong> 
-          <span *ngFor="let item of order.items; let last = last">
+        <p><strong>Items:</strong>
+          @for (item of order.items; track item; let last = $last) {
+          <span>
             {{item.name}} ({{item.quantity}}x){{!last ? ', ' : ''}}
           </span>
+          }
         </p>
         <p><strong>Total:</strong> ₹{{getTotalAmount(order.items) | number:'1.2-2'}}</p>
         <p><strong>Instructions:</strong> {{order.instructions}}</p>
@@ -84,36 +98,46 @@
         </div>
       </div>
     </div>
+    }
   </div>
+  }
 
   <!-- Order Create Component -->
-  <app-order-create 
-    [isVisible]="showCreatePopup" 
-    (orderCreated)="onOrderCreated()" 
-    (closePopup)="showCreatePopup = false">
+  <app-order-create [isVisible]="showCreatePopup()" (orderCreated)="onOrderCreated()"
+    (closePopup)="showCreatePopup.set(false)">
   </app-order-create>
 </div>
 
 <!-- Audit Details Popup -->
-<div class="popup-overlay" *ngIf="showAuditPopup" (click)="closeAuditPopup()">
+@if (showAuditPopup()) {
+<div class="popup-overlay" (click)="closeAuditPopup()">
   <div class="popup-content" (click)="$event.stopPropagation()">
     <div class="popup-header">
-      <h3>Audit Details - {{selectedOrderId}}</h3>
+      <h3>Audit Details - {{selectedOrderId()}}</h3>
       <button class="close-btn" (click)="closeAuditPopup()">&times;</button>
     </div>
     <div class="popup-body">
-      <div *ngIf="auditLoading" class="loading">Loading audit details...</div>
-      <div *ngIf="!auditLoading && auditDetails.length > 0">
-        <div *ngFor="let audit of auditDetails" class="audit-item">
+      @if (auditLoading()) {
+      <div class="loading">Loading audit details...</div>
+      }
+      @if (!auditLoading() && auditDetails().length > 0) {
+      <div>
+        @for (audit of auditDetails(); track audit) {
+        <div class="audit-item">
           <p><strong>Version:</strong> {{audit.version}}</p>
           <p><strong>Status:</strong> {{audit.status}}</p>
           <p><strong>Updated:</strong> {{audit.updatedAt | date:'medium'}}</p>
           <hr>
         </div>
+        }
       </div>
-      <div *ngIf="!auditLoading && auditDetails.length === 0">
+      }
+      @if (!auditLoading() && auditDetails().length === 0) {
+      <div>
         No audit details found.
       </div>
+      }
     </div>
   </div>
 </div>
+}

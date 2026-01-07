@@ -1,9 +1,10 @@
 /// <reference types="jasmine" />
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { OrderCreateComponent } from './order-create.component';
-import { OrderService } from '../services/order.service';
+import { OrderService } from '../../../shared/services/order.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('OrderCreateComponent', () => {
   let component: OrderCreateComponent;
@@ -12,8 +13,8 @@ describe('OrderCreateComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       declarations: [OrderCreateComponent],
-      imports: [FormsModule, HttpClientTestingModule],
-      providers: [OrderService]
+      imports: [FormsModule],
+      providers: [OrderService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
     });
     fixture = TestBed.createComponent(OrderCreateComponent);
     component = fixture.componentInstance;
