@@ -1,0 +1,70 @@
+name: Frontend Deploy to Staging
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'kitchen-frontend/**'
+      - '.github/workflows/frontend-deploy-staging.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'kitchen-frontend/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: kitchen-frontend
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get stack outputs
+        id: stack
+        run: |
+          STACK_NAME="ManviKitchenStack-staging"
+          echo "api-url=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "user-pool-id=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "user-pool-client-id=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "bucket=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "distribution=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+
+      - name: Build frontend
+        run: |
+          envsubst < src/assets/env.template.js > src/assets/env.js
+          npm run build
+        working-directory: kitchen-frontend
+        env:
+          API_URL: ${{ steps.stack.outputs.api-url }}
+          USER_POOL_ID: ${{ steps.stack.outputs.user-pool-id }}
+          USER_POOL_CLIENT_ID: ${{ steps.stack.outputs.user-pool-client-id }}
+          REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: aws s3 sync kitchen-frontend/dist/kitchen-frontend/browser s3://${{ steps.stack.outputs.bucket }}/ --delete
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id ${{ steps.stack.outputs.distribution }} --paths "/*"
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Frontend deployed to staging" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://${{ steps.stack.outputs.distribution }}" >> $GITHUB_STEP_SUMMARY

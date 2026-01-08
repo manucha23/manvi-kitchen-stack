@@ -1,0 +1,110 @@
+name: Frontend Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.3)'
+        required: true
+        type: string
+      release_notes:
+        description: 'Release notes'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version format
+        run: |
+          if ! [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must be in format X.Y.Z (e.g., 1.2.3)"
+            exit 1
+          fi
+
+      - name: Check if tag exists
+        run: |
+          if git rev-parse "frontend-v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Error: Tag frontend-v${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'kitchen-frontend/package-lock.json'
+
+      - name: Update package.json version
+        run: npm version ${{ inputs.version }} --no-git-tag-version
+        working-directory: kitchen-frontend
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: kitchen-frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: kitchen-frontend
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kitchen-frontend/package.json kitchen-frontend/package-lock.json
+          git commit -m "chore(frontend): bump version to ${{ inputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag -a "frontend-v${{ inputs.version }}" -m "Frontend release v${{ inputs.version }}"
+          git push origin "frontend-v${{ inputs.version }}"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "frontend-v*" HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --oneline --no-merges -- kitchen-frontend/ | head -20)
+          else
+            COMMITS=$(git log ${PREV_TAG}..HEAD --oneline --no-merges -- kitchen-frontend/)
+          fi
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: frontend-v${{ inputs.version }}
+          release_name: Frontend v${{ inputs.version }}
+          body: |
+            ## Frontend Release v${{ inputs.version }}
+            
+            ${{ inputs.release_notes }}
+            
+            ### Changes
+            ${{ steps.changelog.outputs.commits }}
+            
+            ### Deployment
+            Deploy this release using the "Frontend Deploy Release" workflow.
+          draft: false
+          prerelease: false
+
+      - name: Summary
+        run: |
+          echo "### 🎉 Release created successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** frontend-v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Next step:** Deploy using 'Frontend Deploy Release' workflow" >> $GITHUB_STEP_SUMMARY
