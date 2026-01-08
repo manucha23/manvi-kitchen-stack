@@ -39,7 +39,7 @@ jobs:
       - name: Get stack outputs
         id: stack
         run: |
-          STACK_NAME="ManviKitchenStack-staging"
+          STACK_NAME="ManviKitchenStack-test"
           echo "api-url=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)" >> $GITHUB_OUTPUT
           echo "user-pool-id=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
           echo "user-pool-client-id=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
