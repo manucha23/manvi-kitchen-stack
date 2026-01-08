@@ -5,11 +5,21 @@ import { getOrder } from './get-order';
 import { createOrder } from './create-order';
 import { updateOrder } from './update-order';
 import { deleteOrder } from './delete-order';
+import { updateSlotAvailability } from './update-slot-availability';
+import { getOrderHistory } from './get-order-history';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const { httpMethod, pathParameters } = event;
+    const { httpMethod, pathParameters, path } = event;
     const orderId = pathParameters?.orderId;
+
+    if (path === '/orders/slot-availability' && httpMethod === 'PUT') {
+      return updateSlotAvailability(event);
+    }
+
+    if (path.includes('/history') && httpMethod === 'GET') {
+      return getOrderHistory(orderId!);
+    }
 
     switch (httpMethod) {
       case 'GET':

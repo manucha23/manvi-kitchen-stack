@@ -1,15 +1,14 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, AuthFlowType } from '@aws-sdk/client-cognito-identity-provider';
-import { BehaviorSubject } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private client: CognitoIdentityProviderClient;
-  private isAuthenticatedSubject = new BehaviorSubject<boolean>(false);
-  public isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
+  private readonly _isAuthenticated = signal(false);
+  public readonly isAuthenticated = this._isAuthenticated.asReadonly();
   private idToken: string | null = null;
 
   constructor() {
@@ -29,11 +28,11 @@ export class AuthService {
       });
 
       const response = await this.client.send(command);
-      
+
       if (response.AuthenticationResult?.IdToken) {
         this.idToken = response.AuthenticationResult.IdToken;
         localStorage.setItem('idToken', this.idToken);
-        this.isAuthenticatedSubject.next(true);
+        this._isAuthenticated.set(true);
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -44,7 +43,7 @@ export class AuthService {
   async logout(): Promise<void> {
     this.idToken = null;
     localStorage.removeItem('idToken');
-    this.isAuthenticatedSubject.next(false);
+    this._isAuthenticated.set(false);
   }
 
   async getIdToken(): Promise<string | null> {
@@ -55,7 +54,7 @@ export class AuthService {
     const token = localStorage.getItem('idToken');
     if (token) {
       this.idToken = token;
-      this.isAuthenticatedSubject.next(true);
+      this._isAuthenticated.set(true);
     }
   }
 }

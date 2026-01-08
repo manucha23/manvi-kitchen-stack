@@ -9,6 +9,8 @@ export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
   imageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
+  inventoryTable: dynamodb.Table;
+  slotAvailabilityTable: dynamodb.Table;
 }
 
 export class ItemLambdas extends Construct {
@@ -19,26 +21,23 @@ export class ItemLambdas extends Construct {
 
     this.itemFunction = new lambda.Function(this, 'ItemHandler', {
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'index.handler',
+      handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/items', {
-        bundling: {
-          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
-          command: [
-            'bash', '-c',
-            'npm ci && npm run build && cp -r dist/* /asset-output/ && cp package*.json /asset-output/'
-          ],
-        },
+        exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
       }),
       environment: { 
         ITEM_TABLE: props.itemTable.tableName,
         IMAGE_BUCKET: props.imageBucket.bucketName,
-        IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName
+        IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName,
+        INVENTORY_TABLE: props.inventoryTable.tableName,
+        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName
       },
       timeout: cdk.Duration.seconds(30),
     });
 
-    // Grant permissions
     props.itemTable.grantReadWriteData(this.itemFunction);
     props.imageBucket.grantReadWrite(this.itemFunction);
+    props.inventoryTable.grantReadData(this.itemFunction);
+    props.slotAvailabilityTable.grantReadData(this.itemFunction);
   }
 }

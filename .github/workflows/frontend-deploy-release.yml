@@ -1,0 +1,102 @@
+name: Frontend Deploy Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to deploy (e.g., frontend-v1.2.3)'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Validate tag format
+        run: |
+          if ! [[ "${{ inputs.tag }}" =~ ^frontend-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Tag must be in format frontend-vX.Y.Z (e.g., frontend-v1.2.3)"
+            exit 1
+          fi
+
+      - name: Extract version
+        id: version
+        run: echo "version=${TAG#frontend-v}" >> $GITHUB_OUTPUT
+        env:
+          TAG: ${{ inputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'kitchen-frontend/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: kitchen-frontend
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get stack outputs
+        id: stack
+        run: |
+          STACK_NAME="ManviKitchenStack-${{ inputs.environment }}"
+          echo "api-url=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "user-pool-id=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "user-pool-client-id=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "bucket=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "distribution=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "url=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendUrl'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+
+      - name: Build frontend
+        run: |
+          envsubst < src/assets/env.template.js > src/assets/env.js
+          npm run build
+        working-directory: kitchen-frontend
+        env:
+          API_URL: ${{ steps.stack.outputs.api-url }}
+          USER_POOL_ID: ${{ steps.stack.outputs.user-pool-id }}
+          USER_POOL_CLIENT_ID: ${{ steps.stack.outputs.user-pool-client-id }}
+          REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: aws s3 sync kitchen-frontend/dist/kitchen-frontend/browser s3://${{ steps.stack.outputs.bucket }}/ --delete
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id ${{ steps.stack.outputs.distribution }} --paths "/*"
+
+      - name: Wait for invalidation
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id ${{ steps.stack.outputs.distribution }} --paths "/*" --query 'Invalidation.Id' --output text)
+          echo "Waiting for invalidation $INVALIDATION_ID to complete..."
+          aws cloudfront wait invalidation-completed --distribution-id ${{ steps.stack.outputs.distribution }} --id $INVALIDATION_ID
+
+      - name: Deployment summary
+        run: |
+          echo "### 🚀 Deployment successful" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** ${{ steps.stack.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

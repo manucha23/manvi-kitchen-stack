@@ -6,7 +6,7 @@ export const getOrder = async (orderId: string): Promise<APIGatewayProxyResult> 
   try {
     const result = await docClient.send(new GetCommand({
       TableName: process.env.ORDER_TABLE,
-      Key: { orderId, version: 1 }
+      Key: { orderId }
     }));
 
     if (!result.Item) {

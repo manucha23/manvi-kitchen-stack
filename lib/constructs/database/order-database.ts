@@ -10,9 +10,9 @@ export class OrderDatabase extends Construct {
 
     this.table = new dynamodb.Table(this, 'OrderTable', {
       partitionKey: { name: 'orderId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'version', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
   }
 }

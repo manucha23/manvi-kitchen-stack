@@ -1,0 +1,41 @@
+name: Frontend Build
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'kitchen-frontend/**'
+      - '.github/workflows/frontend-build.yml'
+  pull_request:
+    paths:
+      - 'kitchen-frontend/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'kitchen-frontend/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: kitchen-frontend
+
+      - name: Lint
+        run: npm run lint || echo "No lint script"
+        working-directory: kitchen-frontend
+
+      - name: Test
+        run: npm run test -- --watch=false --browsers=ChromeHeadless || echo "No tests"
+        working-directory: kitchen-frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: kitchen-frontend

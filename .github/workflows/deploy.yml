@@ -51,11 +51,11 @@ jobs:
       - name: Run tests
         run: npm run test
 
-      - name: Build all Lambda functions
-        run: ./build-all-lambdas.sh
-
       - name: Build TypeScript
         run: npm run build
+
+      - name: Build Lambda functions
+        run: ./build-lambdas.sh
 
       - name: CDK synth
         run: npx cdk synth
@@ -64,7 +64,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cdk-artifacts
-          path: cdk.out/
+          path: |
+            cdk.out/
+            lambda/*/dist/
+            lambda/*/node_modules/
           retention-days: 5
 
   deploy:
@@ -79,7 +82,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cdk-artifacts
-          path: cdk.out/
+          path: .
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -96,10 +99,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Bootstrap CDK (if needed)
+        run: |
+          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
+          export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
+          npx cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ secrets.AWS_REGION }} --region ${{ secrets.AWS_REGION }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
       - name: Deploy CDK stack
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
