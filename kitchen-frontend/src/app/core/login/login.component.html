@@ -1,15 +1,52 @@
 <div class="login-container">
-  <h2>Login</h2>
-  <form (ngSubmit)="onLogin()">
-    <input type="text" [ngModel]="username()" (ngModelChange)="username.set($event)" name="username"
-      placeholder="Username" required>
-    <input type="password" [ngModel]="password()" (ngModelChange)="password.set($event)" name="password"
-      placeholder="Password" required>
-    <button type="submit" [disabled]="loading()">
-      {{loading() ? 'Logging in...' : 'Login'}}
-    </button>
-  </form>
-  @if (error()) {
-  <div class="error">{{error()}}</div>
-  }
+  <div class="login-card animate-zoom-in">
+
+    <!-- Left Side -->
+    <div class="left-panel">
+      <!-- Logo -->
+      <div class="absolute top-8 left-8 flex items-center gap-2 animate-fade-in-left" style="animation-delay: 0.2s">
+        <i class="pi pi-box text-2xl text-slate-800"></i>
+        <span class="text-xl font-bold text-slate-800 tracking-wide font-serif italic">Kitchen Setup</span>
+      </div>
+
+      <!-- Form -->
+      <div class="w-full max-w-xs mx-auto animate-fade-in-left" style="animation-delay: 0.4s">
+        <form (ngSubmit)="onLogin()" class="flex flex-col gap-6">
+
+          <div class="relative">
+            <input pInputText id="username" [ngModel]="username()" (ngModelChange)="username.set($event)"
+              name="username" class="w-full" placeholder="Username" required autocomplete="username" />
+          </div>
+
+          <div class="relative">
+            <p-password id="password" [ngModel]="password()" (ngModelChange)="password.set($event)" name="password"
+              [feedback]="false" [toggleMask]="false" styleClass="w-full" inputStyleClass="w-full"
+              placeholder="Password" autocomplete="current-password" required="true">
+            </p-password>
+          </div>
+
+          <p-button label="LOGIN" [loading]="loading()" type="submit" styleClass="w-full" class="w-full"></p-button>
+
+        </form>
+
+        @if (error()) {
+        <div class="mt-4 text-center">
+          <span class="text-sm text-red-500 font-serif italic">{{ error() }}</span>
+        </div>
+        }
+      </div>
+
+      <!-- Copyright -->
+      <div class="absolute bottom-6 left-8 text-xs text-gray-400 font-medium animate-fade-in-left"
+        style="animation-delay: 0.6s">
+        &copy; 2026 Manvi Kitchen LLC.
+      </div>
+    </div>
+
+    <!-- Right Side -->
+    <div class="right-panel animate-fade-in-right" style="background-image: url('/assets/images/login-bowl.png');">
+      <div class="overlay"></div>
+    </div>
+
+  </div>
 </div>
