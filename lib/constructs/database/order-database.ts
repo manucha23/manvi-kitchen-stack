@@ -22,4 +22,4 @@ export class OrderDatabase extends Construct {
       sortKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
     });
   }
-}}
+}
