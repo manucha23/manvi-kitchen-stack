@@ -7,12 +7,13 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeuix/themes/aura';
+import { routes } from './app/app.routes';
 
 bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
     provideAnimations(),
-    provideRouter([]),
+    provideRouter(routes),
     {
       provide: HTTP_INTERCEPTORS,
       useClass: AuthInterceptor,

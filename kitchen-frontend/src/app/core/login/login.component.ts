@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, OnInit } from '@angular/core';
 import { AuthService } from '../../shared/services/auth.service';
 import { Router } from '@angular/router';
 
@@ -16,16 +16,22 @@ import { CardModule } from 'primeng/card';
   imports: [FormsModule, ButtonModule, InputTextModule, PasswordModule, CardModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   username = signal('');
   password = signal('');
   loading = signal(false);
   error = signal('');
+  private returnUrl: string = '/orders';
 
   constructor(
     private authService: AuthService,
     private router: Router
   ) { }
+
+  ngOnInit() {
+    // Get return url from session storage or default to '/orders'
+    this.returnUrl = sessionStorage.getItem('returnUrl') || '/orders';
+  }
 
   async onLogin() {
     console.log('Username:', this.username(), 'Password:', this.password()); // Debug log
@@ -34,7 +40,10 @@ export class LoginComponent {
 
     try {
       await this.authService.login(this.username(), this.password());
-      this.router.navigate(['/']);
+
+      // Navigate and then clear session storage
+      this.router.navigate([this.returnUrl]);
+      sessionStorage.removeItem('returnUrl');
     } catch (error: any) {
       this.error.set(error.message || 'Login failed');
     } finally {
