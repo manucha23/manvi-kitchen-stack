@@ -51,7 +51,7 @@ A complete serverless food ordering system for weekend meal delivery, built with
 - **Delivery Slots**: Saturday/Sunday Lunch/Dinner
 - **Same-Day Prevention**: Cannot order for same day
 - **15-Minute Hold**: Orders auto-cancelled if not confirmed
-- **Status Tracking**: PENDING → CONFIRMED/CANCELLED
+- **Status Tracking**: Created → Accepted → Cooking → Ready → Delivered
 
 ### 2. Inventory System (Loosely Coupled)
 - **Slot Availability Table**: Independent inventory per item per slot
@@ -75,8 +75,11 @@ A complete serverless food ordering system for weekend meal delivery, built with
 ### OrderTable
 ```
 PK: orderId (6-char: A3K9M2)
-SK: version (1)
-Attributes: customerId, items[], slot, slotDate, totalAmount, status
+GSI: orderStatus-slotDate-index (PK: orderStatus, SK: slotDate)
+Attributes: orderedBy, customerName, deliveryAddress, contactNumber, 
+            orderStatus (Created|Accepted|Cooking|Ready|Delivered),
+            orderScheduled, slot, slotDate, items[], total, 
+            instructions, feedbackProvided, feedbackRequestCount, timestamp
 ```
 
 ### ItemTable
@@ -106,11 +109,24 @@ Note: Records deleted on confirmation (not kept as CONFIRMED)
 ### Orders
 ```
 POST   /orders                    - Place order
-GET    /orders                    - List all orders
+GET    /orders                    - List orders (default: Created status)
 GET    /orders/{orderId}          - Get order details
 PUT    /orders/{orderId}          - Update order status
 DELETE /orders/{orderId}          - Delete order
 PUT    /orders/slot-availability  - Update slot quantities
+
+Query Parameters for GET /orders:
+- orderStatus: Created|Accepted|Cooking|Ready|Delivered (default: Created)
+- fromDate: YYYY-MM-DD (filter slotDate >= fromDate)
+- toDate: YYYY-MM-DD (filter slotDate <= toDate)
+- orderedBy: user-sub (filter by customer)
+- slot: saturday-lunch|saturday-dinner|sunday-lunch|sunday-dinner
+
+Examples:
+GET /orders                                    # Default: Created orders
+GET /orders?orderStatus=Cooking                # All cooking orders
+GET /orders?orderStatus=Accepted&fromDate=2024-01-20&toDate=2024-01-27
+GET /orders?orderStatus=Ready&slot=saturday-lunch&orderedBy=user-123
 ```
 
 ### Items
@@ -159,12 +175,12 @@ Create BLOCKED record in InventoryTable (TTL: 15 min)
   ↓
 Generate 6-char order ID (e.g., A3K9M2)
   ↓
-Create order in OrderTable (status: PENDING)
+Create order in OrderTable (orderStatus: Created)
 ```
 
 ### 2. Confirm Order (within 15 min)
 ```
-Admin → PUT /orders/{orderId} {status: CONFIRMED}
+Admin → PUT /orders/{orderId} {orderStatus: "Accepted"}
   ↓
 Delete inventory blocks (no CONFIRMED records kept)
   ↓

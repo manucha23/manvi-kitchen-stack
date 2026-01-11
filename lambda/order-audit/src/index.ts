@@ -10,47 +10,64 @@ export const handler = async (event: DynamoDBStreamEvent) => {
   console.log('Processing order audit events:', JSON.stringify(event, null, 2));
 
   for (const record of event.Records) {
-    if (record.eventName === 'INSERT' || record.eventName === 'MODIFY') {
-      const newImage = record.dynamodb?.NewImage ? unmarshall(record.dynamodb.NewImage as any) : null;
-      const oldImage = record.dynamodb?.OldImage ? unmarshall(record.dynamodb.OldImage as any) : null;
+    const eventName = record.eventName;
+    const newImage = record.dynamodb?.NewImage ? unmarshall(record.dynamodb.NewImage as any) : null;
+    const oldImage = record.dynamodb?.OldImage ? unmarshall(record.dynamodb.OldImage as any) : null;
 
-      if (!newImage) continue;
+    // Get orderId from either new or old image
+    const orderId = newImage?.orderId || oldImage?.orderId;
+    if (!orderId) continue;
 
-      const orderId = newImage.orderId;
-      const timestamp = new Date().toISOString();
+    const timestamp = new Date().toISOString();
 
-      const historyRecord: any = {
-        orderId,
-        timestamp,
-        eventType: record.eventName,
-        newStatus: newImage.status,
-        previousStatus: oldImage?.status || null,
-        changes: {},
-      };
+    const historyRecord: any = {
+      orderId,
+      timestamp,
+      eventType: eventName,
+    };
+
+    if (eventName === 'INSERT' && newImage) {
+      // Order created
+      historyRecord.action = 'CREATED';
+      historyRecord.orderSnapshot = newImage;
+      historyRecord.newStatus = newImage.orderStatus;
+    } else if (eventName === 'MODIFY' && newImage && oldImage) {
+      // Order updated
+      historyRecord.action = 'UPDATED';
+      historyRecord.newStatus = newImage.orderStatus;
+      historyRecord.previousStatus = oldImage.orderStatus || null;
+      historyRecord.changes = {};
 
       // Track what changed
-      if (record.eventName === 'MODIFY' && oldImage) {
-        if (oldImage.status !== newImage.status) {
-          historyRecord.changes.status = { from: oldImage.status, to: newImage.status };
-        }
-        if (JSON.stringify(oldImage.items) !== JSON.stringify(newImage.items)) {
-          historyRecord.changes.items = { from: oldImage.items, to: newImage.items };
-        }
-        if (oldImage.totalAmount !== newImage.totalAmount) {
-          historyRecord.changes.totalAmount = { from: oldImage.totalAmount, to: newImage.totalAmount };
-        }
+      if (oldImage.orderStatus !== newImage.orderStatus) {
+        historyRecord.changes.orderStatus = { from: oldImage.orderStatus, to: newImage.orderStatus };
       }
-
-      try {
-        await docClient.send(new PutCommand({
-          TableName: process.env.ORDER_HISTORY_TABLE,
-          Item: historyRecord
-        }));
-
-        console.log(`Created audit record for order ${orderId}`);
-      } catch (error) {
-        console.error(`Error creating audit record for ${orderId}:`, error);
+      if (JSON.stringify(oldImage.items) !== JSON.stringify(newImage.items)) {
+        historyRecord.changes.items = { from: oldImage.items, to: newImage.items };
       }
+      if (oldImage.total !== newImage.total) {
+        historyRecord.changes.total = { from: oldImage.total, to: newImage.total };
+      }
+      if (oldImage.instructions !== newImage.instructions) {
+        historyRecord.changes.instructions = { from: oldImage.instructions, to: newImage.instructions };
+      }
+    } else if (eventName === 'REMOVE' && oldImage) {
+      // Order deleted - CRITICAL: Save full snapshot
+      historyRecord.action = 'DELETED';
+      historyRecord.orderSnapshot = oldImage; // Save complete order data
+      historyRecord.deletedStatus = oldImage.orderStatus;
+      historyRecord.deletedBy = 'SYSTEM'; // Could extract from context if available
+    }
+
+    try {
+      await docClient.send(new PutCommand({
+        TableName: process.env.ORDER_HISTORY_TABLE,
+        Item: historyRecord
+      }));
+
+      console.log(`Created audit record for order ${orderId}: ${eventName}`);
+    } catch (error) {
+      console.error(`Error creating audit record for ${orderId}:`, error);
     }
   }
 

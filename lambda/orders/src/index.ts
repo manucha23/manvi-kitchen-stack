@@ -1,12 +1,14 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { createErrorResponse } from './utils';
-import { listOrders } from './list-orders';
-import { getOrder } from './get-order';
-import { createOrder } from './create-order';
-import { updateOrder } from './update-order';
-import { deleteOrder } from './delete-order';
-import { updateSlotAvailability } from './update-slot-availability';
-import { getOrderHistory } from './get-order-history';
+import { 
+  listOrders, 
+  getOrder, 
+  createOrder, 
+  updateOrder, 
+  deleteOrder, 
+  updateSlotAvailability, 
+  getOrderHistory 
+} from './handlers';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
@@ -18,7 +20,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     if (path.includes('/history') && httpMethod === 'GET') {
-      return getOrderHistory(orderId!);
+      if (!orderId) {
+        return createErrorResponse(400, 'Order ID is required');
+      }
+      return getOrderHistory(orderId);
     }
 
     switch (httpMethod) {
@@ -27,9 +32,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       case 'POST':
         return createOrder(event);
       case 'PUT':
-        return updateOrder(orderId!, event);
+        if (!orderId) {
+          return createErrorResponse(400, 'Order ID is required');
+        }
+        return updateOrder(orderId, event);
       case 'DELETE':
-        return deleteOrder(orderId!);
+        if (!orderId) {
+          return createErrorResponse(400, 'Order ID is required');
+        }
+        return deleteOrder(orderId);
       default:
         return createErrorResponse(405, 'Method Not Allowed');
     }

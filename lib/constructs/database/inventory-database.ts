@@ -16,5 +16,11 @@ export class InventoryDatabase extends Construct {
       timeToLiveAttribute: 'ttl',
       stream: dynamodb.StreamViewType.OLD_IMAGE,
     });
+
+    // GSI for querying blocks by orderId
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'orderId-index',
+      partitionKey: { name: 'orderId', type: dynamodb.AttributeType.STRING },
+    });
   }
 }
