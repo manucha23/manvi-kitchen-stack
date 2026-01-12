@@ -39,6 +39,10 @@ describe('List Orders Handler', () => {
       const body = JSON.parse(result.body);
       expect(body.items).toHaveLength(2);
       expect(body.count).toBe(2);
+      
+      // Verify query uses 'status' attribute
+      const queryCall = docClientMock.commandCalls(QueryCommand)[0];
+      expect(queryCall.args[0].input.ExpressionAttributeNames).toEqual({ '#status': 'status' });
     });
 
     it('should filter by status', async () => {

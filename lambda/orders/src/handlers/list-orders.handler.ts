@@ -15,8 +15,9 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     }
 
     // Build query expression
-    let keyConditionExpression = 'orderStatus = :status';
+    let keyConditionExpression = '#status = :status';
     const expressionAttributeValues: Record<string, any> = { ':status': status };
+    const expressionAttributeNames: Record<string, string> = { '#status': 'status' };
 
     // Add date range to key condition if provided
     if (fromDate && toDate) {
@@ -47,6 +48,7 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       IndexName: 'orderStatus-slotDate-index',
       KeyConditionExpression: keyConditionExpression,
       FilterExpression: filterExpression || undefined,
+      ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
       ScanIndexForward: false
     }));
