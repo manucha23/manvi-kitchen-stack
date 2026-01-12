@@ -15,11 +15,10 @@ export class OrderDatabase extends Construct {
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
-    // GSI temporarily removed to allow CloudFormation to drop the old GSI. Re-add after deploy.
-    // this.table.addGlobalSecondaryIndex({
-    //   indexName: 'orderStatus-slotDate-index-v2',
-    //   partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
-    //   sortKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
-    // });
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'orderStatus-slotDate-index',
+      partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
+    });
   }
 }
