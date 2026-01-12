@@ -17,7 +17,7 @@ export class OrderDatabase extends Construct {
 
     // GSI for querying by status with date range support
     this.table.addGlobalSecondaryIndex({
-      indexName: 'orderStatus-slotDate-index',
+      indexName: 'orderStatus-slotDate-index-v2', // Changed name to force recreation
       partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
     });

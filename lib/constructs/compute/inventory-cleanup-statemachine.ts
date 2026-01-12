@@ -32,7 +32,7 @@ export class InventoryCleanupStateMachine extends Construct {
     const definition = wait.next(checkAndCleanup).next(success);
 
     this.stateMachine = new sfn.StateMachine(this, 'StateMachine', {
-      definition,
+      definitionBody: sfn.DefinitionBody.fromChainable(definition),
       timeout: cdk.Duration.minutes(20)
     });
   }
