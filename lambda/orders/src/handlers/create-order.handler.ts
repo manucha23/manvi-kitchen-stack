@@ -2,7 +2,7 @@ import { PutCommand, BatchGetCommand, GetCommand, UpdateCommand, DeleteCommand }
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, getNextOrderId, validateCreateOrderRequest } from '../utils';
 import { Order, OrderItem, OrderStatus } from '../models';
-import { blockInventory, checkAvailability } from '../services';
+import { blockInventory, triggerStateMachine, checkAvailability } from '../services';
 
 const validateScheduledTime = async (scheduledTime: string, slot: string, itemIds: string[]): Promise<boolean> => {
   const scheduled = new Date(scheduledTime);
@@ -133,6 +133,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
         await blockInventory(orderItem.itemId, slot, slotDate, orderItem.quantity, orderId);
         blockedItems.push({id: orderItem.itemId, slot, date: slotDate, quantity: orderItem.quantity});
       }
+      await triggerStateMachine(orderId);
     } catch (blockError) {
       console.error('Error blocking inventory, rolling back:', blockError);
       
@@ -144,14 +145,6 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
             Key: { slotKey: `${blocked.id}#${blocked.slot}#${blocked.date}` },
             UpdateExpression: 'SET availableQuantity = availableQuantity + :qty',
             ExpressionAttributeValues: { ':qty': blocked.quantity }
-          }));
-          
-          await docClient.send(new DeleteCommand({
-            TableName: process.env.INVENTORY_TABLE,
-            Key: { 
-              slotKey: `${blocked.id}#${blocked.slot}#${blocked.date}`,
-              blockId: `${orderId}#${blocked.id}`
-            }
           }));
         } catch (rollbackError) {
           console.error('Error during rollback:', rollbackError);

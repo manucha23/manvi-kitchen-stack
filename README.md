@@ -33,14 +33,16 @@ A complete serverless food ordering system for weekend meal delivery, built with
 │                      DynamoDB Tables                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │ Orders       │  │ Items        │  │ Slot Avail.  │         │
-│  │ Inventory    │  │              │  │              │         │
 │  └──────────────┘  └──────────────┘  └──────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
                               |
                               v
 ┌─────────────────────────────────────────────────────────────────┐
-│                    EventBridge Scheduler                        │
-│              (Weekly Slot Opening - Monday 00:00)               │
+│                    Step Functions + EventBridge                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ Inventory Cleanup (Wait 15min → Check Order → Restore)   │  │
+│  │ Weekly Slot Opening (Monday 00:00 UTC)                   │  │
+│  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,7 +60,7 @@ A complete serverless food ordering system for weekend meal delivery, built with
 - **Automatic Slot Opening**: EventBridge triggers every Monday at 00:00 UTC
 - **Default Quantity**: 10 units per slot (configurable via API)
 - **Real-Time Updates**: Atomic quantity reduction on order placement
-- **TTL Auto-Reversal**: DynamoDB Streams restore quantity after 15 minutes
+- **Step Functions Auto-Reversal**: Waits 15 minutes, checks order status, restores quantity if not confirmed
 
 ### 3. Authentication & Authorization
 - **Cognito User Pool**: Admin-only access
@@ -92,16 +94,6 @@ Attributes: name, description, price, category, imageUrl, available
 ```
 PK: slotKey (itemId#slot#date)
 Attributes: availableQuantity, totalQuantity, itemName
-```
-
-### InventoryTable (Temporary Blocks)
-```
-PK: slotKey
-SK: blockId (orderId#itemId)
-TTL: 15 minutes
-Attributes: quantity, status (BLOCKED only)
-Stream: Enabled (for auto-reversal)
-Note: Records deleted on confirmation (not kept as CONFIRMED)
 ```
 
 ## API Endpoints
@@ -171,27 +163,31 @@ Check slot availability (SlotAvailabilityTable)
   ↓
 Reduce availableQuantity (atomic update)
   ↓
-Create BLOCKED record in InventoryTable (TTL: 15 min)
+Start Step Function workflow for each item
   ↓
 Generate 6-char order ID (e.g., A3K9M2)
   ↓
-Create order in OrderTable (orderStatus: Created)
+Create order in OrderTable (status: Created)
 ```
 
 ### 2. Confirm Order (within 15 min)
 ```
-Admin → PUT /orders/{orderId} {orderStatus: "Accepted"}
-  ↓
-Delete inventory blocks (no CONFIRMED records kept)
+Admin → PUT /orders/{orderId} {status: "Accepted"}
   ↓
 Quantity stays reduced in SlotAvailabilityTable
+  ↓
+Step Function checks order status after 15 min
+  ↓
+Sees status = Accepted, no restoration needed
 ```
 
 ### 3. Auto-Cancel (after 15 min)
 ```
-TTL expires → DynamoDB deletes BLOCKED record
+Step Function waits 15 minutes
   ↓
-DynamoDB Stream → TTL Cleanup Lambda
+Order Cleanup Lambda checks order status
+  ↓
+If status = Created (not confirmed)
   ↓
 Restore availableQuantity in SlotAvailabilityTable
 ```
@@ -228,11 +224,11 @@ lib/constructs/
 │   ├── order-lambdas.ts          - Order processing
 │   ├── item-lambdas.ts           - Item management
 │   ├── slot-management-lambda.ts - Weekly slot opening
-│   └── ttl-cleanup-lambda.ts     - Auto-reversal on TTL
+│   ├── order-cleanup-lambda.ts   - Check order status & restore inventory
+│   └── inventory-cleanup-statemachine.ts - Step Functions workflow
 ├── database/
 │   ├── order-database.ts         - Orders table
 │   ├── item-database.ts          - Items table
-│   ├── inventory-database.ts     - Inventory blocks table
 │   └── slot-availability-database.ts - Slot availability
 ├── frontend/
 │   └── frontend-hosting.ts       - S3 + CloudFront
@@ -246,7 +242,7 @@ lambda/
 ├── orders/              - Order CRUD + slot availability updates
 ├── items/               - Item CRUD + image upload URLs
 ├── slot-management/     - EventBridge triggered slot opening
-└── ttl-cleanup/         - DynamoDB Stream triggered cleanup
+└── order-cleanup/       - Step Functions triggered inventory restoration
 ```
 
 ## Deployment
@@ -257,7 +253,7 @@ npm install
 cd lambda/orders && npm install && npm run build
 cd ../items && npm install && npm run build
 cd ../slot-management && npm install && npm run build
-cd ../ttl-cleanup && npm install && npm run build
+cd ../order-cleanup && npm install && npm run build
 ```
 
 ### Deploy Stack
@@ -281,11 +277,11 @@ npx cdk deploy ManviKitchenStack-{environment} --region us-east-2
 - **Format**: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (excludes confusing 0,O,1,I)
 - **Collision Risk**: 0.23% after 100K orders (negligible for weekend business)
 
-### 3. TTL + DynamoDB Streams
-- **Why**: Automatic cleanup without cron jobs
-- **How**: TTL deletes expired blocks → Stream triggers Lambda → Restores quantity
-- **Benefit**: Zero manual intervention, cost-effective
-- **Note**: Only BLOCKED records trigger restoration (confirmed orders already deleted)
+### 3. Step Functions + Order Status Check
+- **Why**: Real-time cleanup (not eventual consistency like DynamoDB TTL)
+- **How**: Step Function waits 15 min → Lambda checks order status → Restores if Created
+- **Benefit**: Exact 15-minute timing, no Inventory table needed
+- **Cost**: ~$0.000025 per order (minimal for low volume)
 
 ### 4. EventBridge Slot Opening
 - **Why**: Predictable weekly schedule
@@ -323,10 +319,10 @@ npx cdk deploy ManviKitchenStack-{environment} --region us-east-2
 
 - **DynamoDB**: On-demand billing (pay per request)
 - **Lambda**: 1M free requests/month
+- **Step Functions**: $0.025 per 1000 state transitions (negligible for low volume)
 - **S3**: Lifecycle policies for old images
 - **CloudFront**: Price class ALL (includes India edge locations for local audience)
 - **API Gateway**: REST API (cheaper than HTTP API for low volume)
-- **Inventory Table**: Auto-cleanup on confirmation (no CONFIRMED records kept)
 
 ## Documentation
 
@@ -349,6 +345,7 @@ GitHub Actions workflows:
 - DynamoDB
 - API Gateway
 - Cognito
+- Step Functions
 - EventBridge
 - S3 + CloudFront
 

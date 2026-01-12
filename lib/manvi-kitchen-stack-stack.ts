@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { OrderDatabase } from './constructs/database/order-database';
 import { ItemDatabase } from './constructs/database/item-database';
-import { InventoryDatabase } from './constructs/database/inventory-database';
 import { SlotAvailabilityDatabase } from './constructs/database/slot-availability-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { ImageStorage } from './constructs/storage/image-storage';
@@ -10,8 +9,9 @@ import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { SlotManagementLambda } from './constructs/compute/slot-management-lambda';
-import { TtlCleanupLambda } from './constructs/compute/ttl-cleanup-lambda';
+import { OrderCleanupLambda } from './constructs/compute/order-cleanup-lambda';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
+import { InventoryCleanupStateMachine } from './constructs/compute/inventory-cleanup-statemachine';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OrderApi } from './constructs/api/order-api';
 
@@ -28,31 +28,35 @@ export class ManviKitchenStackStack extends cdk.Stack {
     // Create constructs
     const orderdatabase = new OrderDatabase(this, 'Database');
     const itemdatabase = new ItemDatabase(this, 'ItemDatabase');
-    const inventorydatabase = new InventoryDatabase(this, 'InventoryDatabase');
     const slotAvailability = new SlotAvailabilityDatabase(this, 'SlotAvailability');
     const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
     const auth = new CognitoAuth(this, 'Auth', { environment });
+    
+    const orderCleanup = new OrderCleanupLambda(this, 'OrderCleanup', {
+      orderTable: orderdatabase.table,
+      slotAvailabilityTable: slotAvailability.table,
+    });
+    
+    const cleanupStateMachine = new InventoryCleanupStateMachine(this, 'CleanupStateMachine', {
+      cleanupLambda: orderCleanup.function,
+    });
+    
     const lambdas = new OrderLambdas(this, 'Lambdas', {
       orderTable: orderdatabase.table,
-      inventoryTable: inventorydatabase.table,
       itemTable: itemdatabase.table,
       slotAvailabilityTable: slotAvailability.table,
       orderHistoryTable: orderHistory.table,
+      cleanupStateMachine: cleanupStateMachine.stateMachine,
     });
     const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
       itemTable: itemdatabase.table,
       imageBucket: imageStorage.bucket,
       imageDistribution: imageStorage.distribution,
-      inventoryTable: inventorydatabase.table,
       slotAvailabilityTable: slotAvailability.table,
     });
     const slotManagement = new SlotManagementLambda(this, 'SlotManagement', {
       itemTable: itemdatabase.table,
-      slotAvailabilityTable: slotAvailability.table,
-    });
-    const ttlCleanup = new TtlCleanupLambda(this, 'TtlCleanup', {
-      inventoryTable: inventorydatabase.table,
       slotAvailabilityTable: slotAvailability.table,
     });
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {

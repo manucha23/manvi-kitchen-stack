@@ -1,4 +1,5 @@
-import { GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { StartExecutionCommand } from '@aws-sdk/client-sfn';
 import {
   blockInventory,
   confirmInventory,
@@ -6,22 +7,23 @@ import {
   checkAvailability,
   updateSlotQuantity
 } from '../../services/inventory.service';
-import { docClientMock, resetMocks, setupEnv } from '../test-utils';
+import { docClientMock, sfnClientMock, resetMocks, setupEnv } from '../test-utils';
 
 describe('Inventory Service', () => {
   beforeAll(() => setupEnv());
   beforeEach(() => resetMocks());
 
   describe('blockInventory', () => {
-    it('should block inventory successfully', async () => {
+    it('should block inventory and start step function', async () => {
       docClientMock.on(UpdateCommand).resolves({});
-      docClientMock.on(PutCommand).resolves({});
+      sfnClientMock.on(StartExecutionCommand).resolves({});
 
       await expect(
         blockInventory('item-1', 'saturday-lunch', '2024-12-31', 2, 'ABC123')
       ).resolves.not.toThrow();
 
-      expect(docClientMock.calls()).toHaveLength(2);
+      expect(docClientMock.calls()).toHaveLength(1);
+      expect(sfnClientMock.calls()).toHaveLength(1);
     });
 
     it('should fail when insufficient quantity', async () => {
@@ -32,94 +34,52 @@ describe('Inventory Service', () => {
       ).rejects.toThrow();
     });
 
-    it('should create block with TTL', async () => {
+    it('should work without step function ARN', async () => {
+      const originalArn = process.env.CLEANUP_STATE_MACHINE_ARN;
+      delete process.env.CLEANUP_STATE_MACHINE_ARN;
       docClientMock.on(UpdateCommand).resolves({});
-      docClientMock.on(PutCommand).resolves({});
 
       await blockInventory('item-1', 'saturday-lunch', '2024-12-31', 2, 'ABC123');
 
-      expect(docClientMock.calls()).toHaveLength(2);
+      expect(docClientMock.calls()).toHaveLength(1);
+      expect(sfnClientMock.calls()).toHaveLength(0);
+      
+      process.env.CLEANUP_STATE_MACHINE_ARN = originalArn;
     });
   });
 
   describe('confirmInventory', () => {
-    it('should delete blocked records', async () => {
-      docClientMock.on(QueryCommand).resolves({
-        Items: [
-          { slotKey: 'item-1#saturday-lunch#2024-12-31', blockId: 'ABC123#item-1' }
-        ]
-      });
-      docClientMock.on(DeleteCommand).resolves({});
-
-      await confirmInventory('ABC123');
-
-      expect(docClientMock.calls()).toHaveLength(2); // 1 Query + 1 Delete
-    });
-
-    it('should handle no blocks found', async () => {
-      docClientMock.on(QueryCommand).resolves({ Items: [] });
-
+    it('should be a no-op', async () => {
       await expect(confirmInventory('ABC123')).resolves.not.toThrow();
-    });
-
-    it('should handle multiple blocks', async () => {
-      docClientMock.on(QueryCommand).resolves({
-        Items: [
-          { slotKey: 'item-1#saturday-lunch#2024-12-31', blockId: 'ABC123#item-1' },
-          { slotKey: 'item-2#saturday-lunch#2024-12-31', blockId: 'ABC123#item-2' }
-        ]
-      });
-      docClientMock.on(DeleteCommand).resolves({});
-
-      await confirmInventory('ABC123');
-
-      expect(docClientMock.calls()).toHaveLength(3); // 1 Query + 2 Deletes
+      expect(docClientMock.calls()).toHaveLength(0);
     });
   });
 
   describe('releaseInventory', () => {
-    it('should restore quantity and delete blocks', async () => {
+    it('should restore quantity from order items', async () => {
       docClientMock.on(QueryCommand).resolves({
         Items: [{
-          slotKey: 'item-1#saturday-lunch#2024-12-31',
-          blockId: 'ABC123#item-1',
-          itemId: 'item-1',
+          orderId: 'ABC123',
           slot: 'saturday-lunch',
-          date: '2024-12-31',
-          quantity: 2
+          slotDate: '2024-12-31',
+          items: [
+            { itemId: 'item-1', quantity: 2 },
+            { itemId: 'item-2', quantity: 1 }
+          ]
         }]
       });
       docClientMock.on(UpdateCommand).resolves({});
-      docClientMock.on(DeleteCommand).resolves({});
 
       await releaseInventory('ABC123');
 
-      expect(docClientMock.calls()).toHaveLength(3); // 1 Query + 1 Update + 1 Delete
+      expect(docClientMock.calls()).toHaveLength(3); // 1 Query + 2 Updates
     });
 
-    it('should handle invalid item data', async () => {
-      docClientMock.on(QueryCommand).resolves({
-        Items: [{ slotKey: 'test', blockId: 'test' }] // Missing required fields
-      });
+    it('should handle order not found', async () => {
+      docClientMock.on(QueryCommand).resolves({ Items: [] });
 
       await expect(releaseInventory('ABC123')).resolves.not.toThrow();
-    });
-
-    it('should skip items with missing slotKey or blockId', async () => {
-      docClientMock.on(QueryCommand).resolves({
-        Items: [{
-          itemId: 'item-1',
-          slot: 'saturday-lunch',
-          date: '2024-12-31',
-          quantity: 2
-          // Missing slotKey and blockId
-        }]
-      });
-      docClientMock.on(UpdateCommand).resolves({});
-
-      await releaseInventory('ABC123');
-
-      expect(docClientMock.calls()).toHaveLength(2); // 1 Query + 1 Update (no Delete)
+      expect(docClientMock.calls()).toHaveLength(1);
     });
   });
 

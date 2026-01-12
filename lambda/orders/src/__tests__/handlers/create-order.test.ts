@@ -1,7 +1,8 @@
 import { BatchGetCommand, GetCommand, PutCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { createOrder } from '../../handlers/create-order.handler';
-import { docClientMock, resetMocks, setupEnv } from '../test-utils';
+import { docClientMock, sfnClientMock, resetMocks, setupEnv } from '../test-utils';
 
 describe('Create Order Handler', () => {
   beforeAll(() => setupEnv());
@@ -46,6 +47,7 @@ describe('Create Order Handler', () => {
       });
       docClientMock.on(UpdateCommand).resolves({});
       docClientMock.on(PutCommand).resolves({});
+      sfnClientMock.on(StartExecutionCommand).resolves({});
 
       const result = await createOrder(mockEvent(validRequest));
 
@@ -81,6 +83,7 @@ describe('Create Order Handler', () => {
       });
       docClientMock.on(UpdateCommand).resolves({});
       docClientMock.on(PutCommand).resolves({});
+      sfnClientMock.on(StartExecutionCommand).resolves({});
 
       const result = await createOrder(mockEvent(multiItemRequest));
 

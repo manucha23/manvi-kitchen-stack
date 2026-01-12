@@ -25,12 +25,10 @@ describe('Delete Order Handler', () => {
       docClientMock.on(GetCommand).resolves({ Item: mockCreatedOrder });
       docClientMock.on(QueryCommand).resolves({
         Items: [{
-          slotKey: 'item-1#saturday-lunch#2024-12-31',
-          blockId: 'ABC123#item-1',
-          itemId: 'item-1',
+          orderId: 'ABC123',
+          items: [{ itemId: 'item-1', quantity: 2 }],
           slot: 'saturday-lunch',
-          date: '2024-12-31',
-          quantity: 2
+          slotDate: '2024-12-31'
         }]
       });
       docClientMock.on(UpdateCommand).resolves({});

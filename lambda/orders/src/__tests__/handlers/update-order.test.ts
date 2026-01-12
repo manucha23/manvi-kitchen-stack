@@ -1,4 +1,4 @@
-import { GetCommand, UpdateCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { updateOrder } from '../../handlers/update-order.handler';
 import { docClientMock, resetMocks, setupEnv } from '../test-utils';
@@ -26,7 +26,6 @@ describe('Update Order Handler', () => {
     it('should update order status', async () => {
       docClientMock.on(GetCommand).resolves({ Item: mockOrder });
       docClientMock.on(UpdateCommand).resolves({ Attributes: { ...mockOrder, status: OrderStatus.ACCEPTED } });
-      docClientMock.on(QueryCommand).resolves({ Items: [] });
 
       const result = await updateOrder('ABC123', mockEvent({ orderStatus: 'Accepted' }));
 
@@ -64,29 +63,24 @@ describe('Update Order Handler', () => {
   });
 
   describe('Status Transition Cases', () => {
-    it('should confirm inventory when status changes to Accepted', async () => {
+    it('should update status to Accepted', async () => {
       docClientMock.on(GetCommand).resolves({ Item: mockOrder });
       docClientMock.on(UpdateCommand).resolves({ Attributes: { ...mockOrder, status: OrderStatus.ACCEPTED } });
-      docClientMock.on(QueryCommand).resolves({
-        Items: [{ slotKey: 'item-1#saturday-lunch#2024-12-31', blockId: 'ABC123#item-1' }]
-      });
-      docClientMock.on(DeleteCommand).resolves({});
 
       const result = await updateOrder('ABC123', mockEvent({ orderStatus: 'Accepted' }));
 
       expect(result.statusCode).toBe(200);
-      // Should have called Query and Delete
-      expect(docClientMock.calls().length).toBeGreaterThan(2);
+      const body = JSON.parse(result.body);
+      expect(body.status).toBe(OrderStatus.ACCEPTED);
     });
 
-    it('should handle inventory errors gracefully', async () => {
+    it('should handle status update errors gracefully', async () => {
       docClientMock.on(GetCommand).resolves({ Item: mockOrder });
-      docClientMock.on(UpdateCommand).resolves({ Attributes: { ...mockOrder, status: OrderStatus.ACCEPTED } });
-      docClientMock.on(QueryCommand).rejects(new Error('Inventory error'));
+      docClientMock.on(UpdateCommand).rejects(new Error('Update error'));
 
       const result = await updateOrder('ABC123', mockEvent({ orderStatus: 'Accepted' }));
 
-      expect(result.statusCode).toBe(200); // Order update succeeds despite inventory error
+      expect(result.statusCode).toBe(500);
     });
   });
 
