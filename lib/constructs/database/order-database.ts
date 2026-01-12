@@ -15,11 +15,11 @@ export class OrderDatabase extends Construct {
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
-    // GSI for querying by status with date range support
-    this.table.addGlobalSecondaryIndex({
-      indexName: 'orderStatus-slotDate-index-v2', // Changed name to force recreation
-      partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
-    });
+    // GSI temporarily removed to allow CloudFormation to drop the old GSI. Re-add after deploy.
+    // this.table.addGlobalSecondaryIndex({
+    //   indexName: 'orderStatus-slotDate-index-v2',
+    //   partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
+    //   sortKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
+    // });
   }
 }
