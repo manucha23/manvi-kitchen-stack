@@ -1,5 +1,4 @@
 import { GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { StartExecutionCommand } from '@aws-sdk/client-sfn';
 import {
   blockInventory,
   confirmInventory,
@@ -14,16 +13,14 @@ describe('Inventory Service', () => {
   beforeEach(() => resetMocks());
 
   describe('blockInventory', () => {
-    it('should block inventory and start step function', async () => {
+    it('should block inventory', async () => {
       docClientMock.on(UpdateCommand).resolves({});
-      sfnClientMock.on(StartExecutionCommand).resolves({});
 
       await expect(
         blockInventory('item-1', 'saturday-lunch', '2024-12-31', 2, 'ABC123')
       ).resolves.not.toThrow();
 
       expect(docClientMock.calls()).toHaveLength(1);
-      expect(sfnClientMock.calls()).toHaveLength(1);
     });
 
     it('should fail when insufficient quantity', async () => {
@@ -35,16 +32,11 @@ describe('Inventory Service', () => {
     });
 
     it('should work without step function ARN', async () => {
-      const originalArn = process.env.CLEANUP_STATE_MACHINE_ARN;
-      delete process.env.CLEANUP_STATE_MACHINE_ARN;
       docClientMock.on(UpdateCommand).resolves({});
 
       await blockInventory('item-1', 'saturday-lunch', '2024-12-31', 2, 'ABC123');
 
       expect(docClientMock.calls()).toHaveLength(1);
-      expect(sfnClientMock.calls()).toHaveLength(0);
-      
-      process.env.CLEANUP_STATE_MACHINE_ARN = originalArn;
     });
   });
 
