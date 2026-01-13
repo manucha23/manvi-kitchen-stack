@@ -16,9 +16,6 @@ export const blockInventory = async (itemId: string, slot: string, date: string,
     ExpressionAttributeValues: { ':qty': quantity },
     ConditionExpression: 'availableQuantity >= :qty'
   }));
-
-  // Trigger Step Function for cleanup
-  await triggerStateMachine(orderId);
 };
 
 // Start Step Function to auto-release after 15 minutes if not confirmed
