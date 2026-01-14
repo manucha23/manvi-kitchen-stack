@@ -1,0 +1,281 @@
+// Custom animations
+@keyframes fadeInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-fade-in-left {
+    animation: fadeInLeft 0.8s ease-out forwards;
+}
+
+.animate-fade-in-right {
+    animation: fadeInRight 0.8s ease-out forwards;
+}
+
+.animate-zoom-in {
+    animation: zoomIn 0.6s ease-out forwards;
+}
+
+// Layout Replacements (Tailwind Fallback)
+.login-container {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--p-content-background);
+    padding: 1rem;
+    font-family: inherit;
+}
+
+.login-card {
+    background-color: var(--p-surface-0);
+    border: 1px solid var(--p-content-border-color);
+    border-radius: 2.5rem;
+    box-shadow: var(--p-card-shadow);
+    display: flex;
+    width: 100%;
+    max-width: 64rem; // max-w-5xl
+    overflow: hidden;
+    min-height: 600px;
+    position: relative;
+    z-index: 10;
+}
+
+.left-panel {
+    width: 100%;
+    padding: 2rem;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background-color: var(--p-surface-0);
+    z-index: 20;
+
+    @media (min-width: 768px) {
+        width: 50%;
+        padding: 3rem;
+    }
+}
+
+.right-panel {
+    display: none;
+    width: 50%;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+
+    @media (min-width: 768px) {
+        display: block;
+    }
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+// Utility Helpers
+.w-full {
+    width: 100%;
+}
+
+.flex {
+    display: flex;
+}
+
+.flex-col {
+    flex-direction: column;
+}
+
+.gap-6 {
+    gap: 1.5rem;
+}
+
+.relative {
+    position: relative;
+}
+
+.absolute {
+    position: absolute;
+}
+
+.top-8 {
+    top: 2rem;
+}
+
+.left-8 {
+    left: 2rem;
+
+    @media (min-width: 768px) {
+        left: 3rem;
+    }
+}
+
+.bottom-6 {
+    bottom: 1.5rem;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.mx-auto {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.max-w-xs {
+    max-width: 20rem;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.text-xl {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.text-slate-800 {
+    color: var(--p-text-color);
+}
+
+.font-serif {
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+.italic {
+    font-style: italic;
+}
+
+.text-xs {
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+.text-gray-400 {
+    color: var(--p-text-muted-color);
+}
+
+.mt-4 {
+    margin-top: 1rem;
+}
+
+.text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.text-red-500 {
+    color: var(--p-red-500);
+}
+
+// PrimeNG Overrides for specific look
+:host ::ng-deep {
+    .p-password {
+        display: block;
+
+        input {
+            width: 100%;
+            border-radius: 9999px;
+            padding: 1rem 1.5rem;
+            border: 1px solid var(--p-content-border-color);
+            background-color: var(--p-surface-50);
+            color: var(--p-text-color);
+            transition: border-color 0.2s, box-shadow 0.2s;
+
+            &:focus {
+                border-color: var(--p-primary-color);
+                outline: none;
+                box-shadow: 0 0 0 2px var(--p-primary-100);
+            }
+
+            &::placeholder {
+                font-family: serif;
+                font-style: italic;
+                color: var(--p-text-muted-color);
+            }
+        }
+    }
+
+    .p-inputtext {
+        border-radius: 9999px;
+        padding: 1rem 1.5rem;
+        border: 1px solid var(--p-content-border-color);
+        background-color: var(--p-surface-50);
+        color: var(--p-text-color);
+        transition: border-color 0.2s, box-shadow 0.2s;
+
+        &:focus {
+            border-color: var(--p-primary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px var(--p-primary-100);
+        }
+
+        &::placeholder {
+            font-family: serif;
+            font-style: italic;
+            color: var(--p-text-muted-color);
+        }
+    }
+
+    .p-button {
+        border-radius: 9999px;
+        padding: 0.75rem 1.5rem;
+        font-family: serif;
+        letter-spacing: 0.05em;
+        background-color: var(--p-primary-color);
+        border: none;
+        color: var(--p-primary-contrast-color);
+        font-weight: 600;
+
+        &:hover {
+            background-color: var(--p-primary-600);
+        }
+    }
+}

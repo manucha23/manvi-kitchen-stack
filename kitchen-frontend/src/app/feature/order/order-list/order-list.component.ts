@@ -3,14 +3,35 @@ import { OrderService } from '../../../shared/services/order.service';
 import { Order, OrderItem } from '../../../shared/models/order';
 
 import { CommonModule } from '@angular/common'; // For pipes: number, date, uppercase
+import { FormsModule } from '@angular/forms';
 import { OrderCreateComponent } from '../order-create/order-create.component';
+import { TableModule } from 'primeng/table';
+import { ButtonModule } from 'primeng/button';
+import { TagModule } from 'primeng/tag';
+import { SelectModule } from 'primeng/select';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { InputTextModule } from 'primeng/inputtext';
+import { DialogModule } from 'primeng/dialog';
 
 @Component({
   selector: 'app-order-list',
   templateUrl: './order-list.component.html',
-  styleUrls: ['./order-list.component.sass'],
+  styleUrls: ['./order-list.component.scss'],
   standalone: true,
-  imports: [CommonModule, OrderCreateComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    OrderCreateComponent,
+    TableModule,
+    ButtonModule,
+    TagModule,
+    SelectModule,
+    IconFieldModule,
+    InputIconModule,
+    InputTextModule,
+    DialogModule
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderListComponent implements OnInit {
@@ -21,6 +42,14 @@ export class OrderListComponent implements OnInit {
   auditDetails = signal<Order[]>([]);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
+
+  statusOptions = [
+    { label: 'CREATED', value: 'created' },
+    { label: 'ACCEPTED', value: 'accepted' },
+    { label: 'COOKING', value: 'cooking' },
+    { label: 'READY', value: 'ready' },
+    { label: 'DELIVERED', value: 'delivered' }
+  ];
 
   constructor(private orderService: OrderService) { }
 
@@ -75,5 +104,22 @@ export class OrderListComponent implements OnInit {
   onOrderCreated(): void {
     // List is refreshed by service
     this.showCreatePopup.set(false);
+  }
+
+  getStatusSeverity(status: string): "success" | "secondary" | "info" | "warn" | "danger" | "contrast" | undefined {
+    switch (status?.toLowerCase()) {
+      case 'created':
+        return 'info';
+      case 'accepted':
+        return 'warn';
+      case 'cooking':
+        return 'contrast';
+      case 'ready':
+        return 'success';
+      case 'delivered':
+        return 'secondary';
+      default:
+        return 'info';
+    }
   }
 }

@@ -1,106 +1,87 @@
-<div class="order-list">
-  <div class="header">
-    <h2>Orders</h2>
-    <button class="create-btn" (click)="showCreatePopup.set(true)">Create Order</button>
+<div class="p-6">
+  <div
+    class="flex justify-between items-center mb-6 p-6 bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700">
+    <h2 class="text-3xl font-bold text-surface-900 dark:text-surface-0 m-0">Orders</h2>
+    <p-button label="Create Order" icon="pi pi-plus" (click)="showCreatePopup.set(true)" severity="primary"
+      rounded="true" />
   </div>
 
-  @if (loading()) {
-  <div class="loading">Loading orders...</div>
-  }
+  <div
+    class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden bg-surface-0 dark:bg-surface-900 p-6">
+    <p-table #dt [value]="orders()" [loading]="loading()" [paginator]="true" [rows]="10"
+      [rowsPerPageOptions]="[10, 20, 50]" [globalFilterFields]="['orderId', 'name', 'status']" responsiveLayout="stack"
+      [breakpoint]="'960px'" styleClass="p-datatable-striped" [tableStyle]="{ 'min-width': '50rem' }">
 
-  @if (!loading() && orders().length === 0) {
-  <div class="no-orders">
-    No orders found.
-  </div>
-  }
-
-  <!-- Desktop Table View -->
-  @if (!loading() && orders().length > 0) {
-  <div class="table-container">
-    <table class="orders-table">
-      <thead>
-        <tr>
-          <th>Order ID</th>
-          <th>Customer</th>
-          <th>Address</th>
-          <th>Items</th>
-          <th>Total</th>
-          <th>Status</th>
-          <th>Update Status</th>
-          <th>Instructions</th>
-          <th>Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (order of orders(); track order) {
-        <tr [class]="'status-' + order.status.toLowerCase()">
-          <td><a href="#" (click)="showAuditDetails(order.orderId, $event)">{{order.orderId}}</a></td>
-          <td>{{order.name}}</td>
-          <td>{{order.address}}, {{order.pinCode}}</td>
-          <td>
-            @for (item of order.items; track item; let last = $last) {
-            <span>
-              {{item.name}} ({{item.quantity}}x){{!last ? ', ' : ''}}
-            </span>
-            }
-          </td>
-          <td>₹{{getTotalAmount(order.items) | number:'1.2-2'}}</td>
-          <td><span class="status-badge">{{order.status | uppercase}}</span></td>
-          <td>
-            <select (change)="updateOrderStatus(order.orderId, $event)" [value]="order.status">
-              <option value="created">CREATED</option>
-              <option value="accepted">ACCEPTED</option>
-              <option value="cooking">COOKING</option>
-              <option value="ready">READY</option>
-              <option value="delivered">DELIVERED</option>
-            </select>
-          </td>
-          <td>{{order.instructions}}</td>
-          <td>{{order.createdAt | date:'short'}}</td>
-        </tr>
-        }
-      </tbody>
-    </table>
-  </div>
-  }
-
-  <!-- Mobile Card View -->
-  @if (!loading() && orders().length > 0) {
-  <div class="mobile-cards">
-    @for (order of orders(); track order) {
-    <div class="order-card" [class]="'status-' + order.status.toLowerCase()">
-      <div class="card-header">
-        <h3><a href="#" (click)="showAuditDetails(order.orderId, $event)">{{order.orderId}}</a></h3>
-        <span class="status-badge">{{order.status | uppercase}}</span>
-      </div>
-      <div class="card-content">
-        <p><strong>Customer:</strong> {{order.name}}</p>
-        <p><strong>Address:</strong> {{order.address}}, {{order.pinCode}}</p>
-        <p><strong>Items:</strong>
-          @for (item of order.items; track item; let last = $last) {
-          <span>
-            {{item.name}} ({{item.quantity}}x){{!last ? ', ' : ''}}
-          </span>
-          }
-        </p>
-        <p><strong>Total:</strong> ₹{{getTotalAmount(order.items) | number:'1.2-2'}}</p>
-        <p><strong>Instructions:</strong> {{order.instructions}}</p>
-        <p><strong>Date:</strong> {{order.createdAt | date:'short'}}</p>
-        <div class="status-update">
-          <label>Update Status:</label>
-          <select (change)="updateOrderStatus(order.orderId, $event)" [value]="order.status">
-            <option value="created">CREATED</option>
-            <option value="accepted">ACCEPTED</option>
-            <option value="cooking">COOKING</option>
-            <option value="ready">READY</option>
-            <option value="delivered">DELIVERED</option>
-          </select>
+      <ng-template #caption>
+        <div class="flex justify-between items-center">
+          <h5 class="m-0">Manage Kitchen Orders</h5>
+          <p-iconfield>
+            <p-inputicon>
+              <i class="pi pi-search"></i>
+            </p-inputicon>
+            <input pInputText type="text" (input)="dt.filterGlobal($any($event.target).value, 'contains')"
+              placeholder="Search orders..." />
+          </p-iconfield>
         </div>
-      </div>
-    </div>
-    }
+      </ng-template>
+
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="orderId" style="width:15%">Order ID <p-sortIcon field="orderId" /></th>
+          <th pSortableColumn="name" style="width:15%">Customer <p-sortIcon field="name" /></th>
+          <th style="width:20%">Address</th>
+          <th style="width:10%">Total</th>
+          <th pSortableColumn="status" style="width:12%">Status <p-sortIcon field="status" /></th>
+          <th style="width:15%">Action</th>
+          <th pSortableColumn="createdAt" style="width:13%">Date <p-sortIcon field="createdAt" /></th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-order>
+        <tr>
+          <td>
+            <span class="p-column-title">Order ID</span>
+            <a href="#" (click)="showAuditDetails(order.orderId, $event)"
+              class="font-bold text-primary hover:underline">
+              {{order.orderId}}
+            </a>
+          </td>
+          <td>
+            {{order.name}}
+          </td>
+          <td>
+            <div class="text-xs text-surface-600 dark:text-surface-400">
+              {{order.address}} {{order.pinCode}}
+            </div>
+          </td>
+          <td>
+            <span class="font-semibold text-surface-900 dark:text-surface-0">
+              ₹{{getTotalAmount(order.items) | number:'1.2-2'}}
+            </span>
+          </td>
+          <td>
+            <p-tag [value]="order.status | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true" />
+          </td>
+          <td>
+            <p-select [options]="statusOptions" [ngModel]="order.status"
+              (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body" class="w-full" />
+          </td>
+          <td>
+            <span class="text-sm">{{order.createdAt | date:'short'}}</span>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="7" class="text-center p-8">
+            <i class="pi pi-inbox text-4xl mb-4 text-surface-400"></i>
+            <p>No orders found matching your criteria.</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
   </div>
-  }
 
   <!-- Order Create Component -->
   <app-order-create [isVisible]="showCreatePopup()" (orderCreated)="onOrderCreated()"
@@ -109,35 +90,33 @@
 </div>
 
 <!-- Audit Details Popup -->
-@if (showAuditPopup()) {
-<div class="popup-overlay" (click)="closeAuditPopup()">
-  <div class="popup-content" (click)="$event.stopPropagation()">
-    <div class="popup-header">
-      <h3>Audit Details - {{selectedOrderId()}}</h3>
-      <button class="close-btn" (click)="closeAuditPopup()">&times;</button>
+<p-dialog [header]="'Audit Trail - ' + selectedOrderId()" [modal]="true" [visible]="showAuditPopup()"
+  [style]="{ width: '40rem' }" [breakpoints]="{ '960px': '75vw', '641px': '90vw' }" [draggable]="false"
+  [resizable]="false" (onHide)="closeAuditPopup()">
+
+  <div class="flex flex-col gap-4">
+    @if (auditLoading()) {
+    <div class="flex flex-col items-center p-8 text-surface-500">
+      <i class="pi pi-spin pi-spinner text-3xl mb-2"></i>
+      <span>Fetching history...</span>
     </div>
-    <div class="popup-body">
-      @if (auditLoading()) {
-      <div class="loading">Loading audit details...</div>
-      }
-      @if (!auditLoading() && auditDetails().length > 0) {
-      <div>
-        @for (audit of auditDetails(); track audit) {
-        <div class="audit-item">
-          <p><strong>Version:</strong> {{audit.version}}</p>
-          <p><strong>Status:</strong> {{audit.status}}</p>
-          <p><strong>Updated:</strong> {{audit.updatedAt | date:'medium'}}</p>
-          <hr>
+    }
+    @if (!auditLoading() && auditDetails().length > 0) {
+    <div class="space-y-4">
+      @for (audit of auditDetails(); track audit) {
+      <div class="p-4 bg-surface-50 dark:bg-surface-800 rounded-lg border-l-4 border-primary">
+        <div class="flex justify-between items-start mb-2">
+          <span class="text-xs font-bold text-primary uppercase tracking-wider">Version {{audit.version}}</span>
+          <span class="text-xs text-surface-500">{{audit.updatedAt | date:'medium'}}</span>
         </div>
-        }
-      </div>
-      }
-      @if (!auditLoading() && auditDetails().length === 0) {
-      <div>
-        No audit details found.
+        <p-tag [value]="audit.status | uppercase" [severity]="getStatusSeverity(audit.status)" size="small" />
       </div>
       }
     </div>
+    }
   </div>
-</div>
-}
+
+  <ng-template pTemplate="footer">
+    <p-button label="Close" icon="pi pi-times" [text]="true" (click)="closeAuditPopup()" severity="secondary" />
+  </ng-template>
+</p-dialog>

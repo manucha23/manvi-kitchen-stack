@@ -16,13 +16,28 @@ interface OrderForm {
 }
 
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { TextareaModule } from 'primeng/textarea';
+import { FluidModule } from 'primeng/fluid';
+import { DialogModule } from 'primeng/dialog';
 
 @Component({
   selector: 'app-order-create',
   templateUrl: './order-create.component.html',
-  styleUrls: ['./order-create.component.sass'],
+  styleUrls: ['./order-create.component.scss'],
   standalone: true,
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    InputNumberModule,
+    TextareaModule,
+    TextareaModule,
+    FluidModule,
+    DialogModule
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderCreateComponent {
