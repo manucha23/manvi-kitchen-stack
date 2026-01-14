@@ -1,0 +1,96 @@
+// Shared popup styles
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.popup-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80%;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    border-bottom: 1px solid #e9ecef;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 12px 12px 0 0;
+
+    h3 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+    }
+}
+
+.close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: white;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+}
+
+.popup-body {
+    padding: 24px;
+}
+
+// Shared status colors
+.status-created {
+    background: #fff8e1;
+    border-left: 4px solid #ff9800;
+}
+
+.status-accepted {
+    background: #f3e5f5;
+    border-left: 4px solid #9c27b0;
+}
+
+.status-cooking {
+    background: #e8f5e8;
+    border-left: 4px solid #4caf50;
+}
+
+.status-ready {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+}
+
+.status-delivered {
+    background: #e0f2f1;
+    border-left: 4px solid #009688;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
