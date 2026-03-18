@@ -341,7 +341,7 @@ GitHub Actions workflows:
 
 **Backend:**
 - AWS CDK (TypeScript)
-- Lambda (Node.js 22)
+- Lambda (Node.js 24)
 - DynamoDB
 - API Gateway
 - Cognito
