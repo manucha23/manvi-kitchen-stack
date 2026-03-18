@@ -19,7 +19,7 @@ export class OrderLambdas extends Construct {
     super(scope, id);
 
     this.orderFunction = new lambda.Function(this, 'OrderHandler', {
-      runtime: lambda.Runtime.NODEJS_24_X,
+      runtime: lambda.Runtime.NODEJS_LATEST,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/orders', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],

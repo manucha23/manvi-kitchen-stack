@@ -19,7 +19,7 @@ export class ItemLambdas extends Construct {
     super(scope, id);
 
     this.itemFunction = new lambda.Function(this, 'ItemHandler', {
-      runtime: lambda.Runtime.NODEJS_24_X,
+      runtime: lambda.Runtime.NODEJS_LATEST,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/items', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],

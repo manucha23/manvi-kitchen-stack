@@ -16,7 +16,7 @@ export class OrderAuditLambda extends Construct {
     super(scope, id);
 
     this.function = new lambda.Function(this, 'OrderAuditHandler', {
-      runtime: lambda.Runtime.NODEJS_24_X,
+      runtime: lambda.Runtime.NODEJS_LATEST,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/order-audit', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],

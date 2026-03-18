@@ -15,7 +15,7 @@ export class OrderCleanupLambda extends Construct {
     super(scope, id);
 
     this.function = new lambda.Function(this, 'Function', {
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: lambda.Runtime.NODEJS_LATEST,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/ttl-cleanup', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
