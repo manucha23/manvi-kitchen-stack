@@ -50,7 +50,7 @@ export class OrderService {
   }
 
   updateOrderStatus(orderId: string, status: string): Observable<any> {
-    return this.http.put(`${this.apiUrl}/${orderId}`, { status: status.toUpperCase() }).pipe(
+    return this.http.put(`${this.apiUrl}/${orderId}`, { orderStatus: status }).pipe(
       tap(() => {
         // Optimistic update or refresh
         this._orders.update(orders =>

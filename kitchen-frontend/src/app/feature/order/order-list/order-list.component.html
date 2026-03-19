@@ -9,7 +9,7 @@
   <div
     class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden bg-surface-0 dark:bg-surface-900 p-6">
     <p-table #dt [value]="orders()" [loading]="loading()" [paginator]="true" [rows]="10"
-      [rowsPerPageOptions]="[10, 20, 50]" [globalFilterFields]="['orderId', 'name', 'status']" responsiveLayout="stack"
+      [rowsPerPageOptions]="[10, 20, 50]" [globalFilterFields]="['orderId', 'customerName', 'status']" responsiveLayout="stack"
       [breakpoint]="'960px'" styleClass="p-datatable-striped" [tableStyle]="{ 'min-width': '50rem' }">
 
       <ng-template #caption>
@@ -40,23 +40,22 @@
       <ng-template #body let-order>
         <tr>
           <td>
-            <span class="p-column-title">Order ID</span>
             <a href="#" (click)="showAuditDetails(order.orderId, $event)"
               class="font-bold text-primary hover:underline">
               {{order.orderId}}
             </a>
           </td>
           <td>
-            {{order.name}}
+            {{order.customerName}}
           </td>
           <td>
             <div class="text-xs text-surface-600 dark:text-surface-400">
-              {{order.address}} {{order.pinCode}}
+              {{order.deliveryAddress}}
             </div>
           </td>
           <td>
             <span class="font-semibold text-surface-900 dark:text-surface-0">
-              ₹{{getTotalAmount(order.items) | number:'1.2-2'}}
+              ₹{{order.total | number:'1.2-2'}}
             </span>
           </td>
           <td>
@@ -67,7 +66,7 @@
               (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body" class="w-full" />
           </td>
           <td>
-            <span class="text-sm">{{order.createdAt | date:'short'}}</span>
+            <span class="text-sm">{{order.timestamp | date:'short'}}</span>
           </td>
         </tr>
       </ng-template>

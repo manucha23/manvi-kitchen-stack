@@ -44,11 +44,11 @@ export class OrderListComponent implements OnInit {
   showCreatePopup = signal(false);
 
   statusOptions = [
-    { label: 'CREATED', value: 'created' },
-    { label: 'ACCEPTED', value: 'accepted' },
-    { label: 'COOKING', value: 'cooking' },
-    { label: 'READY', value: 'ready' },
-    { label: 'DELIVERED', value: 'delivered' }
+    { label: 'CREATED', value: 'Created' },
+    { label: 'ACCEPTED', value: 'Accepted' },
+    { label: 'COOKING', value: 'Cooking' },
+    { label: 'READY', value: 'Ready' },
+    { label: 'DELIVERED', value: 'Delivered' }
   ];
 
   constructor(private orderService: OrderService) { }

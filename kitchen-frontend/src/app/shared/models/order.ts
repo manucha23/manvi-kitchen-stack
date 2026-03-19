@@ -1,21 +1,34 @@
 
+export enum OrderStatus {
+  CREATED = 'Created',
+  ACCEPTED = 'Accepted',
+  COOKING = 'Cooking',
+  READY = 'Ready',
+  DELIVERED = 'Delivered'
+}
+
 export interface OrderItem {
-  id: number;
+  itemId: string;
   name: string;
-  amount: number;
+  price: number;
   quantity: number;
+  amount: number;
 }
 
 export interface Order {
   orderId: string;
-  userId: string;
-  name: string;
-  address: string;
-  pinCode: number;
-  status: 'placed' | 'accepted' | 'cooking' | 'ready' | 'delivered';
-  instructions: string;
+  orderedBy: string;
+  customerName: string;
+  deliveryAddress: string;
+  contactNumber: string;
+  status: OrderStatus;
+  orderScheduled: string;
+  slot: string;
+  slotDate: string;
   items: OrderItem[];
-  createdAt: string;
-  updatedAt: string;
-  version: number;
+  total: number;
+  instructions?: string;
+  feedbackProvided: boolean;
+  feedbackRequestCount: number;
+  timestamp: string;
 }
