@@ -85,7 +85,7 @@ export class OrderListComponent implements OnInit {
 
     this.orderService.getOrderAudit(orderId).subscribe({
       next: (data: Order[]) => {
-        this.auditDetails.set(data.sort((a, b) => b.version - a.version));
+        this.auditDetails.set(data.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         this.auditLoading.set(false);
       },
       error: (error) => {

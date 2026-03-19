@@ -31,4 +31,6 @@ export interface Order {
   feedbackProvided: boolean;
   feedbackRequestCount: number;
   timestamp: string;
+  version?: number;
+  updatedAt?: string;
 }
