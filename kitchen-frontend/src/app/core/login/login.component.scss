@@ -226,7 +226,7 @@
             padding: 1rem 1.5rem;
             border: 1px solid var(--p-content-border-color);
             background-color: var(--p-surface-50);
-            color: var(--p-text-color);
+            color: #000000 !important; // Force black text for visibility
             transition: border-color 0.2s, box-shadow 0.2s;
 
             &:focus {
@@ -248,7 +248,7 @@
         padding: 1rem 1.5rem;
         border: 1px solid var(--p-content-border-color);
         background-color: var(--p-surface-50);
-        color: var(--p-text-color);
+        color: #000000 !important; // Force black text for visibility
         transition: border-color 0.2s, box-shadow 0.2s;
 
         &:focus {
