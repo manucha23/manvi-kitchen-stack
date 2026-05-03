@@ -1,0 +1,908 @@
+openapi: 3.0.3
+info:
+  title: Manvi Kitchen API
+  description: API contract for the Manvi Kitchen backend, including orders, items, and admin operations.
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/{stage}
+    description: Replace with your deployed API Gateway endpoint.
+    variables:
+      stage:
+        default: dev
+        enum:
+          - dev
+          - prod
+security:
+  - Cognito: []
+components:
+  securitySchemes:
+    Cognito:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: Bearer token from Cognito User Pool
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    OrderItemRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ITEM123
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+      required:
+        - id
+        - quantity
+    CreateOrderRequest:
+      type: object
+      properties:
+        customerName:
+          type: string
+          example: "John Doe"
+        deliveryAddress:
+          type: string
+          example: "123 Main Street, Bangalore"
+        contactNumber:
+          type: string
+          example: "+91-9876543210"
+        orderScheduled:
+          type: string
+          format: date-time
+          example: "2026-05-10T12:30:00Z"
+        slot:
+          type: string
+          example: "saturday-lunch"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemRequest'
+        instructions:
+          type: string
+          example: "Leave at the door."
+      required:
+        - customerName
+        - deliveryAddress
+        - contactNumber
+        - orderScheduled
+        - slot
+        - items
+    UpdateOrderRequest:
+      type: object
+      properties:
+        orderStatus:
+          type: string
+          example: "Accepted"
+        feedbackProvided:
+          type: boolean
+          example: false
+        incrementFeedbackRequest:
+          type: boolean
+          example: true
+        instructions:
+          type: string
+          example: "Please add extra chutney."
+    UpdateSlotAvailabilityRequest:
+      type: object
+      properties:
+        itemId:
+          type: string
+          example: "ITEM123"
+        slot:
+          type: string
+          example: "saturday-lunch"
+        date:
+          type: string
+          format: date
+          example: "2026-05-10"
+        quantity:
+          type: integer
+          minimum: 0
+          example: 10
+      required:
+        - itemId
+        - slot
+        - date
+        - quantity
+    CreateItemRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Paneer Butter Masala"
+        description:
+          type: string
+          example: "Rich paneer in tomato gravy"
+        price:
+          type: number
+          format: float
+          example: 299.99
+        category:
+          type: string
+          example: "Main Course"
+        imageUrl:
+          type: string
+          format: uri
+          example: "https://images.example.com/paneer.jpg"
+        available:
+          type: boolean
+          example: true
+      required:
+        - name
+        - description
+        - price
+        - category
+    UpdateItemRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        category:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        available:
+          type: boolean
+    GenerateUploadUrlRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+          example: "dish-image.jpg"
+        contentType:
+          type: string
+          example: "image/jpeg"
+      required:
+        - fileName
+        - contentType
+    GenerateUploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        imageUrl:
+          type: string
+          format: uri
+        key:
+          type: string
+      required:
+        - uploadUrl
+        - imageUrl
+        - key
+    OrderItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+          format: float
+        quantity:
+          type: integer
+        amount:
+          type: number
+          format: float
+      required:
+        - itemId
+        - name
+        - price
+        - quantity
+        - amount
+    Order:
+      type: object
+      properties:
+        orderId:
+          type: string
+        orderedBy:
+          type: string
+        customerName:
+          type: string
+        deliveryAddress:
+          type: string
+        contactNumber:
+          type: string
+        status:
+          type: string
+        orderScheduled:
+          type: string
+          format: date-time
+        slot:
+          type: string
+        slotDate:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total:
+          type: number
+          format: float
+        instructions:
+          type: string
+        feedbackProvided:
+          type: boolean
+        feedbackRequestCount:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        acceptanceStatus:
+          type: string
+        rejectionReason:
+          type: string
+      required:
+        - orderId
+        - orderedBy
+        - customerName
+        - deliveryAddress
+        - contactNumber
+        - status
+        - orderScheduled
+        - slot
+        - slotDate
+        - items
+        - total
+        - feedbackProvided
+        - feedbackRequestCount
+        - timestamp
+    OrderListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        count:
+          type: integer
+      required:
+        - items
+        - count
+    OrderHistoryResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        history:
+          type: array
+          items:
+            type: object
+      required:
+        - orderId
+        - history
+    Item:
+      type: object
+      properties:
+        itemId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        category:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        available:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        limits:
+          type: object
+          properties:
+            lunchLimit:
+              type: integer
+              nullable: true
+            dinnerLimit:
+              type: integer
+              nullable: true
+            isAcceptingOrders:
+              type: boolean
+            globalKillswitch:
+              type: boolean
+      required:
+        - itemId
+        - name
+        - description
+        - price
+        - category
+        - available
+        - createdAt
+        - updatedAt
+    ItemListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+      required:
+        - items
+    OrderLimitConfig:
+      type: object
+      properties:
+        itemId:
+          type: string
+        lunchLimit:
+          type: integer
+        dinnerLimit:
+          type: integer
+        itemName:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        isAcceptingOrders:
+          type: boolean
+        globalKillswitch:
+          type: boolean
+    OrderLimitConfigListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        configs:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLimitConfig'
+        count:
+          type: integer
+      required:
+        - message
+        - configs
+        - count
+paths:
+  /orders:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    get:
+      summary: List orders
+      operationId: listOrders
+      parameters:
+        - name: orderStatus
+          in: query
+          schema:
+            type: string
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: orderedBy
+          in: query
+          schema:
+            type: string
+        - name: slot
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful order list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    post:
+      summary: Create a new order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /orders/{orderId}:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a single order by ID
+      operationId: getOrder
+      responses:
+        '200':
+          description: Order found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    put:
+      summary: Update an order
+      operationId: updateOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderRequest'
+      responses:
+        '200':
+          description: Updated order response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    delete:
+      summary: Delete an order
+      operationId: deleteOrder
+      responses:
+        '204':
+          description: Order deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /orders/{orderId}/history:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get order history
+      operationId: getOrderHistory
+      responses:
+        '200':
+          description: Order history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderHistoryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /orders/slot-availability:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    put:
+      summary: Update order slot availability for an item
+      operationId: updateSlotAvailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSlotAvailabilityRequest'
+      responses:
+        '200':
+          description: Updated slot availability
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  itemId:
+                    type: string
+                  slot:
+                    type: string
+                  quantity:
+                    type: integer
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /items:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    get:
+      summary: List items
+      operationId: listItems
+      responses:
+        '200':
+          description: Item list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    post:
+      summary: Create an item
+      operationId: createItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateItemRequest'
+      responses:
+        '201':
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /items/upload-url:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    post:
+      summary: Generate a pre-signed upload URL for item images
+      operationId: generateUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateUploadUrlRequest'
+      responses:
+        '200':
+          description: Upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateUploadUrlResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /items/{itemId}:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    parameters:
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get item details
+      operationId: getItem
+      responses:
+        '200':
+          description: Item found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    put:
+      summary: Update an item
+      operationId: updateItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateItemRequest'
+      responses:
+        '200':
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    delete:
+      summary: Delete an item
+      operationId: deleteItem
+      responses:
+        '204':
+          description: Item deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /admin/order-limits:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    get:
+      summary: Get order limit configuration
+      operationId: getOrderLimits
+      responses:
+        '200':
+          description: Order limits configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderLimitConfigListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+    put:
+      summary: Set order limit configuration
+      operationId: setOrderLimits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                itemId:
+                  type: string
+                lunchLimit:
+                  type: integer
+                dinnerLimit:
+                  type: integer
+                itemName:
+                  type: string
+              required:
+                - itemId
+      responses:
+        '200':
+          description: Order limits updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  config:
+                    $ref: '#/components/schemas/OrderLimitConfig'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
+  /admin/killswitch:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    put:
+      summary: Set killswitch state
+      operationId: setKillswitch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                itemId:
+                  type: string
+                isAcceptingOrders:
+                  type: boolean
+                globalKillswitch:
+                  type: boolean
+      responses:
+        '200':
+          description: Killswitch updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  config:
+                    $ref: '#/components/schemas/OrderLimitConfig'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []

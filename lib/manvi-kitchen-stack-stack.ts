@@ -12,6 +12,7 @@ import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
+import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
 
 interface ManviKitchenStackProps extends cdk.StackProps {
@@ -58,6 +59,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     });
     
     const frontend = new FrontendHosting(this, 'Frontend', { environment });
+    const docs = new OpenApiHosting(this, 'OpenApiDocs', { environment });
     const api = new OrderApi(this, 'Api', {
       orderFunction: lambdas.orderFunction,
       itemFunction: itemLambdas.itemFunction,
@@ -90,6 +92,12 @@ export class ManviKitchenStackStack extends cdk.Stack {
       value: frontend.distribution.distributionId,
       description: 'CloudFront Distribution ID',
       exportName: `${environment}-distribution-id`,
+    });
+
+    new cdk.CfnOutput(this, 'OpenApiDocsUrl', {
+      value: `https://${docs.distribution.distributionDomainName}`,
+      description: 'OpenAPI documentation UI URL',
+      exportName: `${environment}-openapi-docs-url`,
     });
 
     new cdk.CfnOutput(this, 'UserPoolId', {
