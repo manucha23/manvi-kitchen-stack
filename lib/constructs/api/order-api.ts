@@ -7,6 +7,7 @@ import { Construct } from 'constructs';
 export interface OrderApiProps {
   orderFunction: lambda.Function;
   itemFunction: lambda.Function;
+  adminFunction: lambda.Function;
   userPool: cognito.UserPool;
   environment: string;
   cloudfrontDomainName: string
@@ -64,8 +65,8 @@ export class OrderApi extends Construct {
     orders.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
     orders.addMethod('POST', new apigw.LambdaIntegration(props.orderFunction), authOptions);
 
-    const slotAvailability = orders.addResource('slot-availability');
-    slotAvailability.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+    const orderLimits = orders.addResource('order-limits');
+    orderLimits.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
 
     const order = orders.addResource('{orderId}');
     order.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
@@ -86,5 +87,14 @@ export class OrderApi extends Construct {
     item.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
     item.addMethod('PUT', new apigw.LambdaIntegration(props.itemFunction), authOptions);
     item.addMethod('DELETE', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+
+    // Admin endpoints (require authentication)
+    const admin = this.api.root.addResource('admin');
+    const adminOrderLimits = admin.addResource('order-limits');
+    adminOrderLimits.addMethod('GET', new apigw.LambdaIntegration(props.adminFunction), authOptions);
+    adminOrderLimits.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), authOptions);
+
+    const adminKillswitch = admin.addResource('killswitch');
+    adminKillswitch.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), authOptions);
   }
 }

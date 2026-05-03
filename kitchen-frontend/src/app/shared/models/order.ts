@@ -33,4 +33,6 @@ export interface Order {
   timestamp: string;
   version?: number;
   updatedAt?: string;
+  acceptanceStatus?: string; // 'accepted' or 'rejected'
+  rejectionReason?: string;
 }

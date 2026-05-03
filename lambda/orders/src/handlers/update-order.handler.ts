@@ -2,7 +2,7 @@ import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, validateUpdateOrderRequest } from '../utils';
 import { OrderStatus } from '../models';
-import { confirmInventory, releaseInventory } from '../services';
+import { decrementOrderCount } from '../services';
 
 const VALID_STATUSES = Object.values(OrderStatus);
 
@@ -83,12 +83,11 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
     // Handle inventory based on status change
     if (newStatus && newStatus !== oldStatus) {
       try {
-        if (newStatus === OrderStatus.ACCEPTED) {
-          // Confirm inventory - delete BLOCKED records, keep quantity reduced
-          await confirmInventory(orderId);
-        } else if (newStatus === 'Cancelled') {
-          // Release inventory - restore quantity and delete BLOCKED records
-          await releaseInventory(orderId);
+        if (newStatus === 'Cancelled') {
+          // Decrement counts for each item
+          for (const item of existingOrder.Item.items || []) {
+            await decrementOrderCount(item.itemId, existingOrder.Item.slot, existingOrder.Item.slotDate, item.quantity);
+          }
         }
       } catch (inventoryError) {
         console.error('Error managing inventory:', inventoryError);

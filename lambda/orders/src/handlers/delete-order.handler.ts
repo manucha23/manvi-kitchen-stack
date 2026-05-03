@@ -1,7 +1,7 @@
 import { DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from '../utils';
-import { releaseInventory } from '../services';
+import { decrementOrderCount } from '../services';
 
 export const deleteOrder = async (orderId: string): Promise<APIGatewayProxyResult> => {
   try {
@@ -21,13 +21,15 @@ export const deleteOrder = async (orderId: string): Promise<APIGatewayProxyResul
       return createErrorResponse(400, `Cannot delete order with status: ${status}. Only Created or Accepted orders can be deleted.`);
     }
 
-    // Release inventory if order is Created (Accepted orders already confirmed inventory)
+    // Decrement counts for each item
     if (status === 'Created') {
       try {
-        await releaseInventory(orderId);
-      } catch (releaseError) {
-        console.error('Error releasing inventory:', releaseError);
-        return createErrorResponse(500, 'Failed to release inventory');
+        for (const item of result.Item.items || []) {
+          await decrementOrderCount(item.itemId, result.Item.slot, result.Item.slotDate, item.quantity);
+        }
+      } catch (decrementError) {
+        console.error('Error decrementing counts:', decrementError);
+        return createErrorResponse(500, 'Failed to release order counts');
       }
     }
 

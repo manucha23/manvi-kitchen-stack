@@ -9,7 +9,7 @@ export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
   imageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
-  slotAvailabilityTable: dynamodb.Table;
+  orderLimitsConfigTable: dynamodb.Table;
 }
 
 export class ItemLambdas extends Construct {
@@ -28,13 +28,13 @@ export class ItemLambdas extends Construct {
         ITEM_TABLE: props.itemTable.tableName,
         IMAGE_BUCKET: props.imageBucket.bucketName,
         IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName,
-        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName
+        ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
       },
       timeout: cdk.Duration.seconds(30),
     });
 
     props.itemTable.grantReadWriteData(this.itemFunction);
     props.imageBucket.grantReadWrite(this.itemFunction);
-    props.slotAvailabilityTable.grantReadData(this.itemFunction);
+    props.orderLimitsConfigTable.grantReadData(this.itemFunction);
   }
 }

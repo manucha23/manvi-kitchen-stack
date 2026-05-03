@@ -1,0 +1,20 @@
+{
+  "name": "@manvi-kitchen/admin",
+  "version": "1.0.0",
+  "description": "Admin operations for order limits and killswitch management",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "aws-lambda": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.141",
+    "@types/node": "^20.14.11",
+    "typescript": "^5.5.2"
+  }
+}

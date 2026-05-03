@@ -1,40 +1,28 @@
-import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { ScanCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from './utils';
 
-const getSlotAvailability = async (itemId: string) => {
-  const slots = ['saturday-lunch', 'saturday-dinner', 'sunday-lunch', 'sunday-dinner'];
-  const availability: any = {};
+const getOrderLimits = async (itemId: string) => {
+  const result = await docClient.send(new GetCommand({
+    TableName: process.env.ORDER_LIMITS_CONFIG_TABLE!,
+    Key: { itemId }
+  }));
   
-  for (const slot of slots) {
-    const slotDate = getNextSlotDate(slot);
-    const slotKey = `${itemId}#${slot}#${slotDate}`;
-    
-    const result = await docClient.send(new ScanCommand({
-      TableName: process.env.SLOT_AVAILABILITY_TABLE!,
-      FilterExpression: 'slotKey = :slotKey',
-      ExpressionAttributeValues: { ':slotKey': slotKey }
-    }));
-    
-    const qty = result.Items?.[0]?.availableQuantity || 0;
-    availability[slot] = {
-      quantity: qty,
-      isAvailable: qty > 0
+  if (!result.Item) {
+    return {
+      lunchLimit: null,
+      dinnerLimit: null,
+      isAcceptingOrders: true,
+      globalKillswitch: false
     };
   }
   
-  return availability;
-};
-
-const getNextSlotDate = (slot: string): string => {
-  const now = new Date();
-  const currentDay = now.getDay();
-  let targetDay = slot.startsWith('saturday') ? 6 : 0;
-  let daysUntilTarget = targetDay - currentDay;
-  if (daysUntilTarget <= 0) daysUntilTarget += 7;
-  const slotDate = new Date(now);
-  slotDate.setDate(now.getDate() + daysUntilTarget);
-  return slotDate.toISOString().split('T')[0];
+  return {
+    lunchLimit: result.Item.lunchLimit || null,
+    dinnerLimit: result.Item.dinnerLimit || null,
+    isAcceptingOrders: result.Item.isAcceptingOrders !== false,
+    globalKillswitch: result.Item.globalKillswitch === true
+  };
 };
 
 export const listItems = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -44,8 +32,8 @@ export const listItems = async (event: APIGatewayProxyEvent): Promise<APIGateway
     }));
 
     const items = await Promise.all((result.Items || []).map(async (item) => {
-      const slotAvailability = await getSlotAvailability(item.itemId);
-      return { ...item, slotAvailability };
+      const limits = await getOrderLimits(item.itemId);
+      return { ...item, limits };
     }));
 
     return createSuccessResponse(200, { items });

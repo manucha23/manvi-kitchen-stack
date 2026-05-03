@@ -2,16 +2,15 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { OrderDatabase } from './constructs/database/order-database';
 import { ItemDatabase } from './constructs/database/item-database';
-import { SlotAvailabilityDatabase } from './constructs/database/slot-availability-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
+import { OrderLimitsConfigDatabase } from './constructs/database/order-limits-config-database';
+import { ItemOrderCountDatabase } from './constructs/database/item-order-count-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
-import { SlotManagementLambda } from './constructs/compute/slot-management-lambda';
-import { OrderCleanupLambda } from './constructs/compute/order-cleanup-lambda';
+import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
-import { InventoryCleanupStateMachine } from './constructs/compute/inventory-cleanup-statemachine';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OrderApi } from './constructs/api/order-api';
 
@@ -26,47 +25,43 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const { environment } = props;
 
     // Create constructs
-    const orderdatabase = new OrderDatabase(this, 'Database');
-    const itemdatabase = new ItemDatabase(this, 'ItemDatabase');
-    const slotAvailability = new SlotAvailabilityDatabase(this, 'SlotAvailability');
+    const orderDatabase = new OrderDatabase(this, 'Database');
+    const itemDatabase = new ItemDatabase(this, 'ItemDatabase');
     const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
+    const orderLimitsConfig = new OrderLimitsConfigDatabase(this, 'OrderLimitsConfig');
+    const itemOrderCount = new ItemOrderCountDatabase(this, 'ItemOrderCount');
     const auth = new CognitoAuth(this, 'Auth', { environment });
     
-    const orderCleanup = new OrderCleanupLambda(this, 'OrderCleanup', {
-      orderTable: orderdatabase.table,
-      slotAvailabilityTable: slotAvailability.table,
-    });
-    
-    const cleanupStateMachine = new InventoryCleanupStateMachine(this, 'CleanupStateMachine', {
-      cleanupLambda: orderCleanup.function,
-    });
-    
     const lambdas = new OrderLambdas(this, 'Lambdas', {
-      orderTable: orderdatabase.table,
-      itemTable: itemdatabase.table,
-      slotAvailabilityTable: slotAvailability.table,
+      orderTable: orderDatabase.table,
+      itemTable: itemDatabase.table,
       orderHistoryTable: orderHistory.table,
-      cleanupStateMachine: cleanupStateMachine.stateMachine,
+      orderLimitsConfigTable: orderLimitsConfig.table,
+      itemOrderCountTable: itemOrderCount.table,
     });
+    
     const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
-      itemTable: itemdatabase.table,
+      itemTable: itemDatabase.table,
       imageBucket: imageStorage.bucket,
       imageDistribution: imageStorage.distribution,
-      slotAvailabilityTable: slotAvailability.table,
+      orderLimitsConfigTable: orderLimitsConfig.table,
     });
-    const slotManagement = new SlotManagementLambda(this, 'SlotManagement', {
-      itemTable: itemdatabase.table,
-      slotAvailabilityTable: slotAvailability.table,
-    });
+    
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
-      orderTable: orderdatabase.table,
+      orderTable: orderDatabase.table,
       orderHistoryTable: orderHistory.table,
     });
+    
+    const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
+      orderLimitsConfigTable: orderLimitsConfig.table,
+    });
+    
     const frontend = new FrontendHosting(this, 'Frontend', { environment });
     const api = new OrderApi(this, 'Api', {
       orderFunction: lambdas.orderFunction,
       itemFunction: itemLambdas.itemFunction,
+      adminFunction: adminLambdas.adminFunction,
       userPool: auth.userPool,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,

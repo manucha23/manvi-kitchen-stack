@@ -30,4 +30,6 @@ export interface Order {
   feedbackProvided: boolean;
   feedbackRequestCount: number;
   timestamp: string;
+  acceptanceStatus?: string; // 'accepted' or 'rejected'
+  rejectionReason?: string;
 }

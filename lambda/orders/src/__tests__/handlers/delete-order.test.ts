@@ -23,22 +23,14 @@ describe('Delete Order Handler', () => {
   describe('Success Cases', () => {
     it('should delete Created order and release inventory', async () => {
       docClientMock.on(GetCommand).resolves({ Item: mockCreatedOrder });
-      docClientMock.on(QueryCommand).resolves({
-        Items: [{
-          orderId: 'ABC123',
-          items: [{ itemId: 'item-1', quantity: 2 }],
-          slot: 'saturday-lunch',
-          slotDate: '2024-12-31'
-        }]
-      });
       docClientMock.on(UpdateCommand).resolves({});
       docClientMock.on(DeleteCommand).resolves({});
 
       const result = await deleteOrder('ABC123');
 
       expect(result.statusCode).toBe(204);
-      // Should have called Get, Query, Update, Delete (inventory), Delete (order)
-      expect(docClientMock.calls().length).toBeGreaterThan(3);
+      // Should have called Get, Update (decrement count), Delete (order)
+      expect(docClientMock.calls().length).toBe(3);
     });
 
     it('should delete Accepted order without inventory release', async () => {
@@ -107,7 +99,7 @@ describe('Delete Order Handler', () => {
 
     it('should handle inventory release errors gracefully', async () => {
       docClientMock.on(GetCommand).resolves({ Item: mockCreatedOrder });
-      docClientMock.on(QueryCommand).rejects(new Error('Inventory error'));
+      docClientMock.on(UpdateCommand).rejects(new Error('DynamoDB error'));
       docClientMock.on(DeleteCommand).resolves({});
 
       const result = await deleteOrder('ABC123');

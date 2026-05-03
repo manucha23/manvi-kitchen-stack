@@ -1,10 +1,10 @@
-import { PutCommand, BatchGetCommand, GetCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, BatchGetCommand, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, getNextOrderId, validateCreateOrderRequest } from '../utils';
 import { Order, OrderItem, OrderStatus } from '../models';
-import { blockInventory, triggerStateMachine, checkAvailability } from '../services';
+import { incrementOrderCount, checkOrderAvailability } from '../services';
 
-const validateScheduledTime = async (scheduledTime: string, slot: string, itemIds: string[]): Promise<boolean> => {
+const validateScheduledTime = async (scheduledTime: string, slot: string): Promise<boolean> => {
   const scheduled = new Date(scheduledTime);
   const now = new Date();
   
@@ -12,22 +12,7 @@ const validateScheduledTime = async (scheduledTime: string, slot: string, itemId
     return false;
   }
 
-  // Extract date from ISO string
-  const scheduleDate = scheduledTime.split('T')[0];
-
-  // Check if slot exists for at least one item (more efficient than Scan)
-  // Use first item to verify slot is open
-  if (itemIds.length > 0) {
-    const slotKey = `${itemIds[0]}#${slot}#${scheduleDate}`;
-    const result = await docClient.send(new GetCommand({
-      TableName: process.env.SLOT_AVAILABILITY_TABLE!,
-      Key: { slotKey }
-    }));
-    
-    return !!result.Item;
-  }
-  
-  return false;
+  return true;
 };
 
 export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -46,10 +31,9 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       return createErrorResponse(401, 'User not authenticated');
     }
 
-    // Validate scheduled time (pass slot and itemIds for efficient lookup)
-    const itemIds: string[] = items.map((i: any) => i.id);
-    if (!(await validateScheduledTime(orderScheduled, slot, itemIds))) {
-      return createErrorResponse(400, 'Invalid schedule: must be in the future and exist in available schedules');
+    // Validate scheduled time
+    if (!(await validateScheduledTime(orderScheduled, slot))) {
+      return createErrorResponse(400, 'Invalid schedule: must be in the future');
     }
 
     // Extract date from orderScheduled
@@ -58,11 +42,14 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
     // Generate orderId
     const orderId = getNextOrderId();
 
+    // Extract item IDs for batch retrieval
+    const itemIds: string[] = items.map((i: any) => i.id);
+
     // Fetch and validate items from items table
     const itemsResult = await docClient.send(new BatchGetCommand({
       RequestItems: {
         [process.env.ITEM_TABLE!]: {
-          Keys: itemIds.map(id => ({ itemId: id }))
+          Keys: itemIds.map((id: string) => ({ itemId: id }))
         }
       }
     }));
@@ -84,10 +71,10 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
         return createErrorResponse(400, `Item ${item.name} is not available`);
       }
 
-      // Check availability
-      const available = await checkAvailability(requestItem.id, slot, slotDate, requestItem.quantity);
-      if (!available) {
-        return createErrorResponse(400, `Item ${item.name} is sold out for this slot`);
+      // Check availability with limit validation
+      const availabilityCheck = await checkOrderAvailability(requestItem.id, slot, slotDate, requestItem.quantity);
+      if (!availabilityCheck.available) {
+        return createErrorResponse(400, availabilityCheck.reason || `Item ${item.name} is not available for this slot`);
       }
 
       const amount = item.price * requestItem.quantity;
@@ -117,7 +104,8 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       total,
       instructions,
       feedbackProvided: false,
-      feedbackRequestCount: 0
+      feedbackRequestCount: 0,
+      acceptanceStatus: 'accepted' // Accepted by default after limit check passes
     };
 
     await docClient.send(new PutCommand({
@@ -125,33 +113,18 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       Item: order
     }));
 
-    // Block inventory for each item (with rollback on failure)
-    const blockedItems: Array<{id: string, slot: string, date: string, quantity: number}> = [];
+    // Increment count for each item (now that order is created and validated)
+    const incrementedItems: Array<{id: string, slot: string, date: string, quantity: number}> = [];
     
     try {
       for (const orderItem of orderItems) {
-        await blockInventory(orderItem.itemId, slot, slotDate, orderItem.quantity, orderId);
-        blockedItems.push({id: orderItem.itemId, slot, date: slotDate, quantity: orderItem.quantity});
+        await incrementOrderCount(orderItem.itemId, slot, slotDate, orderItem.quantity);
+        incrementedItems.push({id: orderItem.itemId, slot, date: slotDate, quantity: orderItem.quantity});
       }
-      await triggerStateMachine(orderId);
-    } catch (blockError) {
-      console.error('Error blocking inventory, rolling back:', blockError);
+    } catch (incrementError) {
+      console.error('Error incrementing count, rolling back:', incrementError);
       
-      // Rollback: restore quantities for successfully blocked items
-      for (const blocked of blockedItems) {
-        try {
-          await docClient.send(new UpdateCommand({
-            TableName: process.env.SLOT_AVAILABILITY_TABLE,
-            Key: { slotKey: `${blocked.id}#${blocked.slot}#${blocked.date}` },
-            UpdateExpression: 'SET availableQuantity = availableQuantity + :qty',
-            ExpressionAttributeValues: { ':qty': blocked.quantity }
-          }));
-        } catch (rollbackError) {
-          console.error('Error during rollback:', rollbackError);
-        }
-      }
-      
-      // Delete the created order
+      // Rollback: delete the created order
       try {
         await docClient.send(new DeleteCommand({
           TableName: process.env.ORDER_TABLE,
@@ -161,7 +134,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
         console.error('Error deleting order during rollback:', deleteError);
       }
       
-      throw new Error(blockError instanceof Error ? blockError.message : 'Failed to block inventory');
+      throw new Error(incrementError instanceof Error ? incrementError.message : 'Failed to increment order count');
     }
 
     return createSuccessResponse(201, order);
