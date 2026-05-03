@@ -42,11 +42,11 @@ run_tests_if_exist "ttl-cleanup"
 npm run build
 cd ../..
 
-# Build slot-management Lambda
-echo "Building slot-management Lambda..."
-cd lambda/slot-management
+# Build admin Lambda
+echo "Building admin Lambda..."
+cd lambda/admin
 npm ci
-run_tests_if_exist "slot-management"
+run_tests_if_exist "admin"
 npm run build
 cd ../..
 
