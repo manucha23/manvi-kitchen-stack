@@ -1,6 +1,16 @@
 # Manvi's Kitchen - Serverless Food Ordering Platform
 
-A complete serverless food ordering system for weekend meal delivery, built with AWS CDK, DynamoDB, Lambda, and Angular.
+A serverless kitchen order and inventory system built with AWS CDK, Lambda, DynamoDB, Angular, Cognito, S3, and CloudFront.
+
+## Overview
+
+This project manages customer orders using a limit-based availability model instead of a complex slot system. The current design is centered on:
+
+- item-specific `lunch` and `dinner` order limits
+- manual killswitch controls (global and per-item)
+- lazy daily reset of order counts
+- backend validation as the true gatekeeper
+- frontend hosting via S3 + CloudFront
 
 ## Architecture Overview
 
@@ -9,9 +19,9 @@ A complete serverless food ordering system for weekend meal delivery, built with
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         CloudFront CDN                          │
-│  ┌──────────────────────┐      ┌──────────────────────────┐   │
-│  │  Frontend (Angular)  │      │   Images (S3 + CF)       │   │
-│  └──────────────────────┘      └──────────────────────────┘   │
+│  ┌──────────────┐      ┌──────────────────────────┐             │
+│  │ Frontend App │      │   Images (S3 + CF)       │             │
+│  └──────────────┘      └──────────────┘             │
 └─────────────────────────────────────────────────────────────────┘
                               |
                               v
@@ -24,336 +34,253 @@ A complete serverless food ordering system for weekend meal delivery, built with
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Lambda Functions                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │ Order Lambda │  │ Item Lambda  │  │ Slot Mgmt    │         │
+│  │ Order Lambda │  │ Item Lambda  │  │ Admin Lambda │         │
 │  └──────────────┘  └──────────────┘  └──────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
                               |
                               v
 ┌─────────────────────────────────────────────────────────────────┐
 │                      DynamoDB Tables                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │ Orders       │  │ Items        │  │ Slot Avail.  │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
-                              |
-                              v
-┌─────────────────────────────────────────────────────────────────┐
-│                    Step Functions + EventBridge                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Inventory Cleanup (Wait 15min → Check Order → Restore)   │  │
-│  │ Weekly Slot Opening (Monday 00:00 UTC)                   │  │
-│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ Orders       │  │ Items        │  │ Order Limits Config  │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
+│                                                           │
+│                            ┌──────────────────────────┐      │
+│                            │ Item Order Count Table   │      │
+│                            └──────────────────────────┘      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Features
 
-### 1. Order Management
-- **6-Character Order IDs**: Random alphanumeric (e.g., `A3K9M2`) - phone-friendly
-- **Delivery Slots**: Saturday/Sunday Lunch/Dinner
-- **Same-Day Prevention**: Cannot order for same day
-- **15-Minute Hold**: Orders auto-cancelled if not confirmed
-- **Status Tracking**: Created → Accepted → Cooking → Ready → Delivered
+### Order Management
 
-### 2. Inventory System (Loosely Coupled)
-- **Slot Availability Table**: Independent inventory per item per slot
-- **Automatic Slot Opening**: EventBridge triggers every Monday at 00:00 UTC
-- **Default Quantity**: 10 units per slot (configurable via API)
-- **Real-Time Updates**: Atomic quantity reduction on order placement
-- **Step Functions Auto-Reversal**: Waits 15 minutes, checks order status, restores quantity if not confirmed
+- Place and manage orders through API Gateway
+- Enforce item-level limits for lunch and dinner
+- Reject orders when limits are reached
+- Support manual global killswitch to pause all orders
+- Support manual per-item killswitch to pause specific items
+- Initialize with fresh data; no legacy slot migration required
 
-### 3. Authentication & Authorization
-- **Cognito User Pool**: Admin-only access
-- **MFA Support**: Optional SMS/TOTP
-- **API Gateway Authorizer**: All endpoints protected
+### Availability Model
 
-### 4. Image Management
-- **S3 Storage**: Item images with presigned upload URLs
-- **CloudFront CDN**: Global image delivery
-- **CORS Enabled**: Direct browser uploads
+- `OrderLimitsConfigTable` stores limit settings and acceptance flags
+- `ItemOrderCountTable` tracks daily counts for each item and slot
+- Lazy reset logic resets counts on the first request for a new day
+- Backend gatekeeper avoids issues from client-side bypass
 
-## Database Schema
+### Frontend Hosting
+
+- Angular app served from a private S3 bucket
+- CloudFront distribution enforces HTTPS and delivers assets globally
+- SPA routing returns `index.html` for 404/403 responses
+
+### Image Uploads
+
+- Image uploads are managed through presigned S3 URLs
+- Images served through CloudFront for performance
+
+## Current Data Model
 
 ### OrderTable
-```
-PK: orderId (6-char: A3K9M2)
-GSI: orderStatus-slotDate-index (PK: orderStatus, SK: slotDate)
-Attributes: orderedBy, customerName, deliveryAddress, contactNumber, 
-            orderStatus (Created|Accepted|Cooking|Ready|Delivered),
-            orderScheduled, slot, slotDate, items[], total, 
-            instructions, feedbackProvided, feedbackRequestCount, timestamp
-```
+
+Primary items:
+- `orderId`
+- `status`
+- `items`
+- `slot`
+- `slotDate`
+- customer and metadata fields
 
 ### ItemTable
-```
-PK: itemId (UUID)
-Attributes: name, description, price, category, imageUrl, available
-```
 
-### SlotAvailabilityTable
-```
-PK: slotKey (itemId#slot#date)
-Attributes: availableQuantity, totalQuantity, itemName
-```
+Primary items:
+- `itemId`
+- `name`
+- `description`
+- `price`
+- `category`
+- `imageUrl`
+- `available`
+
+### OrderLimitsConfigTable
+
+Primary items:
+- `itemId`
+- `lunchLimit`
+- `dinnerLimit`
+- `isAcceptingOrders`
+- `globalKillswitch` (for the `GLOBAL` config record)
+
+### ItemOrderCountTable
+
+Primary items:
+- `countKey` (`itemId-slot-date`)
+- `currentCount`
+- `lastResetTimestamp`
 
 ## API Endpoints
 
 ### Orders
-```
-POST   /orders                    - Place order
-GET    /orders                    - List orders (default: Created status)
-GET    /orders/{orderId}          - Get order details
-PUT    /orders/{orderId}          - Update order status
-DELETE /orders/{orderId}          - Delete order
-PUT    /orders/slot-availability  - Update slot quantities
 
-Query Parameters for GET /orders:
-- orderStatus: Created|Accepted|Cooking|Ready|Delivered (default: Created)
-- fromDate: YYYY-MM-DD (filter slotDate >= fromDate)
-- toDate: YYYY-MM-DD (filter slotDate <= toDate)
-- orderedBy: user-sub (filter by customer)
-- slot: saturday-lunch|saturday-dinner|sunday-lunch|sunday-dinner
-
-Examples:
-GET /orders                                    # Default: Created orders
-GET /orders?orderStatus=Cooking                # All cooking orders
-GET /orders?orderStatus=Accepted&fromDate=2024-01-20&toDate=2024-01-27
-GET /orders?orderStatus=Ready&slot=saturday-lunch&orderedBy=user-123
-```
+- `POST /orders` — place order
+- `GET /orders` — list orders
+- `GET /orders/{orderId}` — get order details
+- `PUT /orders/{orderId}` — update order status
+- `DELETE /orders/{orderId}` — delete order
 
 ### Items
-```
-POST   /items                - Create item
-GET    /items                - List items with slot availability (includes isAvailable boolean)
-GET    /items/{itemId}       - Get item details
-PUT    /items/{itemId}       - Update item
-DELETE /items/{itemId}       - Delete item
-POST   /items/upload-url     - Generate presigned URL for image upload
-```
 
-**GET /items Response:**
-```json
-{
-  "items": [
-    {
-      "itemId": "uuid",
-      "name": "Biryani",
-      "slotAvailability": {
-        "saturday-lunch": {
-          "quantity": 7,
-          "isAvailable": true
-        },
-        "saturday-dinner": {
-          "quantity": 0,
-          "isAvailable": false
-        }
-      }
-    }
-  ]
-}
-```
+- `POST /items` — create item
+- `GET /items` — list items
+- `GET /items/{itemId}` — get item details
+- `PUT /items/{itemId}` — update item
+- `DELETE /items/{itemId}` — delete item
+- `POST /items/upload-url` — generate image upload URL
 
-## Order Flow
+### Admin
 
-### 1. Place Order
-```
-Customer → API Gateway → Order Lambda
-  ↓
-Check slot availability (SlotAvailabilityTable)
-  ↓
-Reduce availableQuantity (atomic update)
-  ↓
-Start Step Function workflow for each item
-  ↓
-Generate 6-char order ID (e.g., A3K9M2)
-  ↓
-Create order in OrderTable (status: Created)
-```
+- `GET /admin/order-limits` — list configured limits
+- `PUT /admin/order-limits` — update order limit settings
+- `PUT /admin/killswitch` — toggle global or per-item order acceptance
 
-### 2. Confirm Order (within 15 min)
-```
-Admin → PUT /orders/{orderId} {status: "Accepted"}
-  ↓
-Quantity stays reduced in SlotAvailabilityTable
-  ↓
-Step Function checks order status after 15 min
-  ↓
-Sees status = Accepted, no restoration needed
-```
+## Order Availability Logic
 
-### 3. Auto-Cancel (after 15 min)
-```
-Step Function waits 15 minutes
-  ↓
-Order Cleanup Lambda checks order status
-  ↓
-If status = Created (not confirmed)
-  ↓
-Restore availableQuantity in SlotAvailabilityTable
-```
+When a new order is placed, the backend:
 
-## Automation
+1. checks the global killswitch
+2. checks item-specific acceptance state
+3. loads the configured lunch/dinner limit
+4. atomically updates the item count in `ItemOrderCountTable`
+5. rejects the order if the limit would be exceeded
 
-### Weekly Slot Opening (EventBridge)
-```
-Schedule: Every Monday at 00:00 UTC
-  ↓
-Slot Management Lambda
-  ↓
-Scan all items from ItemTable
-  ↓
-For each item, create 4 slot records:
-  - saturday-lunch (next Saturday)
-  - saturday-dinner
-  - sunday-lunch
-  - sunday-dinner
-  ↓
-Set availableQuantity = 10 (default)
-```
-
-## Infrastructure (CDK)
-
-### Constructs
-```
-lib/constructs/
-├── api/
-│   └── order-api.ts              - API Gateway + routes
-├── auth/
-│   └── cognito-auth.ts           - User pool + client
-├── compute/
-│   ├── order-lambdas.ts          - Order processing
-│   ├── item-lambdas.ts           - Item management
-│   ├── slot-management-lambda.ts - Weekly slot opening
-│   ├── order-cleanup-lambda.ts   - Check order status & restore inventory
-│   └── inventory-cleanup-statemachine.ts - Step Functions workflow
-├── database/
-│   ├── order-database.ts         - Orders table
-│   ├── item-database.ts          - Items table
-│   └── slot-availability-database.ts - Slot availability
-├── frontend/
-│   └── frontend-hosting.ts       - S3 + CloudFront
-└── storage/
-    └── image-storage.ts          - S3 + CloudFront for images
-```
-
-### Lambda Functions
-```
-lambda/
-├── orders/              - Order CRUD + slot availability updates
-├── items/               - Item CRUD + image upload URLs
-├── slot-management/     - EventBridge triggered slot opening
-└── order-cleanup/       - Step Functions triggered inventory restoration
-```
+This ensures concurrent orders cannot push the count above the allowed limit.
 
 ## Deployment
 
 ### Prerequisites
+
 ```bash
 npm install
 cd lambda/orders && npm install && npm run build
-cd ../items && npm install && npm run build
-cd ../slot-management && npm install && npm run build
-cd ../order-cleanup && npm install && npm run build
+cd lambda/items && npm install && npm run build
+cd lambda/admin && npm install && npm run build
 ```
 
-### Deploy Stack
+### Deploy the CDK stack
+
 ```bash
-npx cdk deploy ManviKitchenStack-{environment} --region us-east-2
+npx cdk synth
+npx cdk deploy --context environment=staging
 ```
 
 ### Environments
-- `staging` - Development/testing
-- `prod` - Production
 
-## Key Design Decisions
+- `staging` — Development / testing
+- `prod` — Production
 
-### 1. Loosely Coupled Inventory
-- **Why**: Items and inventory are separate concerns
-- **Benefit**: Easy to adjust quantities without touching item catalog
-- **Implementation**: SlotAvailabilityTable independent of ItemTable
+## Custom Domain and ACM
 
-### 2. 6-Character Order IDs
-- **Why**: Phone-friendly, professional, no database needed
-- **Format**: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (excludes confusing 0,O,1,I)
-- **Collision Risk**: 0.23% after 100K orders (negligible for weekend business)
+When a domain is purchased, integrate Route 53 and ACM by:
 
-### 3. Step Functions + Order Status Check
-- **Why**: Real-time cleanup (not eventual consistency like DynamoDB TTL)
-- **How**: Step Function waits 15 min → Lambda checks order status → Restores if Created
-- **Benefit**: Exact 15-minute timing, no Inventory table needed
-- **Cost**: ~$0.000025 per order (minimal for low volume)
+- importing or creating a Route 53 hosted zone
+- creating ACM certificates for the domain
+- attaching certificates to CloudFront and API Gateway
+- creating Route 53 alias records for frontend and API
 
-### 4. EventBridge Slot Opening
-- **Why**: Predictable weekly schedule
-- **Schedule**: Monday 00:00 UTC (opens slots for upcoming weekend)
-- **Benefit**: Fully automated, no manual slot creation
+This hides the native API Gateway URL from customers and serves all traffic under your own domain.
 
-### 5. Serverless Architecture
-- **Why**: Pay-per-use, auto-scaling, zero maintenance
-- **Cost**: ~$5-10/month for small business
-- **Scalability**: Handles 1000s of orders without changes
+## CDK Construct Summary
 
-## Monitoring & Logs
+### Database Constructs
 
-### CloudWatch Logs
-- Lambda execution logs
-- API Gateway access logs
-- TTL cleanup operations
-- Slot opening results
+- `OrderDatabase`
+- `ItemDatabase`
+- `OrderHistoryDatabase`
+- `OrderLimitsConfigDatabase`
+- `ItemOrderCountDatabase`
 
-### CloudWatch Metrics
-- Lambda invocations/errors
-- DynamoDB read/write capacity
-- API Gateway requests/latency
-- TTL deletions
+### Compute Constructs
+
+- `OrderLambdas`
+- `ItemLambdas`
+- `AdminLambdas`
+- `OrderAuditLambda`
+
+### Frontend
+
+- `FrontendHosting` — S3 + CloudFront distribution
+
+### API
+
+- `OrderApi` — REST API routes for orders, items, and admin actions
 
 ## Security
 
-- **API**: Cognito authorizer on all endpoints
-- **S3**: Private buckets with OAC (Origin Access Control)
-- **DynamoDB**: IAM roles with least privilege
-- **Secrets**: No hardcoded credentials
-- **HTTPS**: Enforced via CloudFront
+- Cognito authorizer protects API routes
+- S3 buckets are private and use Origin Access Control
+- HTTPS enforced through CloudFront
+- IAM roles follow least privilege
 
-## Cost Optimization
+## Notes
 
-- **DynamoDB**: On-demand billing (pay per request)
-- **Lambda**: 1M free requests/month
-- **Step Functions**: $0.025 per 1000 state transitions (negligible for low volume)
-- **S3**: Lifecycle policies for old images
-- **CloudFront**: Price class ALL (includes India edge locations for local audience)
-- **API Gateway**: REST API (cheaper than HTTP API for low volume)
-
-## Documentation
-
-- `INVENTORY_SYSTEM.md` - Detailed inventory architecture
-- `TTL_CLEANUP.md` - Auto-reversal mechanism
-- `REFACTORING_SUMMARY.md` - Code cleanup history
-
-## CI/CD
-
-GitHub Actions workflows:
-- `.github/workflows/deploy.yml` - CDK deployment
-- `.github/workflows/deploy-frontend.yml` - Frontend deployment
-- `.github/workflows/destroy.yml` - Stack cleanup
-
-## Tech Stack
-
-**Backend:**
-- AWS CDK (TypeScript)
-- Lambda (Node.js 24)
-- DynamoDB
-- API Gateway
-- Cognito
-- Step Functions
-- EventBridge
-- S3 + CloudFront
-
-**Frontend:**
-- Angular
-- TypeScript
-- AWS Amplify (Cognito integration)
+- The current design is intentionally simpler than the previous slot-based system
+- The backend is the authoritative gatekeeper for all order acceptance
+- No slot scheduler or eventbridge slot creation is required in the current architecture
+- The system is built for fresh startup usage without legacy data migration
 
 ## License
 
 Private project for Manvi's Kitchen
+
+#?          - frontend hosting via S??
+#?  ??#?          - frontend hosting via S??
+#?  ?──???────────??  ?──────────?a
+### System???##??#??
+### Sre #?  ??#?          - frontend hostige#?  ?──???────────??  Cu### System???##??#??
+### System???##??#???``
+┌────??vel### Sys- ### System???##??#?cu┌────??vel### S
+#     ? back?? manual killswitch cont?? back?? man? back?? manual killswitc m     ? back?? manual killswitch cont?? back?? man? back?? manu `item     ? back?? mars     ? back?? manual killsw       ? back?? manual killswitch cont?? back?? man? back?? manual ng
+#?          - frontend hosting via S??
+#?  ??#?          - frontend hosting via S??
+#?  ?──???────────??   — place order#?          - frontend hosting via S??
+#?  ??#?          - frontend hosting via S??
+#?  ?──???──────── `#?  ??#?          - frontend hostide#?  ?──???────────item
+- `G### System???##??#??
+### Sre #?  ??#?          -t item details
+- `PUT /items### Sre #?  ??#? it### System???##??#???``
+┌────??vel### Sys- ### System???##??#?cu┌────??vel### S
+#     ? /┌────??vel### St #     ? back?? manual killswitch cont?? back?? man? back?? manual killPU#?          - frontend hosting via S??
+#?  ??#?          - frontend hosting via S??
+#?  ?──???────────??   — place order#?          - frontend hosting via S??
+#?  ??#?          - frontend hosting via S??
+#?  ?──???──────── `unt in `Item#?  ??#?          - frontend hostif #?  ?──???────────??  re#?  ??#?          - frontend hosting via S??
+#?  ?──???──────── `#?  ??# i#?  ?──???──────── `#? n - `G### System???##??#??
+### Sre #?  ??#?          -t item details
+- `PUT /items### Sre #?  ??
+
+### Deploy the CDK stac### Sre #?  ??#?     px- `PUT /items### Sre #?  ??#? it### Sys`
+
+┌────??vel### Sys- ### System???##??#?cu┌── ?     ? /┌────??vel### St #     ? back?? manual killswitch contut#?  ??#?          - frontend hosting via S??
+#?  ?──???────────??   — place order#?          - frontend hdFront and API Gateway
+-#?  ?──???────────??  d #?  ??#?          - frontend hosting via S??
+#?  ?──???──────── `unt in `It
+
+#?  ?──???──────── `unt is
+#?  ?──???──────── `#?  ??# i#?  ?──???──────── `#? n - `G### System???##??#??
+### Sre #?  ??#?          -t item details
+- inLambdas`
+- `### Sre #?  ??#?          -t item details
+- `PUT /items### Sre #?  ??
+
+### Deploy the CDK stac### Sre #?  ??#?     px-r - `PUT /items### Sre #?  ??
+
+### Deploy th
+
+
+### Deploy the CDK stac### S AP
+┌────??vel### Sys- ### System???##??#?cu┌── ?     ? /┌────??on#?  ?──???────────??   — place order#?          - frontend hdFront and API Gateway
+-#?  ?──???────────??  d #?  ??#?          - frontendnc-#?  ?──???────────??  d #?  ??#?          - frontend hosting via S??
+#?  ?─t #?  ?──???──────── `unt in `It
+
+#?  ?──???──────── `uhen
