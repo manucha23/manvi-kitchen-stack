@@ -59,7 +59,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       orderHistoryTable: orderHistory.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
       itemOrderCountTable: itemOrderCount.table,
-      allowedOrigins: 'https://www.admin.test.cravnest.in',
+      allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
     const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
@@ -68,7 +68,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       imageBucket: imageStorage.bucket,
       imageDistribution: imageStorage.distribution,
       orderLimitsConfigTable: orderLimitsConfig.table,
-      allowedOrigins: 'https://www.admin.test.cravnest.in',
+      allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
@@ -78,13 +78,13 @@ export class ManviKitchenStackStack extends cdk.Stack {
     
     const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
       orderLimitsConfigTable: orderLimitsConfig.table,
-      allowedOrigins: 'https://www.admin.test.cravnest.in',
+      allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
     const frontend = new FrontendHosting(this, 'Frontend', { 
       environment,
       certificate: certificates.cloudfrontCertificate,
-      domainName: 'www.admin.test.cravnest.in',
+      domainName: 'admin.test.cravnest.in',
     });
     const docs = new OpenApiHosting(this, 'OpenApiDocs', { 
       environment,
@@ -107,7 +107,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     // Frontend DNS record
     new route53.ARecord(this, 'FrontendDNS', {
       zone: hostedZone.hostedZone,
-      recordName: 'www.admin.test.cravnest.in',
+      recordName: 'admin.test.cravnest.in',
       target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(frontend.distribution)),
     });
 
@@ -147,7 +147,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'FrontendCustomUrl', {
-      value: `https://www.admin.test.cravnest.in`,
+      value: `https://admin.test.cravnest.in`,
       description: 'Frontend Custom Domain URL',
       exportName: `${environment}-frontend-custom-url`,
     });
