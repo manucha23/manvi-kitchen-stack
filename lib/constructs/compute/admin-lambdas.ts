@@ -5,6 +5,7 @@ import { Construct } from 'constructs';
 
 export interface AdminLambdasProps {
   orderLimitsConfigTable: dynamodb.Table;
+  allowedOrigins?: string;
 }
 
 export class AdminLambdas extends Construct {
@@ -21,6 +22,7 @@ export class AdminLambdas extends Construct {
       }),
       environment: { 
         ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
+        ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
     });

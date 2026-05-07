@@ -169,6 +169,19 @@ cd lambda/admin && npm install && npm run build
 
 ### Deploy the CDK stack
 
+For custom domain setup with CloudFront certificates (which must be in us-east-1):
+
+```bash
+# First, deploy the CloudFront certificate to us-east-1
+npx cdk deploy CloudFrontCertificate-test --profile your-profile --region us-east-1
+
+# Then deploy the main stack to your region (e.g., ap-south-1)
+npx cdk synth
+npx cdk deploy --context environment=test
+```
+
+For standard deployment without custom domain:
+
 ```bash
 npx cdk synth
 npx cdk deploy --context environment=staging

@@ -8,7 +8,7 @@ export const createSuccessResponse = (statusCode: number, data: any) => ({
   statusCode,
   headers: {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
   },
   body: JSON.stringify(data),
 });
@@ -17,7 +17,7 @@ export const createErrorResponse = (statusCode: number, message: string) => ({
   statusCode,
   headers: {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
   },
   body: JSON.stringify({ message }),
 });

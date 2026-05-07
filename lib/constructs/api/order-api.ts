@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
 
 export interface OrderApiProps {
@@ -10,22 +11,33 @@ export interface OrderApiProps {
   adminFunction: lambda.Function;
   userPool: cognito.UserPool;
   environment: string;
-  cloudfrontDomainName: string
+  cloudfrontDomainName: string;
+  certificate?: acm.ICertificate;
+  domainName?: string;
 }
 
 export class OrderApi extends Construct {
   public readonly api: apigw.RestApi;
+  public readonly domain?: apigw.DomainName;
 
   constructor(scope: Construct, id: string, props: OrderApiProps) {
     super(scope, id);
 
-    const getCorsOrigins = (env: string, cloudfrontDomain: string) => {
+    const getCorsOrigins = (env: string, cloudfrontDomain: string, customDomain?: string) => {
       const baseOrigins = ['http://localhost:4200', 'http://localhost:3000'];
       
       if (env === 'prod') {
-        return [`https://${cloudfrontDomain}`];
+        const origins = [`https://${cloudfrontDomain}`];
+        if (customDomain) {
+          origins.push(`https://${customDomain}`);
+        }
+        return origins;
       } else {
-        return [...baseOrigins, `https://${cloudfrontDomain}`];
+        const origins = [...baseOrigins, `https://${cloudfrontDomain}`];
+        if (customDomain) {
+          origins.push(`https://${customDomain}`);
+        }
+        return origins;
       }
     };
 
@@ -40,7 +52,7 @@ export class OrderApi extends Construct {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: getCorsOrigins(props.environment, props.cloudfrontDomainName),
+        allowOrigins: getCorsOrigins(props.environment, props.cloudfrontDomainName, props.domainName),
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
@@ -96,5 +108,19 @@ export class OrderApi extends Construct {
 
     const adminKillswitch = admin.addResource('killswitch');
     adminKillswitch.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), authOptions);
+
+    // Create custom domain if certificate and domain name are provided
+    if (props.certificate && props.domainName) {
+      this.domain = new apigw.DomainName(this, 'ApiDomain', {
+        domainName: props.domainName,
+        certificate: props.certificate,
+        endpointType: apigw.EndpointType.REGIONAL,
+      });
+
+      new apigw.BasePathMapping(this, 'BasePathMapping', {
+        domainName: this.domain,
+        restApi: this.api,
+      });
+    }
   }
 }

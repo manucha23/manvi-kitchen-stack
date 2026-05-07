@@ -2,10 +2,13 @@ import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
 
 export interface FrontendHostingProps {
   environment: string;
+  certificate?: acm.ICertificate;
+  domainName?: string;
 }
 
 export class FrontendHosting extends Construct {
@@ -23,7 +26,7 @@ export class FrontendHosting extends Construct {
       autoDeleteObjects: true,
     });
 
-    this.distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
+    const distributionConfig: any = {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -48,6 +51,14 @@ export class FrontendHosting extends Construct {
         },
       ],
       priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-    });
+    };
+
+    // Add custom domain and certificate if provided
+    if (props.certificate && props.domainName) {
+      distributionConfig.domainNames = [props.domainName];
+      distributionConfig.certificate = props.certificate;
+    }
+
+    this.distribution = new cloudfront.Distribution(this, 'FrontendDistribution', distributionConfig);
   }
 }

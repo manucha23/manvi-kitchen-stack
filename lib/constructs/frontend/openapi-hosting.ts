@@ -3,11 +3,14 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
 export interface OpenApiHostingProps {
   environment: string;
+  certificate?: acm.ICertificate;
+  domainName?: string;
 }
 
 export class OpenApiHosting extends Construct {
@@ -25,7 +28,7 @@ export class OpenApiHosting extends Construct {
       autoDeleteObjects: true,
     });
 
-    this.distribution = new cloudfront.Distribution(this, 'OpenApiDocsDistribution', {
+    const distributionConfig: any = {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -50,7 +53,15 @@ export class OpenApiHosting extends Construct {
         },
       ],
       priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-    });
+    };
+
+    // Add custom domain and certificate if provided
+    if (props.certificate && props.domainName) {
+      distributionConfig.domainNames = [props.domainName];
+      distributionConfig.certificate = props.certificate;
+    }
+
+    this.distribution = new cloudfront.Distribution(this, 'OpenApiDocsDistribution', distributionConfig);
 
     new s3deploy.BucketDeployment(this, 'OpenApiDocsDeployment', {
       sources: [
