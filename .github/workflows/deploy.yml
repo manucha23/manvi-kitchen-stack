@@ -74,6 +74,7 @@ jobs:
     needs: [determine-environment, build-and-test]
     if: needs.determine-environment.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
 
