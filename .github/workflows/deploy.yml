@@ -75,6 +75,8 @@ jobs:
     if: needs.determine-environment.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.determine-environment.outputs.environment }}
+    outputs:
+      certificate-arn: ${{ steps.cf-cert.outputs.certificate-arn }}
     steps:
       - uses: actions/checkout@v4
 
