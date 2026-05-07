@@ -153,10 +153,13 @@ jobs:
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
 
+      - name: Build TypeScript
+        run: npm run build
+
       - name: Deploy CDK stack
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} -c cloudFrontCertificateArn=${{ needs.deploy-cloudfront-certificate.outputs.certificate-arn }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} -c cloudFrontCertificateArn=${{ needs.deploy-cloudfront-certificate.outputs.certificate-arn }} --require-approval=never --region ${{ secrets.AWS_REGION }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
