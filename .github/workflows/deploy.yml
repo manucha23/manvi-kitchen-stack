@@ -102,10 +102,15 @@ jobs:
           AWS_REGION: us-east-1
 
       - name: Deploy CloudFront ACM certificate in us-east-1
+        id: cf-cert
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=us-east-1
           npx cdk deploy CloudFrontCertificate-${{ needs.determine-environment.outputs.environment }} --require-approval=never --region us-east-1 --app "npx ts-node --prefer-ts-exts bin/cloudfront-certificate.ts"
+          
+          # Extract certificate ARN from CloudFormation stack output
+          CERT_ARN=$(aws cloudformation describe-stacks --stack-name CloudFrontCertificate-${{ needs.determine-environment.outputs.environment }} --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CertificateArn`].OutputValue' --output text)
+          echo "certificate-arn=$CERT_ARN" >> $GITHUB_OUTPUT
         env:
           AWS_REGION: us-east-1
 
@@ -150,6 +155,6 @@ jobs:
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} -c cloudFrontCertificateArn=${{ needs.deploy-cloudfront-certificate.outputs.certificate-arn }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
