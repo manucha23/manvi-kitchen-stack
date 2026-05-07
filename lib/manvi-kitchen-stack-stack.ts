@@ -43,8 +43,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
       zoneName: 'cravnest.in',
     });
     
-    // CloudFront certificate ARN from us-east-1 deployment (passed as context variable via workflow)
-    const cloudfrontCertificateArn = this.node.tryGetContext('cloudFrontCertificateArn');
+    // CloudFront certificate ARN from us-east-1 (hardcoded per environment in cdk.context.json)
+    const cloudfrontCertificateArn =
+      this.node.tryGetContext(`cloudFrontCertificateArn:${environment}`) ??
+      this.node.tryGetContext('cloudFrontCertificateArn');
     
     const certificates = new AcmCertificates(this, 'Certificates', {
       hostedZone: hostedZone.hostedZone,
