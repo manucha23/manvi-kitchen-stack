@@ -98,6 +98,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       userPool: auth.userPool,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,
+      frontendDomainName: 'admin.test.cravnest.in',
       certificate: certificates.apiCertificate,
       domainName: 'api.test.cravnest.in',
     });

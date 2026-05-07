@@ -12,6 +12,7 @@ export interface OrderApiProps {
   userPool: cognito.UserPool;
   environment: string;
   cloudfrontDomainName: string;
+  frontendDomainName?: string;
   certificate?: acm.ICertificate;
   domainName?: string;
 }
@@ -23,20 +24,16 @@ export class OrderApi extends Construct {
   constructor(scope: Construct, id: string, props: OrderApiProps) {
     super(scope, id);
 
-    const getCorsOrigins = (env: string, cloudfrontDomain: string, customDomain?: string) => {
+    const getCorsOrigins = (env: string, cloudfrontDomain: string, frontendDomain?: string) => {
       const baseOrigins = ['http://localhost:4200', 'http://localhost:3000'];
-      
+
       if (env === 'prod') {
         const origins = [`https://${cloudfrontDomain}`];
-        if (customDomain) {
-          origins.push(`https://${customDomain}`);
-        }
+        if (frontendDomain) origins.push(`https://${frontendDomain}`);
         return origins;
       } else {
         const origins = [...baseOrigins, `https://${cloudfrontDomain}`];
-        if (customDomain) {
-          origins.push(`https://${customDomain}`);
-        }
+        if (frontendDomain) origins.push(`https://${frontendDomain}`);
         return origins;
       }
     };
@@ -52,7 +49,7 @@ export class OrderApi extends Construct {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: getCorsOrigins(props.environment, props.cloudfrontDomainName, props.domainName),
+        allowOrigins: getCorsOrigins(props.environment, props.cloudfrontDomainName, props.frontendDomainName),
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
