@@ -4,14 +4,8 @@ info:
   description: API contract for the Manvi Kitchen backend, including orders, items, and admin operations.
   version: 1.0.0
 servers:
-  - url: https://api.example.com/{stage}
+  - url: https://api.test.cravnest.in
     description: Replace with your deployed API Gateway endpoint.
-    variables:
-      stage:
-        default: dev
-        enum:
-          - dev
-          - prod
 security:
   - Cognito: []
 components:
@@ -376,6 +370,14 @@ components:
         - message
         - configs
         - count
+tags:
+  - name: Orders
+    description: Order placement and management
+  - name: Items
+    description: Menu item management
+  - name: Admin
+    description: Admin controls for order limits and killswitch
+
 paths:
   /orders:
     x-amazon-apigateway-cors:
@@ -383,6 +385,7 @@ paths:
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     get:
+      tags: [Orders]
       summary: List orders
       operationId: listOrders
       parameters:
@@ -424,6 +427,7 @@ paths:
       security:
         - Cognito: []
     post:
+      tags: [Orders]
       summary: Create a new order
       operationId: createOrder
       requestBody:
@@ -465,6 +469,7 @@ paths:
         schema:
           type: string
     get:
+      tags: [Orders]
       summary: Get a single order by ID
       operationId: getOrder
       responses:
@@ -489,6 +494,7 @@ paths:
       security:
         - Cognito: []
     put:
+      tags: [Orders]
       summary: Update an order
       operationId: updateOrder
       requestBody:
@@ -525,6 +531,7 @@ paths:
       security:
         - Cognito: []
     delete:
+      tags: [Orders]
       summary: Delete an order
       operationId: deleteOrder
       responses:
@@ -556,6 +563,7 @@ paths:
         schema:
           type: string
     get:
+      tags: [Orders]
       summary: Get order history
       operationId: getOrderHistory
       responses:
@@ -585,6 +593,7 @@ paths:
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     put:
+      tags: [Orders]
       summary: Update order slot availability for an item
       operationId: updateSlotAvailability
       requestBody:
@@ -629,6 +638,7 @@ paths:
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     get:
+      tags: [Items]
       summary: List items
       operationId: listItems
       responses:
@@ -647,6 +657,7 @@ paths:
       security:
         - Cognito: []
     post:
+      tags: [Items]
       summary: Create an item
       operationId: createItem
       requestBody:
@@ -682,6 +693,7 @@ paths:
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     post:
+      tags: [Items]
       summary: Generate a pre-signed upload URL for item images
       operationId: generateUploadUrl
       requestBody:
@@ -723,6 +735,7 @@ paths:
         schema:
           type: string
     get:
+      tags: [Items]
       summary: Get item details
       operationId: getItem
       responses:
@@ -747,6 +760,7 @@ paths:
       security:
         - Cognito: []
     put:
+      tags: [Items]
       summary: Update an item
       operationId: updateItem
       requestBody:
@@ -777,6 +791,7 @@ paths:
       security:
         - Cognito: []
     delete:
+      tags: [Items]
       summary: Delete an item
       operationId: deleteItem
       responses:
@@ -796,6 +811,7 @@ paths:
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     get:
+      tags: [Admin]
       summary: Get order limit configuration
       operationId: getOrderLimits
       responses:
@@ -814,6 +830,7 @@ paths:
       security:
         - Cognito: []
     put:
+      tags: [Admin]
       summary: Set order limit configuration
       operationId: setOrderLimits
       requestBody:
@@ -865,6 +882,7 @@ paths:
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     put:
+      tags: [Admin]
       summary: Set killswitch state
       operationId: setKillswitch
       requestBody:

@@ -177,6 +177,18 @@ export class ManviKitchenStackStack extends cdk.Stack {
       exportName: `${environment}-openapi-docs-custom-url`,
     });
 
+    new cdk.CfnOutput(this, 'OpenApiDocsBucketName', {
+      value: docs.bucket.bucketName,
+      description: 'OpenAPI Docs S3 Bucket Name',
+      exportName: `${environment}-openapi-docs-bucket-name`,
+    });
+
+    new cdk.CfnOutput(this, 'OpenApiDocsDistributionId', {
+      value: docs.distribution.distributionId,
+      description: 'OpenAPI Docs CloudFront Distribution ID',
+      exportName: `${environment}-openapi-docs-distribution-id`,
+    });
+
     new cdk.CfnOutput(this, 'UserPoolId', {
       value: auth.userPool.userPoolId,
       description: 'Cognito User Pool ID',

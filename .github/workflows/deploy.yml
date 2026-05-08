@@ -4,11 +4,13 @@ on:
   push:
     paths-ignore:
       - 'kitchen-frontend/**'
+      - 'openapi-ui/**'
   pull_request:
     branches:
       - develop
     paths-ignore:
       - 'kitchen-frontend/**'
+      - 'openapi-ui/**'
 
 permissions:
   contents: read
