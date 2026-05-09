@@ -59,6 +59,13 @@ class LandingPageStack extends cdk.Stack {
         hostName: 'www.cravnest.in',
         protocol: s3.RedirectProtocol.HTTPS,
       },
+      publicReadAccess: true,
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false,
+      }),
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
@@ -86,6 +93,13 @@ class LandingPageStack extends cdk.Stack {
         hostName: 'www.test.cravnest.in',
         protocol: s3.RedirectProtocol.HTTPS,
       },
+      publicReadAccess: true,
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false,
+      }),
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
