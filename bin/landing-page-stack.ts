@@ -72,7 +72,9 @@ class LandingPageStack extends cdk.Stack {
 
     const redirectDistributionCravnest = new cloudfront.Distribution(this, 'RedirectDistributionCravnest', {
       defaultBehavior: {
-        origin: new origins.HttpOrigin(`${redirectBucketCravnest.bucketName}.s3-website.${this.region}.amazonaws.com`),
+        origin: new origins.HttpOrigin(`${redirectBucketCravnest.bucketName}.s3-website.${this.region}.amazonaws.com`, {
+          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+        }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
       domainNames: ['cravnest.in'],
@@ -106,7 +108,9 @@ class LandingPageStack extends cdk.Stack {
 
     const redirectDistributionTest = new cloudfront.Distribution(this, 'RedirectDistributionTest', {
       defaultBehavior: {
-        origin: new origins.HttpOrigin(`${redirectBucketTest.bucketName}.s3-website.${this.region}.amazonaws.com`),
+        origin: new origins.HttpOrigin(`${redirectBucketTest.bucketName}.s3-website.${this.region}.amazonaws.com`, {
+          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+        }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
       domainNames: ['test.cravnest.in'],
