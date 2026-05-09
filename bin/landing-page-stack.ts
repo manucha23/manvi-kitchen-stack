@@ -30,17 +30,25 @@ class LandingPageStack extends cdk.Stack {
       cloudfrontCertificate = acm.Certificate.fromCertificateArn(this, 'CloudFrontCertificate', cloudfrontCertificateArn);
     }
 
-    // Landing Page Hosting for www.cravnest.in
+    // Landing Page Hosting for www.cravnest.in and www.test.cravnest.in
     const landingPage = new LandingPageHosting(this, 'LandingPage', {
       environment,
       certificate: cloudfrontCertificate,
       domainName: 'www.cravnest.in',
+      additionalDomains: ['www.test.cravnest.in'],
     });
 
     // DNS for www.cravnest.in
     new route53.ARecord(this, 'WwwDns', {
       zone: hostedZone,
       recordName: 'www.cravnest.in',
+      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(landingPage.distribution)),
+    });
+
+    // DNS for www.test.cravnest.in (same distribution)
+    new route53.ARecord(this, 'WwwTestDns', {
+      zone: hostedZone,
+      recordName: 'www.test.cravnest.in',
       target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(landingPage.distribution)),
     });
 
@@ -71,11 +79,11 @@ class LandingPageStack extends cdk.Stack {
       target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(redirectDistributionCravnest)),
     });
 
-    // Redirect for test.cravnest.in
+    // Redirect for test.cravnest.in → www.test.cravnest.in
     const redirectBucketTest = new s3.Bucket(this, 'RedirectBucketTest', {
       bucketName: `manvi-kitchen-redirect-test-${environment}-${cdk.Aws.ACCOUNT_ID}`,
       websiteRedirect: {
-        hostName: 'www.cravnest.in',
+        hostName: 'www.test.cravnest.in',
         protocol: s3.RedirectProtocol.HTTPS,
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,

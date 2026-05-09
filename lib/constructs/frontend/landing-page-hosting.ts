@@ -11,6 +11,7 @@ export interface LandingPageHostingProps {
   environment: string;
   certificate?: acm.ICertificate;
   domainName?: string;
+  additionalDomains?: string[];
 }
 
 export class LandingPageHosting extends Construct {
@@ -57,7 +58,11 @@ export class LandingPageHosting extends Construct {
 
     // Add custom domain and certificate if provided
     if (props.certificate && props.domainName) {
-      distributionConfig.domainNames = [props.domainName];
+      const domainNames = [props.domainName];
+      if (props.additionalDomains) {
+        domainNames.push(...props.additionalDomains);
+      }
+      distributionConfig.domainNames = domainNames;
       distributionConfig.certificate = props.certificate;
     }
 
