@@ -24,18 +24,10 @@ export class OrderApi extends Construct {
   constructor(scope: Construct, id: string, props: OrderApiProps) {
     super(scope, id);
 
-    const getCorsOrigins = (env: string, cloudfrontDomain: string, frontendDomain?: string) => {
-      const baseOrigins = ['http://localhost:4200', 'http://localhost:3000'];
-
-      if (env === 'prod') {
-        const origins = [`https://${cloudfrontDomain}`];
-        if (frontendDomain) origins.push(`https://${frontendDomain}`);
-        return origins;
-      } else {
-        const origins = [...baseOrigins, `https://${cloudfrontDomain}`];
-        if (frontendDomain) origins.push(`https://${frontendDomain}`);
-        return origins;
-      }
+    const getCorsOrigins = (cloudfrontDomain: string, frontendDomain?: string) => {
+      const origins = [`https://${cloudfrontDomain}`];
+      if (frontendDomain) origins.push(`https://${frontendDomain}`);
+      return origins;
     };
 
     this.api = new apigw.RestApi(this, 'Api', {
@@ -49,7 +41,7 @@ export class OrderApi extends Construct {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: getCorsOrigins(props.environment, props.cloudfrontDomainName, props.frontendDomainName),
+        allowOrigins: getCorsOrigins(props.cloudfrontDomainName, props.frontendDomainName),
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',

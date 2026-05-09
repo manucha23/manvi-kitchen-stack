@@ -1,6 +1,7 @@
-export const corsHeaders = {
+const corsHeaders = {
   'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*'
+  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
+  'Access-Control-Allow-Credentials': 'true'
 };
 
 export const createErrorResponse = (statusCode: number, message: string) => ({
