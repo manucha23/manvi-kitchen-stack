@@ -144,6 +144,18 @@ class LandingPageStack extends cdk.Stack {
       description: 'Landing Page CloudFront Distribution ID',
       exportName: `${environment}-landing-page-distribution-id`,
     });
+
+    new cdk.CfnOutput(this, 'RedirectCravnestDistributionId', {
+      value: redirectDistributionCravnest.distributionId,
+      description: 'Redirect Distribution ID for cravnest.in',
+      exportName: `${environment}-redirect-cravnest-distribution-id`,
+    });
+
+    new cdk.CfnOutput(this, 'RedirectTestDistributionId', {
+      value: redirectDistributionTest.distributionId,
+      description: 'Redirect Distribution ID for test.cravnest.in',
+      exportName: `${environment}-redirect-test-distribution-id`,
+    });
   }
 }
 
