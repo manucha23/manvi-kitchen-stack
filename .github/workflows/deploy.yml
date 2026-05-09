@@ -5,12 +5,18 @@ on:
     paths-ignore:
       - 'kitchen-frontend/**'
       - 'openapi-ui/**'
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
   pull_request:
     branches:
       - develop
     paths-ignore:
       - 'kitchen-frontend/**'
       - 'openapi-ui/**'
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
 
 permissions:
   contents: read

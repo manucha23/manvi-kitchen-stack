@@ -1,0 +1,67 @@
+name: Deploy Landing Page
+
+on:
+  push:
+    paths:
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should-deploy: ${{ steps.env.outputs.should-deploy }}
+    steps:
+      - id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/develop" && "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-landing-page:
+    needs: determine-environment
+    if: needs.determine-environment.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['24.x']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ap-south-1
+
+      - name: CDK Synth Landing Page
+        run: npx cdk synth --app "npx ts-node bin/landing-page-stack.ts" -c environment=${{ needs.determine-environment.outputs.environment }}
+
+      - name: CDK Deploy Landing Page
+        run: npx cdk deploy --app "npx ts-node bin/landing-page-stack.ts" -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval never
