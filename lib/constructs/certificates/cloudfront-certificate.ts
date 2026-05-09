@@ -22,8 +22,12 @@ export class CloudFrontCertificate extends Construct {
 
     // Create certificate in us-east-1 for CloudFront
     this.certificate = new acm.Certificate(this, 'Certificate', {
-      domainName: '*.test.cravnest.in',
-      subjectAlternativeNames: ['*.cravnest.in'],
+      domainName: '*.cravnest.in',
+      subjectAlternativeNames: [
+        'cravnest.in',
+        '*.test.cravnest.in',
+        'test.cravnest.in',
+      ],
       validation: acm.CertificateValidation.fromDns(hostedZone),
     });
 
