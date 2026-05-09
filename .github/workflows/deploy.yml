@@ -8,6 +8,8 @@ on:
       - 'landing-page/**'
       - 'bin/landing-page-stack.ts'
       - 'lib/constructs/frontend/landing-page-hosting.ts'
+      - 'lib/constructs/certificates/cloudfront-certificate.ts'
+      - 'bin/cloudfront-certificate.ts'
   pull_request:
     branches:
       - develop
@@ -17,6 +19,8 @@ on:
       - 'landing-page/**'
       - 'bin/landing-page-stack.ts'
       - 'lib/constructs/frontend/landing-page-hosting.ts'
+      - 'lib/constructs/certificates/cloudfront-certificate.ts'
+      - 'bin/cloudfront-certificate.ts'
 
 permissions:
   contents: read
@@ -78,52 +82,8 @@ jobs:
             lambda/*/node_modules/
           retention-days: 5
 
-  deploy-cloudfront-certificate:
-    needs: [determine-environment, build-and-test]
-    if: needs.determine-environment.outputs.should-deploy == 'true'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.determine-environment.outputs.environment }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24.x'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Configure AWS credentials via OIDC for us-east-1
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: us-east-1
-
-      - name: Bootstrap CDK us-east-1 (if needed)
-        run: |
-          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
-          export CDK_DEFAULT_REGION=us-east-1
-          npx cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/us-east-1 --region us-east-1
-        env:
-          AWS_REGION: us-east-1
-
-      - name: Deploy CloudFront ACM certificate in us-east-1
-        id: cf-cert
-        run: |
-          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
-          export CDK_DEFAULT_REGION=us-east-1
-          npx cdk deploy CloudFrontCertificate-${{ needs.determine-environment.outputs.environment }} --require-approval=never --region us-east-1 --app "npx ts-node --prefer-ts-exts bin/cloudfront-certificate.ts"
-          
-          # Extract certificate ARN from CloudFormation stack output
-          CERT_ARN=$(aws cloudformation describe-stacks --stack-name CloudFrontCertificate-${{ needs.determine-environment.outputs.environment }} --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CertificateArn`].OutputValue' --output text)
-          echo "certificate-arn=$CERT_ARN" >> $GITHUB_OUTPUT
-        env:
-          AWS_REGION: us-east-1
-
   deploy:
-    needs: [determine-environment, build-and-test, deploy-cloudfront-certificate]
+    needs: [determine-environment, build-and-test]
     if: needs.determine-environment.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.determine-environment.outputs.environment }}
@@ -163,6 +123,6 @@ jobs:
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} -c cloudFrontCertificateArn=${{ needs.deploy-cloudfront-certificate.outputs.certificate-arn }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
