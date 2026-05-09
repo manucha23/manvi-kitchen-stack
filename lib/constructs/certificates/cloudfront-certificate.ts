@@ -21,7 +21,7 @@ export class CloudFrontCertificate extends Construct {
     });
 
     // Create certificate in us-east-1 for CloudFront
-    this.certificate = new acm.Certificate(this, 'Certificate', {
+    this.certificate = new acm.Certificate(this, 'CertificateV2', {
       domainName: '*.cravnest.in',
       subjectAlternativeNames: [
         'cravnest.in',
@@ -30,6 +30,10 @@ export class CloudFrontCertificate extends Construct {
       ],
       validation: acm.CertificateValidation.fromDns(hostedZone),
     });
+
+    // Retain old certificate so CloudFormation doesn't fail trying to delete it while in use
+    const cfnCert = this.certificate.node.defaultChild as acm.CfnCertificate;
+    cfnCert.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // Output the certificate ARN for reference in other stacks
     new cdk.CfnOutput(this, 'CertificateArn', {
