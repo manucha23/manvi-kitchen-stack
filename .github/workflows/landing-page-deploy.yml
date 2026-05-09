@@ -39,6 +39,7 @@ jobs:
     needs: determine-environment
     if: needs.determine-environment.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
     strategy:
       matrix:
         node-version: ['24.x']
