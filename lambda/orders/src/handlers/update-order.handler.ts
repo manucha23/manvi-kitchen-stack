@@ -31,30 +31,17 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
     
     // Track if status is being updated for inventory management
     let newStatus: string | undefined;
-    const oldStatus = existingOrder.Item.orderStatus;
+    const oldStatus = existingOrder.Item.status;
 
     // Update order status
-    if (body.orderStatus) {
-      if (!VALID_STATUSES.includes(body.orderStatus as OrderStatus)) {
+    if (body.status) {
+      if (!VALID_STATUSES.includes(body.status as OrderStatus)) {
         return createErrorResponse(400, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`);
       }
-      updateExpression.push('#orderStatus = :orderStatus');
-      expressionAttributeNames['#orderStatus'] = 'orderStatus';
-      expressionAttributeValues[':orderStatus'] = body.orderStatus;
-      newStatus = body.orderStatus;
-    }
-
-    // Update feedback provided
-    if (body.feedbackProvided !== undefined) {
-      updateExpression.push('feedbackProvided = :feedbackProvided');
-      expressionAttributeValues[':feedbackProvided'] = body.feedbackProvided;
-    }
-
-    // Increment feedback request count
-    if (body.incrementFeedbackRequest) {
-      updateExpression.push('feedbackRequestCount = if_not_exists(feedbackRequestCount, :zero) + :inc');
-      expressionAttributeValues[':inc'] = 1;
-      expressionAttributeValues[':zero'] = 0;
+      updateExpression.push('#status = :status');
+      expressionAttributeNames['#status'] = 'status';
+      expressionAttributeValues[':status'] = body.status;
+      newStatus = body.status;
     }
 
     // Update instructions
@@ -67,23 +54,22 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
       return createErrorResponse(400, 'No valid fields to update');
     }
 
-    updateExpression.push('#timestamp = :timestamp');
-    expressionAttributeNames['#timestamp'] = 'timestamp';
-    expressionAttributeValues[':timestamp'] = new Date().toISOString();
+    updateExpression.push('updatedAt = :updatedAt');
+    expressionAttributeValues[':updatedAt'] = new Date().toISOString();
 
     const result = await docClient.send(new UpdateCommand({
       TableName: process.env.ORDER_TABLE,
       Key: { orderId },
       UpdateExpression: `SET ${updateExpression.join(', ')}`,
       ExpressionAttributeValues: expressionAttributeValues,
-      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
       ReturnValues: 'ALL_NEW'
     }));
 
     // Handle inventory based on status change
     if (newStatus && newStatus !== oldStatus) {
       try {
-        if (newStatus === 'Cancelled') {
+        if (newStatus === OrderStatus.CANCELLED) {
           // Decrement counts for each item
           for (const item of existingOrder.Item.items || []) {
             await decrementOrderCount(item.itemId, existingOrder.Item.slot, existingOrder.Item.slotDate, item.quantity);

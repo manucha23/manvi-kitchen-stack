@@ -6,7 +6,6 @@ import {
   createOrder, 
   updateOrder, 
   deleteOrder, 
-  updateSlotAvailability, 
   getOrderHistory 
 } from './handlers';
 
@@ -14,10 +13,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     const { httpMethod, pathParameters, path } = event;
     const orderId = pathParameters?.orderId;
-
-    if (path === '/orders/slot-availability' && httpMethod === 'PUT') {
-      return updateSlotAvailability(event);
-    }
 
     if (path.includes('/history') && httpMethod === 'GET') {
       if (!orderId) {

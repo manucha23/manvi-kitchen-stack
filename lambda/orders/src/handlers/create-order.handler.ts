@@ -1,19 +1,8 @@
-import { PutCommand, BatchGetCommand, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, BatchGetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, getNextOrderId, validateCreateOrderRequest } from '../utils';
 import { Order, OrderItem, OrderStatus } from '../models';
 import { incrementOrderCount, checkOrderAvailability } from '../services';
-
-const validateScheduledTime = async (scheduledTime: string, slot: string): Promise<boolean> => {
-  const scheduled = new Date(scheduledTime);
-  const now = new Date();
-  
-  if (scheduled <= now) {
-    return false;
-  }
-
-  return true;
-};
 
 export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
@@ -22,7 +11,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       return validationResult;
     }
 
-    const { customerName, deliveryAddress, contactNumber, orderScheduled, slot, items, instructions } = validationResult;
+    const { customerName, customerPhone, deliveryAddress, slot, slotDate, items, instructions } = validationResult;
 
     const orderedBy = event.requestContext.authorizer?.claims?.sub || 
                       event.requestContext.authorizer?.claims?.username;
@@ -30,14 +19,6 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
     if (!orderedBy) {
       return createErrorResponse(401, 'User not authenticated');
     }
-
-    // Validate scheduled time
-    if (!(await validateScheduledTime(orderScheduled, slot))) {
-      return createErrorResponse(400, 'Invalid schedule: must be in the future');
-    }
-
-    // Extract date from orderScheduled
-    const slotDate = orderScheduled.split('T')[0];
 
     // Generate orderId
     const orderId = getNextOrderId();
@@ -60,7 +41,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
 
     // Build order items with validation and calculation
     const orderItems: OrderItem[] = [];
-    let total = 0;
+    let totalAmount = 0;
 
     for (const requestItem of items) {
       const item = itemsMap.get(requestItem.id);
@@ -85,27 +66,26 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
         quantity: requestItem.quantity,
         amount
       });
-      total += amount;
+      totalAmount += amount;
     }
+
+    const now = new Date().toISOString();
 
     // Create order object
     const order: Order = {
       orderId,
       orderedBy,
       customerName,
+      customerPhone,
       deliveryAddress,
-      contactNumber,
       status: OrderStatus.CREATED,
-      orderScheduled,
       slot,
       slotDate,
-      timestamp: new Date().toISOString(),
       items: orderItems,
-      total,
+      totalAmount,
       instructions,
-      feedbackProvided: false,
-      feedbackRequestCount: 0,
-      acceptanceStatus: 'accepted' // Accepted by default after limit check passes
+      createdAt: now,
+      updatedAt: now
     };
 
     await docClient.send(new PutCommand({
@@ -113,28 +93,14 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       Item: order
     }));
 
-    // Increment count for each item (now that order is created and validated)
-    const incrementedItems: Array<{id: string, slot: string, date: string, quantity: number}> = [];
-    
+    // Increment count for each item
     try {
       for (const orderItem of orderItems) {
         await incrementOrderCount(orderItem.itemId, slot, slotDate, orderItem.quantity);
-        incrementedItems.push({id: orderItem.itemId, slot, date: slotDate, quantity: orderItem.quantity});
       }
     } catch (incrementError) {
-      console.error('Error incrementing count, rolling back:', incrementError);
-      
-      // Rollback: delete the created order
-      try {
-        await docClient.send(new DeleteCommand({
-          TableName: process.env.ORDER_TABLE,
-          Key: { orderId }
-        }));
-      } catch (deleteError) {
-        console.error('Error deleting order during rollback:', deleteError);
-      }
-      
-      throw new Error(incrementError instanceof Error ? incrementError.message : 'Failed to increment order count');
+      console.error('Error incrementing count:', incrementError);
+      // Note: Order is already created, consider implementing compensation logic
     }
 
     return createSuccessResponse(201, order);

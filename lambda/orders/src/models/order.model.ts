@@ -1,9 +1,16 @@
 export enum OrderStatus {
-  CREATED = 'Created',
-  ACCEPTED = 'Accepted',
-  COOKING = 'Cooking',
-  READY = 'Ready',
-  DELIVERED = 'Delivered'
+  CREATED = 'CREATED',
+  CONFIRMED = 'CONFIRMED',
+  INKITCHEN = 'INKITCHEN',
+  READY = 'READY',
+  DISPATCHED = 'DISPATCHED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED'
+}
+
+export enum Slot {
+  LUNCH = 'lunch',
+  DINNER = 'dinner'
 }
 
 export interface OrderItem {
@@ -18,18 +25,14 @@ export interface Order {
   orderId: string;
   orderedBy: string;
   customerName: string;
+  customerPhone: string;
   deliveryAddress: string;
-  contactNumber: string;
   status: OrderStatus;
-  orderScheduled: string;
-  slot: string;
-  slotDate: string;
+  slot: Slot;
+  slotDate: string; // YYYY-MM-DD
   items: OrderItem[];
-  total: number;
+  totalAmount: number;
   instructions?: string;
-  feedbackProvided: boolean;
-  feedbackRequestCount: number;
-  timestamp: string;
-  acceptanceStatus?: string; // 'accepted' or 'rejected'
-  rejectionReason?: string;
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
 }

@@ -1,30 +1,22 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { createErrorResponse } from './response.util';
+import { Slot } from '../models';
 
-const VALID_SLOTS = ['saturday-lunch', 'saturday-dinner', 'sunday-lunch', 'sunday-dinner'];
+const VALID_SLOTS = [Slot.LUNCH, Slot.DINNER];
 
 export interface ValidatedOrderRequest {
   customerName: string;
+  customerPhone: string;
   deliveryAddress: string;
-  contactNumber: string;
-  orderScheduled: string;
-  slot: string;
+  slot: Slot;
+  slotDate: string;
   items: Array<{ id: string; quantity: number }>;
   instructions?: string;
 }
 
 export interface ValidatedUpdateOrderRequest {
-  orderStatus?: string;
-  feedbackProvided?: boolean;
-  incrementFeedbackRequest?: boolean;
+  status?: string;
   instructions?: string;
-}
-
-export interface ValidatedUpdateSlotRequest {
-  itemId: string;
-  slot: string;
-  date: string;
-  quantity: number;
 }
 
 export const validateCreateOrderRequest = (body: string | null): ValidatedOrderRequest | APIGatewayProxyResult => {
@@ -43,22 +35,22 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { customerName, deliveryAddress, contactNumber, orderScheduled, slot, items, instructions } = parsed;
+  const { customerName, customerPhone, deliveryAddress, slot, slotDate, items, instructions } = parsed;
 
   if (customerName !== undefined && typeof customerName !== 'string') {
     return createErrorResponse(400, 'customerName must be a string');
   }
+  if (customerPhone !== undefined && typeof customerPhone !== 'string') {
+    return createErrorResponse(400, 'customerPhone must be a string');
+  }
   if (deliveryAddress !== undefined && typeof deliveryAddress !== 'string') {
     return createErrorResponse(400, 'deliveryAddress must be a string');
   }
-  if (contactNumber !== undefined && typeof contactNumber !== 'string') {
-    return createErrorResponse(400, 'contactNumber must be a string');
-  }
-  if (orderScheduled !== undefined && typeof orderScheduled !== 'string') {
-    return createErrorResponse(400, 'orderScheduled must be a string');
-  }
   if (slot !== undefined && typeof slot !== 'string') {
     return createErrorResponse(400, 'slot must be a string');
+  }
+  if (slotDate !== undefined && typeof slotDate !== 'string') {
+    return createErrorResponse(400, 'slotDate must be a string');
   }
   if (items !== undefined && !Array.isArray(items)) {
     return createErrorResponse(400, 'items must be an array');
@@ -67,12 +59,25 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'instructions must be a string');
   }
 
-  if (!customerName || !deliveryAddress || !contactNumber || !orderScheduled || !slot || !items?.length) {
-    return createErrorResponse(400, 'Missing required fields: customerName, deliveryAddress, contactNumber, orderScheduled, slot, items');
+  if (!customerName || !customerPhone || !deliveryAddress || !slot || !slotDate || !items?.length) {
+    return createErrorResponse(400, 'Missing required fields: customerName, customerPhone, deliveryAddress, slot, slotDate, items');
   }
 
-  if (!VALID_SLOTS.includes(slot)) {
+  if (!VALID_SLOTS.includes(slot as Slot)) {
     return createErrorResponse(400, `Invalid slot. Must be one of: ${VALID_SLOTS.join(', ')}`);
+  }
+
+  // Validate date format YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
+    return createErrorResponse(400, 'slotDate must be in YYYY-MM-DD format');
+  }
+
+  // Validate slotDate is in the future
+  const slotDateTime = new Date(slotDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (slotDateTime < today) {
+    return createErrorResponse(400, 'slotDate must be today or in the future');
   }
 
   for (let i = 0; i < items.length; i++) {
@@ -88,7 +93,7 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     }
   }
 
-  return { customerName, deliveryAddress, contactNumber, orderScheduled, slot, items, instructions };
+  return { customerName, customerPhone, deliveryAddress, slot: slot as Slot, slotDate, items, instructions };
 };
 
 export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdateOrderRequest | APIGatewayProxyResult => {
@@ -107,62 +112,14 @@ export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdate
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { orderStatus, feedbackProvided, incrementFeedbackRequest, instructions } = parsed;
+  const { status, instructions } = parsed;
 
-  if (orderStatus !== undefined && typeof orderStatus !== 'string') {
-    return createErrorResponse(400, 'orderStatus must be a string');
-  }
-  if (feedbackProvided !== undefined && typeof feedbackProvided !== 'boolean') {
-    return createErrorResponse(400, 'feedbackProvided must be a boolean');
-  }
-  if (incrementFeedbackRequest !== undefined && typeof incrementFeedbackRequest !== 'boolean') {
-    return createErrorResponse(400, 'incrementFeedbackRequest must be a boolean');
+  if (status !== undefined && typeof status !== 'string') {
+    return createErrorResponse(400, 'status must be a string');
   }
   if (instructions !== undefined && typeof instructions !== 'string') {
     return createErrorResponse(400, 'instructions must be a string');
   }
 
-  return { orderStatus, feedbackProvided, incrementFeedbackRequest, instructions };
-};
-
-export const validateUpdateSlotRequest = (body: string | null): ValidatedUpdateSlotRequest | APIGatewayProxyResult => {
-  if (!body) {
-    return createErrorResponse(400, 'Request body is required');
-  }
-
-  let parsed: any;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    return createErrorResponse(400, 'Invalid JSON format');
-  }
-
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return createErrorResponse(400, 'Request body must be an object');
-  }
-
-  const { itemId, slot, date, quantity } = parsed;
-
-  if (itemId !== undefined && typeof itemId !== 'string') {
-    return createErrorResponse(400, 'itemId must be a string');
-  }
-  if (slot !== undefined && typeof slot !== 'string') {
-    return createErrorResponse(400, 'slot must be a string');
-  }
-  if (date !== undefined && typeof date !== 'string') {
-    return createErrorResponse(400, 'date must be a string');
-  }
-  if (quantity !== undefined && typeof quantity !== 'number') {
-    return createErrorResponse(400, 'quantity must be a number');
-  }
-
-  if (!itemId || !slot || !date || quantity === undefined) {
-    return createErrorResponse(400, 'Missing required fields: itemId, slot, date, quantity');
-  }
-
-  if (quantity < 0 || !Number.isInteger(quantity)) {
-    return createErrorResponse(400, 'Quantity must be a non-negative integer');
-  }
-
-  return { itemId, slot, date, quantity };
+  return { status, instructions };
 };
