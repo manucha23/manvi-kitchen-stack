@@ -32,18 +32,26 @@ jobs:
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       should-deploy: ${{ steps.env.outputs.should-deploy }}
+      should-upload-artifacts: ${{ steps.env.outputs.should-upload-artifacts }}
     steps:
       - id: env
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/develop" && "${{ github.event_name }}" == "push" ]]; then
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should-deploy=true" >> $GITHUB_OUTPUT
+            echo "should-upload-artifacts=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" && "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+            echo "should-upload-artifacts=true" >> $GITHUB_OUTPUT
           else
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should-deploy=false" >> $GITHUB_OUTPUT
+            echo "should-upload-artifacts=false" >> $GITHUB_OUTPUT
           fi
 
   build-and-test:
+    needs: [determine-environment]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -73,6 +81,7 @@ jobs:
         run: npx cdk synth
 
       - name: Upload CDK artifacts
+        if: needs.determine-environment.outputs.should-upload-artifacts == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: cdk-artifacts
