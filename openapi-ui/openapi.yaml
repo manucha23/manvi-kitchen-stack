@@ -28,47 +28,69 @@ components:
       properties:
         id:
           type: string
-          example: ITEM123
+          description: Item unique identifier
+          example: b7eac195-538f-4830-9c76-b483603dd89b
+        name:
+          type: string
+          description: Item name
+          example: Chicken Biryani
         quantity:
           type: integer
           minimum: 1
-          example: 2
+          description: Quantity ordered
+          example: 1
+        price:
+          type: number
+          format: float
+          description: Price per item
+          example: 250
       required:
         - id
+        - name
         - quantity
+        - price
     CreateOrderRequest:
       type: object
       properties:
-        customerName:
-          type: string
-          example: "John Doe"
-        deliveryAddress:
-          type: string
-          example: "123 Main Street, Bangalore"
-        contactNumber:
-          type: string
-          example: "+91-9876543210"
-        orderScheduled:
-          type: string
-          format: date-time
-          example: "2026-05-10T12:30:00Z"
-        slot:
-          type: string
-          example: "saturday-lunch"
         items:
           type: array
+          description: Array of items in the order
           items:
             $ref: '#/components/schemas/OrderItemRequest'
-        instructions:
+        slot:
           type: string
-          example: "Leave at the door."
+          description: Time slot (e.g., lunch, dinner)
+          example: "lunch"
+        slotDate:
+          type: string
+          format: date
+          description: Date for the slot (YYYY-MM-DD)
+          example: "2026-05-11"
+        customerName:
+          type: string
+          description: Customer name
+          example: "Manvi"
+        customerPhone:
+          type: string
+          description: Customer phone number
+          example: "+917042622062"
+        deliveryAddress:
+          type: string
+          description: Delivery address
+          example: "Kumar Picasso, Hadapsar, Pune -411028"
+        totalAmount:
+          type: number
+          format: float
+          description: Total order amount
+          example: 250
       required:
-        - customerName
-        - deliveryAddress
-        - contactNumber
-        - orderScheduled
-        - slot
         - items
+        - slot
+        - slotDate
+        - customerName
+        - customerPhone
+        - deliveryAddress
+        - totalAmount
     UpdateOrderRequest:
       type: object
       properties:
@@ -266,6 +288,10 @@ components:
             $ref: '#/components/schemas/Order'
         count:
           type: integer
+        nextToken:
+          type: string
+          nullable: true
+          description: Token for fetching next page of results
       required:
         - items
         - count
@@ -391,26 +417,66 @@ paths:
       parameters:
         - name: orderStatus
           in: query
+          description: Filter by order status (CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
           schema:
             type: string
-        - name: fromDate
+            enum: [CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          example: CREATED
+        - name: slotDate
           in: query
+          description: Filter by slot date (YYYY-MM-DD)
           schema:
             type: string
             format: date
-        - name: toDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: orderedBy
-          in: query
-          schema:
-            type: string
+          example: "2026-05-11"
         - name: slot
           in: query
+          description: Filter by time slot (lunch, dinner)
           schema:
             type: string
+          example: lunch
+        - name: fromDate
+          in: query
+          description: Start date for date range filter (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+          example: "2026-05-10"
+        - name: toDate
+          in: query
+          description: End date for date range filter (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+          example: "2026-05-31"
+        - name: customerPhone
+          in: query
+          description: Filter by customer phone number
+          schema:
+            type: string
+          example: "+919454935942"
+        - name: limit
+          in: query
+          description: Maximum number of results (default 10, max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 2
+        - name: nextToken
+          in: query
+          description: Pagination token from previous response
+          schema:
+            type: string
+          example: "eyJjcmVhdGVkQXQiOiIyMDI2LTA1LTEwVDEzOjAwOjA5LjMwMVoiLCJzdGF0dXMiOiJDUkVBVEVEIiwib3JkZXJJZCI6IldHRlBLQSJ9"
+        - name: sortOrder
+          in: query
+          description: Sort order for results (asc or desc)
+          schema:
+            type: string
+            enum: [asc, desc]
+          example: asc
       responses:
         '200':
           description: Successful order list
