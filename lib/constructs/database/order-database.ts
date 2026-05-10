@@ -34,6 +34,6 @@ export class OrderDatabase extends Construct {
       indexName: 'slotDate-slot-index',
       partitionKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'slot', type: dynamodb.AttributeType.STRING },
-    });}
+    });
   }
 }
