@@ -8,7 +8,7 @@ export class OrderDatabase extends Construct {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
-    this.table = new dynamodb.Table(this, 'OrderTable', {
+    this.table = new dynamodb.Table(this, 'OrderTableV2', {
       partitionKey: { name: 'orderId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
