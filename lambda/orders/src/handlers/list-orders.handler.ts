@@ -144,17 +144,23 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       expressionAttributeValues[':orderedBy'] = orderedBy;
     }
 
-    // Add status filter when querying by slotDate (since status is not in key)
-    if (slotDate && orderStatus) {
-      filterExpression += filterExpression ? ' AND #status = :status' : '#status = :status';
-      expressionAttributeValues[':status'] = orderStatus;
+    // Add status filter when querying by customerPhone or slotDate (since status is not in key)
+    if ((customerPhone || slotDate) && orderStatus) {
+      filterExpression += filterExpression ? ' AND #status = :statusFilter' : '#status = :statusFilter';
+      expressionAttributeValues[':statusFilter'] = orderStatus;
       expressionAttributeNames['#status'] = 'status';
     }
 
     // Add slot filter when querying by status or customerPhone (if slot provided but not in key)
     if (!slotDate && slot) {
-      filterExpression += filterExpression ? ' AND slot = :slot' : 'slot = :slot';
-      expressionAttributeValues[':slot'] = slot;
+      filterExpression += filterExpression ? ' AND slot = :slotFilter' : 'slot = :slotFilter';
+      expressionAttributeValues[':slotFilter'] = slot;
+    }
+
+    // Add slotDate filter when querying by customerPhone or status (if slotDate provided but not in key)
+    if (!slotDate && customerPhone && params.slotDate) {
+      filterExpression += filterExpression ? ' AND slotDate = :slotDateFilter' : 'slotDate = :slotDateFilter';
+      expressionAttributeValues[':slotDateFilter'] = params.slotDate;
     }
 
     // Determine sort order (default: descending for most recent first)
