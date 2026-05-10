@@ -1,27 +1,33 @@
-import { Component, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  inject,
+  input,
+  output,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
+import {
+  FormBuilder,
+  FormGroup,
+  FormArray,
+  Validators,
+  ReactiveFormsModule,
+  FormsModule,
+} from '@angular/forms';
 import { OrderService } from '../../../shared/services/order.service';
-
-interface OrderItem {
-  name: string;
-  quantity: number;
-  amount: number;
-}
-
-interface OrderForm {
-  name: string;
-  address: string;
-  pinCode: number | null;
-  instructions: string;
-  items: OrderItem[];
-}
-
-import { FormsModule } from '@angular/forms';
+import { MenuItemsService } from '../../../shared/services/menu-items.service';
+import { NotificationService } from '../../../shared/services/notification.service';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { TextareaModule } from 'primeng/textarea';
 import { FluidModule } from 'primeng/fluid';
 import { DialogModule } from 'primeng/dialog';
+import { SelectModule } from 'primeng/select';
+import { DatePickerModule } from 'primeng/datepicker';
+import { CommonModule } from '@angular/common';
+import { MenuItem } from 'src/app/shared/models/items';
 
 @Component({
   selector: 'app-order-create',
@@ -29,76 +35,131 @@ import { DialogModule } from 'primeng/dialog';
   styleUrls: ['./order-create.component.scss'],
   standalone: true,
   imports: [
+    CommonModule,
+    ReactiveFormsModule,
     FormsModule,
     ButtonModule,
     InputTextModule,
     InputNumberModule,
     TextareaModule,
-    TextareaModule,
     FluidModule,
-    DialogModule
+    DialogModule,
+    SelectModule,
+    DatePickerModule,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OrderCreateComponent {
+export class OrderCreateComponent implements OnInit {
   readonly isVisible = input(false);
   readonly orderCreated = output<void>();
   readonly closePopup = output<void>();
 
   creating = signal(false);
+  menuItems = signal<MenuItem[]>([]);
 
-  order = signal<OrderForm>({
-    name: '',
-    address: '',
-    pinCode: null,
-    instructions: '',
-    items: [{ name: '', quantity: 1, amount: 0 }]
+  private fb = inject(FormBuilder);
+  private orderService = inject(OrderService);
+  private menuItemsService = inject(MenuItemsService);
+  private notificationService = inject(NotificationService);
+
+  slotOptions = [
+    { label: 'Saturday Lunch', value: 'saturday-lunch' }
+  ];
+
+  orderForm: FormGroup = this.fb.group({
+    name: ['', Validators.required],
+    address: ['', Validators.required],
+    contactNumber: ['', [Validators.required, Validators.pattern(/^\+?[\d\s-]{10,}$/)]],
+    orderScheduled: [new Date(), Validators.required],
+    slot: ['saturday-lunch', Validators.required],
+    instructions: [''],
+    items: this.fb.array([]),
   });
 
-  constructor(private orderService: OrderService) { }
-
-  addItem(): void {
-    this.order.update(curr => ({
-      ...curr,
-      items: [...curr.items, { name: '', quantity: 1, amount: 0 }]
-    }));
+  get items(): FormArray {
+    return this.orderForm.get('items') as FormArray;
   }
 
-  removeItem(index: number): void {
-    this.order.update(curr => ({
-      ...curr,
-      items: curr.items.filter((_, i) => i !== index)
-    }));
+  ngOnInit(): void {
+    this.fetchMenuItems();
+    this.addItem();
   }
 
-  updateItem(index: number, field: keyof OrderItem, value: any): void {
-    this.order.update(curr => {
-      const items = [...curr.items];
-      items[index] = { ...items[index], [field]: value };
-      return { ...curr, items };
+  fetchMenuItems(): void {
+    this.menuItemsService.getItems().subscribe({
+      next: (response) => this.menuItems.set(response.items),
+      error: (err) => console.error('Error fetching menu items', err),
     });
   }
 
-  updateOrderField(field: keyof OrderForm, value: any): void {
-    this.order.update(curr => ({ ...curr, [field]: value }));
+  addItem(): void {
+    const itemGroup = this.fb.group({
+      selectedItem: [null, Validators.required],
+      quantity: [1, [Validators.required, Validators.min(1)]],
+    });
+    this.items.push(itemGroup);
+  }
+
+  calculateRowAmount(index: number): number {
+    const group = this.items.at(index);
+    const selectedItem = group.get('selectedItem')?.value as MenuItem;
+    const quantity = group.get('quantity')?.value || 0;
+    return selectedItem ? selectedItem.price * quantity : 0;
+  }
+
+  getAvailableItems(index: number): MenuItem[] {
+    const allItems = this.menuItems();
+    const selectedIds = this.items.controls
+      .map((ctrl, i) => i !== index ? (ctrl.get('selectedItem')?.value as MenuItem)?.itemId : null)
+      .filter(id => !!id);
+    
+    return allItems.filter(item => !selectedIds.includes(item.itemId));
+  }
+
+  removeItem(index: number): void {
+    this.items.removeAt(index);
+  }
+
+  onItemSelected(index: number, event: any): void {
+    // No longer need to manually patch name/amount as they are derived from selectedItem
   }
 
   createOrder(): void {
+    if (this.orderForm.invalid) {
+      this.notificationService.showError('Invalid Form', 'Please fill in all required fields correctly');
+      return;
+    }
+
     this.creating.set(true);
+    const formValue = this.orderForm.getRawValue();
+
+    // Transform data to match API request body
     const orderData = {
-      ...this.order(),
-      status: 'CREATED'
+      customerName: formValue.name,
+      deliveryAddress: formValue.address,
+      contactNumber: formValue.contactNumber,
+      orderScheduled: formValue.orderScheduled instanceof Date 
+        ? formValue.orderScheduled.toISOString() 
+        : new Date(formValue.orderScheduled).toISOString(),
+      slot: formValue.slot,
+      instructions: formValue.instructions,
+      items: formValue.items.map((item: any) => ({
+        id: item.selectedItem.itemId,
+        quantity: item.quantity,
+      })),
     };
 
     this.orderService.createOrder(orderData).subscribe({
       next: () => {
+        this.notificationService.showSuccess('Success', 'Order created successfully');
         this.orderCreated.emit();
         this.close();
       },
       error: (error) => {
         console.error('Error creating order:', error);
+        this.notificationService.showError('Error', error?.error?.message || 'Failed to create order');
         this.creating.set(false);
-      }
+      },
     });
   }
 
@@ -108,13 +169,17 @@ export class OrderCreateComponent {
   }
 
   resetForm(): void {
-    this.order.set({
+    this.orderForm.reset({
       name: '',
       address: '',
-      pinCode: null,
+      contactNumber: '',
+      orderScheduled: new Date(),
+      slot: 'saturday-lunch',
       instructions: '',
-      items: [{ name: '', quantity: 1, amount: 0 }]
+      items: [],
     });
+    this.items.clear();
+    this.addItem();
     this.creating.set(false);
   }
 }

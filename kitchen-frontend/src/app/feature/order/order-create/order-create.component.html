@@ -3,63 +3,79 @@
   [resizable]="false">
 
   <div class="flex flex-col gap-4">
-    <form (ngSubmit)="createOrder()" #orderForm="ngForm">
+    <form [formGroup]="orderForm" (ngSubmit)="createOrder()">
       <p-fluid class="flex flex-col gap-4">
 
-        <div class="field">
-          <label for="name" class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Customer
-            Name</label>
-          <input pInputText id="name" [ngModel]="order().name" (ngModelChange)="updateOrderField('name', $event)"
-            name="name" required placeholder="Enter customer name" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="field">
+            <label for="name" class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Customer
+              Name</label>
+            <input pInputText id="name" formControlName="name" placeholder="Enter customer name" />
+          </div>
+          <div class="field">
+            <label for="contactNumber"
+              class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Contact Number</label>
+            <input pInputText id="contactNumber" formControlName="contactNumber" placeholder="+91-XXXXXXXXXX" />
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="field">
-            <label for="address"
-              class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Address</label>
-            <textarea pTextarea id="address" [ngModel]="order().address"
-              (ngModelChange)="updateOrderField('address', $event)" name="address" required rows="3"
-              placeholder="Full delivery address"></textarea>
+            <label for="orderScheduled"
+              class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Delivery Date &
+              Time</label>
+            <p-datepicker id="orderScheduled" formControlName="orderScheduled" [showTime]="true" />
           </div>
-          <div class="field">
-            <label for="instructions"
-              class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Special
-              Instructions</label>
-            <textarea pTextarea id="instructions" [ngModel]="order().instructions"
-              (ngModelChange)="updateOrderField('instructions', $event)" name="instructions" rows="3"
-              placeholder="Optional notes for kitchen"></textarea>
+          <div class=" field">
+            <label for="slot" class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Preferred
+              Slot</label>
+            <p-select id="slot" [options]="slotOptions" formControlName="slot" optionLabel="label" optionValue="value"
+              placeholder="Select a slot" />
           </div>
         </div>
 
-        <div class="field">
-          <label for="pinCode" class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Pin
-            Code</label>
-          <p-inputNumber id="pinCode" [ngModel]="order().pinCode" (ngModelChange)="updateOrderField('pinCode', $event)"
-            name="pinCode" [useGrouping]="false" required placeholder="6-digit PIN" />
-        </div>
-
-        <div class="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4">
+        <div class="border-t border-surface-200 dark:border-surface-700 pt-4">
           <div class="flex justify-between items-center mb-4">
             <label class="block font-bold text-lg text-primary">Items List</label>
             <p-button label="Add Item" icon="pi pi-plus" (click)="addItem()" severity="secondary" size="small"
               [outlined]="true" />
           </div>
 
-          <div class="space-y-3">
-            @for (item of order().items; track i; let i = $index) {
-            <div class="grid grid-cols-12 gap-3 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg relative group">
+          <div class="space-y-3" formArrayName="items">
+            @for (item of items.controls; track i; let i = $index) {
+            <div [formGroupName]="i"
+              class="grid grid-cols-12 gap-3 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg relative group">
               <div class="col-span-12 md:col-span-6">
-                <input pInputText [ngModel]="item.name" (ngModelChange)="updateItem(i, 'name', $event)"
-                  [name]="'itemName' + i" placeholder="Item name" required />
+                <p-select [options]="getAvailableItems(i)" formControlName="selectedItem" optionLabel="name"
+                  [filter]="true" filterBy="name" [showClear]="true" placeholder="Select an Item" class="w-full"
+                  (onChange)="onItemSelected(i, $event)">
+                  <ng-template #selectedItem let-selectedOption>
+                    @if (selectedOption) {
+                    <div class="flex items-center gap-2">
+                      <img [src]="selectedOption.imageUrl" style="width: 24px; height: 24px; object-fit: cover;"
+                        class="rounded" />
+                      <div>{{ selectedOption.name }}</div>
+                    </div>
+                    }
+                  </ng-template>
+                  <ng-template let-menuItem #item>
+                    <div class="flex items-center gap-2">
+                      <img [src]="menuItem.imageUrl" style="width: 24px; height: 24px; object-fit: cover;"
+                        class="rounded" />
+                      <div class="flex flex-col">
+                        <span class="font-medium">{{ menuItem.name }}</span>
+                        <span class="text-xs text-surface-500">{{ menuItem.price | currency:'INR' }}</span>
+                      </div>
+                    </div>
+                  </ng-template>
+                </p-select>
               </div>
               <div class="col-span-5 md:col-span-2">
-                <p-inputNumber [ngModel]="item.quantity" (ngModelChange)="updateItem(i, 'quantity', $event)"
-                  [name]="'itemQty' + i" placeholder="Qty" [showButtons]="true" [min]="1" required />
+                <p-inputNumber formControlName="quantity" placeholder="Qty" [showButtons]="true" [min]="1" />
               </div>
               <div class="col-span-5 md:col-span-3">
-                <p-inputNumber [ngModel]="item.amount" (ngModelChange)="updateItem(i, 'amount', $event)"
-                  [name]="'itemAmount' + i" placeholder="Amount" mode="currency" currency="INR" locale="en-IN"
-                  required />
+                <p-inputNumber [ngModel]="calculateRowAmount(i)" [ngModelOptions]="{standalone: true}"
+                  placeholder="Amount" mode="currency" currency="INR" locale="en-IN" [disabled]="true" />
               </div>
               <div class="col-span-2 md:col-span-1 flex items-center justify-end">
                 <p-button icon="pi pi-trash" severity="danger" [text]="true" (click)="removeItem(i)" />
@@ -68,6 +84,24 @@
             }
           </div>
         </div>
+
+        <div class="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="field">
+            <label for="address"
+              class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Delivery Address</label>
+            <textarea pTextarea id="address" formControlName="address" rows="3"
+              placeholder="Full delivery address with pincode"></textarea>
+          </div>
+          <div class="field">
+            <label for="instructions"
+              class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Special
+              Instructions</label>
+            <textarea pTextarea id="instructions" formControlName="instructions" rows="3"
+              placeholder="Optional notes for kitchen"></textarea>
+          </div>
+        </div>
+
       </p-fluid>
     </form>
   </div>
@@ -76,7 +110,7 @@
     <div class="flex justify-end gap-3">
       <p-button label="Cancel" severity="secondary" [text]="true" (click)="close()" />
       <p-button label="Finalize Order" [loading]="creating()" (click)="createOrder()"
-        [disabled]="!orderForm.valid || creating() || order().items.length === 0" severity="primary" />
+        [disabled]="orderForm.invalid || creating() || items.length === 0" severity="primary" />
     </div>
   </ng-template>
 </p-dialog>

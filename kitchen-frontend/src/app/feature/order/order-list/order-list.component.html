@@ -9,31 +9,44 @@
   <div
     class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden bg-surface-0 dark:bg-surface-900 p-6">
     <p-table #dt [value]="orders()" [loading]="loading()" [paginator]="true" [rows]="10"
-      [rowsPerPageOptions]="[10, 20, 50]" [globalFilterFields]="['orderId', 'customerName', 'status']" responsiveLayout="stack"
-      [breakpoint]="'960px'" styleClass="p-datatable-striped" [tableStyle]="{ 'min-width': '50rem' }">
+      [rowsPerPageOptions]="[10, 20, 50]"
+      [globalFilterFields]="['orderId', 'customerName', 'status', 'slot', 'slotDate', 'orderScheduled']"
+      [scrollable]="true" scrollHeight="calc(100vh - 28rem)" styleClass="p-datatable-striped"
+      [tableStyle]="{ 'min-width': '100rem' }">
 
       <ng-template #caption>
-        <div class="flex justify-between items-center">
-          <h5 class="m-0">Manage Kitchen Orders</h5>
-          <p-iconfield>
-            <p-inputicon>
-              <i class="pi pi-search"></i>
-            </p-inputicon>
-            <input pInputText type="text" (input)="dt.filterGlobal($any($event.target).value, 'contains')"
-              placeholder="Search orders..." />
-          </p-iconfield>
+        <div class="flex flex-wrap justify-between items-center gap-4">
+          <h5 class="m-0 text-xl font-semibold">Manage Kitchen Orders</h5>
+          <div class="flex flex-wrap items-center gap-3">
+            <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" placeholder="Date Range"
+              (onSelect)="onSearch()" [showIcon]="true" appendTo="body" />
+
+            <p-multiselect [options]="statusOptions" [(ngModel)]="selectedStatuses" placeholder="Select Status"
+              (onChange)="onSearch()" display="chip" appendTo="body" [maxSelectedLabels]="2" class="min-w-48" />
+
+            <p-iconfield>
+              <p-inputicon>
+                <i class="pi pi-search"></i>
+              </p-inputicon>
+              <input pInputText type="text" [(ngModel)]="searchText" (input)="onSearch()"
+                placeholder="Search Customer Name..." />
+            </p-iconfield>
+          </div>
         </div>
       </ng-template>
 
       <ng-template #header>
         <tr>
-          <th pSortableColumn="orderId" style="width:15%">Order ID <p-sortIcon field="orderId" /></th>
-          <th pSortableColumn="name" style="width:15%">Customer <p-sortIcon field="name" /></th>
-          <th style="width:20%">Address</th>
-          <th style="width:10%">Total</th>
-          <th pSortableColumn="status" style="width:12%">Status <p-sortIcon field="status" /></th>
-          <th style="width:15%">Action</th>
-          <th pSortableColumn="createdAt" style="width:13%">Date <p-sortIcon field="createdAt" /></th>
+          <th pSortableColumn="orderId" style="width:10%">Order ID <p-sortIcon field="orderId" /></th>
+          <th pSortableColumn="customerName" style="width:12%">Customer <p-sortIcon field="customerName" /></th>
+          <th pSortableColumn="slot" style="width:8%">Slot <p-sortIcon field="slot" /></th>
+          <th pSortableColumn="slotDate" style="width:10%">Slot Date <p-sortIcon field="slotDate" /></th>
+          <th pSortableColumn="orderScheduled" style="width:10%">Scheduled <p-sortIcon field="orderScheduled" /></th>
+          <th style="width:15%">Address</th>
+          <th style="width:8%">Total</th>
+          <th pSortableColumn="status" style="width:10%">Status <p-sortIcon field="status" /></th>
+          <th style="width:12%">Action</th>
+          <th pSortableColumn="timestamp" style="width:12%">Date <p-sortIcon field="timestamp" /></th>
         </tr>
       </ng-template>
 
@@ -47,6 +60,15 @@
           </td>
           <td>
             {{order.customerName}}
+          </td>
+          <td>
+            {{order.slot}}
+          </td>
+          <td>
+            {{order.slotDate | date:'mediumDate'}}
+          </td>
+          <td>
+            {{order.orderScheduled | date:'short'}}
           </td>
           <td>
             <div class="text-xs text-surface-600 dark:text-surface-400">
@@ -73,7 +95,7 @@
 
       <ng-template #emptymessage>
         <tr>
-          <td colspan="7" class="text-center p-8">
+          <td colspan="10" class="text-center p-8">
             <i class="pi pi-inbox text-4xl mb-4 text-surface-400"></i>
             <p>No orders found matching your criteria.</p>
           </td>
@@ -83,9 +105,11 @@
   </div>
 
   <!-- Order Create Component -->
+  @if(showCreatePopup()) {
   <app-order-create [isVisible]="showCreatePopup()" (orderCreated)="onOrderCreated()"
     (closePopup)="showCreatePopup.set(false)">
   </app-order-create>
+  }
 </div>
 
 <!-- Audit Details Popup -->
