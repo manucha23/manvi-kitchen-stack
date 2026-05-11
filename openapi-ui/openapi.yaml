@@ -94,17 +94,14 @@ components:
     UpdateOrderRequest:
       type: object
       properties:
-        orderStatus:
+        status:
           type: string
-          example: "Accepted"
-        feedbackProvided:
-          type: boolean
-          example: false
-        incrementFeedbackRequest:
-          type: boolean
-          example: true
+          description: Order status (CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
+          enum: [CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          example: "CONFIRMED"
         instructions:
           type: string
+          description: Special instructions for the order
           example: "Please add extra chutney."
     UpdateSlotAvailabilityRequest:
       type: object
@@ -226,58 +223,63 @@ components:
       properties:
         orderId:
           type: string
+          description: Unique order identifier
         orderedBy:
           type: string
+          description: User ID who placed the order
         customerName:
           type: string
+          description: Customer name
+        customerPhone:
+          type: string
+          description: Customer phone number
         deliveryAddress:
           type: string
-        contactNumber:
-          type: string
+          description: Delivery address
         status:
           type: string
-        orderScheduled:
-          type: string
-          format: date-time
+          description: Order status
+          enum: [CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
         slot:
           type: string
+          description: Time slot (lunch or dinner)
+          enum: [lunch, dinner]
         slotDate:
           type: string
           format: date
+          description: Date for the slot (YYYY-MM-DD)
         items:
           type: array
           items:
             $ref: '#/components/schemas/OrderItem'
-        total:
+        totalAmount:
           type: number
           format: float
+          description: Total order amount
         instructions:
           type: string
-        feedbackProvided:
-          type: boolean
-        feedbackRequestCount:
-          type: integer
-        timestamp:
+          description: Special instructions for the order
+        createdAt:
           type: string
           format: date-time
-        acceptanceStatus:
+          description: Order creation timestamp
+        updatedAt:
           type: string
-        rejectionReason:
-          type: string
+          format: date-time
+          description: Order last update timestamp
       required:
         - orderId
         - orderedBy
         - customerName
+        - customerPhone
         - deliveryAddress
-        - contactNumber
         - status
-        - orderScheduled
         - slot
         - slotDate
         - items
-        - total
-        - feedbackProvided
-        - feedbackRequestCount
+        - totalAmount
+        - createdAt
+        - updatedAt
         - timestamp
     OrderListResponse:
       type: object
