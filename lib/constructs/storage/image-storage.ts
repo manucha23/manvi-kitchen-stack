@@ -2,10 +2,13 @@ import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
 
 export interface ImageStorageProps {
   environment: string;
+  hostedZone?: route53.IHostedZone;
 }
 
 export class ImageStorage extends Construct {
@@ -42,5 +45,15 @@ export class ImageStorage extends Construct {
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
     });
+
+    // Add DNS record for images domain if hosted zone is provided
+    if (props.hostedZone) {
+      const imageDomain = `images.${props.environment === 'prod' ? 'cravnest.in' : `${props.environment}.cravnest.in`}`;
+      new route53.ARecord(this, 'ImageDns', {
+        zone: props.hostedZone,
+        recordName: imageDomain,
+        target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution)),
+      });
+    }
   }
 }

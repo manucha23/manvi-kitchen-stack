@@ -62,7 +62,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
-    const imageStorage = new ImageStorage(this, 'ImageStorage', { environment });
+    const imageStorage = new ImageStorage(this, 'ImageStorage', { 
+      environment,
+      hostedZone: hostedZone.hostedZone,
+    });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
       itemTable: itemDatabase.table,
       imageBucket: imageStorage.bucket,
