@@ -10,6 +10,7 @@ export interface ItemLambdasProps {
   imageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
   orderLimitsConfigTable: dynamodb.Table;
+  imageDomain: string;
   allowedOrigins?: string;
 }
 
@@ -28,7 +29,7 @@ export class ItemLambdas extends Construct {
       environment: { 
         ITEM_TABLE: props.itemTable.tableName,
         IMAGE_BUCKET: props.imageBucket.bucketName,
-        IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName,
+        IMAGE_DOMAIN: props.imageDomain,
         ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },

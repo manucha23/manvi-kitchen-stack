@@ -29,8 +29,8 @@ export const generateUploadUrl = async (event: APIGatewayProxyEvent): Promise<AP
 
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 }); // 5 minutes
 
-    // Generate CloudFront URL for access
-    const imageUrl = `https://${process.env.IMAGE_CLOUDFRONT_DOMAIN}/${key}`;
+    // Generate domain URL for access
+    const imageUrl = `https://${process.env.IMAGE_DOMAIN}/${key}`;
 
     return createSuccessResponse(200, {
       uploadUrl,
