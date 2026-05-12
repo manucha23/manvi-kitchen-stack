@@ -10,6 +10,7 @@ export interface ItemLambdasProps {
   imageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
   orderLimitsConfigTable: dynamodb.Table;
+  itemOrderCountTable: dynamodb.Table;
   imageDomain: string;
   allowedOrigins?: string;
 }
@@ -31,6 +32,7 @@ export class ItemLambdas extends Construct {
         IMAGE_BUCKET: props.imageBucket.bucketName,
         IMAGE_DOMAIN: props.imageDomain,
         ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
+        ITEM_ORDER_COUNT_TABLE: props.itemOrderCountTable.tableName,
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
@@ -39,5 +41,6 @@ export class ItemLambdas extends Construct {
     props.itemTable.grantReadWriteData(this.itemFunction);
     props.imageBucket.grantReadWrite(this.itemFunction);
     props.orderLimitsConfigTable.grantReadData(this.itemFunction);
+    props.itemOrderCountTable.grantReadData(this.itemFunction);
   }
 }

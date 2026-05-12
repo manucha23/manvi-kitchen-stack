@@ -118,7 +118,7 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     } else {
       // Strategy 3: Query by status (default)
       indexName = 'status-createdAt-index';
-      const status = orderStatus || OrderStatus.CREATED;
+      const status = orderStatus || OrderStatus.CONFIRMED;
       keyConditionExpression = '#status = :status';
       expressionAttributeValues[':status'] = status;
       expressionAttributeNames['#status'] = 'status';

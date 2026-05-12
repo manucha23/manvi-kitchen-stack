@@ -1,6 +1,6 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { createErrorResponse } from './response.util';
-import { Slot } from '../models';
+import { PaymentMethod, Slot } from '../models';
 
 const VALID_SLOTS = [Slot.LUNCH, Slot.DINNER];
 
@@ -10,6 +10,7 @@ export interface ValidatedOrderRequest {
   deliveryAddress: string;
   slot: Slot;
   slotDate: string;
+  paymentMethod: PaymentMethod;
   items: Array<{ id: string; quantity: number }>;
   instructions?: string;
 }
@@ -35,7 +36,7 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { customerName, customerPhone, deliveryAddress, slot, slotDate, items, instructions } = parsed;
+  const { customerName, customerPhone, deliveryAddress, slot, slotDate, paymentMethod = PaymentMethod.COD, items, instructions } = parsed;
 
   if (customerName !== undefined && typeof customerName !== 'string') {
     return createErrorResponse(400, 'customerName must be a string');
@@ -55,6 +56,9 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
   if (items !== undefined && !Array.isArray(items)) {
     return createErrorResponse(400, 'items must be an array');
   }
+  if (paymentMethod !== undefined && typeof paymentMethod !== 'string') {
+    return createErrorResponse(400, 'paymentMethod must be a string');
+  }
   if (instructions !== undefined && typeof instructions !== 'string') {
     return createErrorResponse(400, 'instructions must be a string');
   }
@@ -67,17 +71,13 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, `Invalid slot. Must be one of: ${VALID_SLOTS.join(', ')}`);
   }
 
+  if (!Object.values(PaymentMethod).includes(paymentMethod as PaymentMethod)) {
+    return createErrorResponse(400, `Invalid paymentMethod. Must be one of: ${Object.values(PaymentMethod).join(', ')}`);
+  }
+
   // Validate date format YYYY-MM-DD
   if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
     return createErrorResponse(400, 'slotDate must be in YYYY-MM-DD format');
-  }
-
-  // Validate slotDate is in the future
-  const slotDateTime = new Date(slotDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (slotDateTime < today) {
-    return createErrorResponse(400, 'slotDate must be today or in the future');
   }
 
   for (let i = 0; i < items.length; i++) {
@@ -93,7 +93,7 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     }
   }
 
-  return { customerName, customerPhone, deliveryAddress, slot: slot as Slot, slotDate, items, instructions };
+  return { customerName, customerPhone, deliveryAddress, slot: slot as Slot, slotDate, paymentMethod: paymentMethod as PaymentMethod, items, instructions };
 };
 
 export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdateOrderRequest | APIGatewayProxyResult => {

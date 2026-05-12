@@ -1,6 +1,7 @@
 import { ScanCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from './utils';
+import { getTodayAvailability } from './availability';
 
 const getOrderLimits = async (itemId: string) => {
   const result = await docClient.send(new GetCommand({
@@ -32,8 +33,11 @@ export const listItems = async (event: APIGatewayProxyEvent): Promise<APIGateway
     }));
 
     const items = await Promise.all((result.Items || []).map(async (item) => {
-      const limits = await getOrderLimits(item.itemId);
-      return { ...item, limits };
+      const [limits, availability] = await Promise.all([
+        getOrderLimits(item.itemId),
+        getTodayAvailability(item.itemId),
+      ]);
+      return { ...item, limits, availability };
     }));
 
     return createSuccessResponse(200, { items });

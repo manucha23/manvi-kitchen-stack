@@ -2,7 +2,7 @@ import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, validateUpdateOrderRequest } from '../utils';
 import { OrderStatus } from '../models';
-import { decrementOrderCount } from '../services';
+import { releaseCapacityForOrderItems, reserveCapacityForOrderItems, validateSameDaySlotAndCutoff } from '../services';
 
 const VALID_STATUSES = Object.values(OrderStatus);
 
@@ -32,6 +32,8 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
     // Track if status is being updated for inventory management
     let newStatus: string | undefined;
     const oldStatus = existingOrder.Item.status;
+    let reservedDuringUpdate = false;
+    let releasedDuringUpdate = false;
 
     // Update order status
     if (body.status) {
@@ -54,31 +56,73 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
       return createErrorResponse(400, 'No valid fields to update');
     }
 
+    if (newStatus && newStatus !== oldStatus) {
+      if (newStatus === OrderStatus.CONFIRMED && existingOrder.Item.capacityReserved !== true) {
+        const slotValidation = await validateSameDaySlotAndCutoff(existingOrder.Item.slot, existingOrder.Item.slotDate);
+        if (!slotValidation.valid) {
+          return createErrorResponse(400, slotValidation.reason);
+        }
+        try {
+          await reserveCapacityForOrderItems(
+            (existingOrder.Item.items || []).map((item: any) => ({ itemId: item.itemId, quantity: item.quantity })),
+            existingOrder.Item.slot,
+            existingOrder.Item.slotDate,
+          );
+          reservedDuringUpdate = true;
+          updateExpression.push('capacityReserved = :capacityReserved');
+          updateExpression.push('capacityReservedAt = :capacityReservedAt');
+          expressionAttributeValues[':capacityReserved'] = true;
+          expressionAttributeValues[':capacityReservedAt'] = new Date().toISOString();
+        } catch (capacityError) {
+          return createErrorResponse(400, capacityError instanceof Error ? capacityError.message : 'Unable to reserve item capacity');
+        }
+      }
+
+      if (newStatus === OrderStatus.CANCELLED && existingOrder.Item.capacityReserved === true) {
+        try {
+          await releaseCapacityForOrderItems(
+            (existingOrder.Item.items || []).map((item: any) => ({ itemId: item.itemId, quantity: item.quantity })),
+            existingOrder.Item.slot,
+            existingOrder.Item.slotDate,
+          );
+          releasedDuringUpdate = true;
+          updateExpression.push('capacityReserved = :capacityReserved');
+          expressionAttributeValues[':capacityReserved'] = false;
+        } catch (capacityError) {
+          return createErrorResponse(500, capacityError instanceof Error ? capacityError.message : 'Failed to release order capacity');
+        }
+      }
+    }
+
     updateExpression.push('updatedAt = :updatedAt');
     expressionAttributeValues[':updatedAt'] = new Date().toISOString();
 
-    const result = await docClient.send(new UpdateCommand({
-      TableName: process.env.ORDER_TABLE,
-      Key: { orderId },
-      UpdateExpression: `SET ${updateExpression.join(', ')}`,
-      ExpressionAttributeValues: expressionAttributeValues,
-      ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
-      ReturnValues: 'ALL_NEW'
-    }));
-
-    // Handle inventory based on status change
-    if (newStatus && newStatus !== oldStatus) {
-      try {
-        if (newStatus === OrderStatus.CANCELLED) {
-          // Decrement counts for each item
-          for (const item of existingOrder.Item.items || []) {
-            await decrementOrderCount(item.itemId, existingOrder.Item.slot, existingOrder.Item.slotDate, item.quantity);
-          }
-        }
-      } catch (inventoryError) {
-        console.error('Error managing inventory:', inventoryError);
-        // Order status already updated, log error but don't fail the request
+    let result;
+    try {
+      result = await docClient.send(new UpdateCommand({
+        TableName: process.env.ORDER_TABLE,
+        Key: { orderId },
+        UpdateExpression: `SET ${updateExpression.join(', ')}`,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+        ReturnValues: 'ALL_NEW'
+      }));
+    } catch (updateError) {
+      if (reservedDuringUpdate) {
+        await releaseCapacityForOrderItems(
+          (existingOrder.Item.items || []).map((item: any) => ({ itemId: item.itemId, quantity: item.quantity })),
+          existingOrder.Item.slot,
+          existingOrder.Item.slotDate,
+        ).catch((releaseError) => console.error('Failed to release capacity after order update failure:', releaseError));
       }
+      if (releasedDuringUpdate) {
+        await reserveCapacityForOrderItems(
+          (existingOrder.Item.items || []).map((item: any) => ({ itemId: item.itemId, quantity: item.quantity })),
+          existingOrder.Item.slot,
+          existingOrder.Item.slotDate,
+        ).catch((reserveError) => console.error('Failed to restore capacity after order update failure:', reserveError));
+      }
+      throw updateError;
     }
 
     return createSuccessResponse(200, result.Attributes);

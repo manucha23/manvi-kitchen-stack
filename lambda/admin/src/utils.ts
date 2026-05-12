@@ -46,6 +46,14 @@ export const validateSetLimitsRequest = (body: string | null): any => {
       return { statusCode: 400, message: 'itemName must be a string' };
     }
 
+    if (parsed.lunchCutoffTime !== undefined && (typeof parsed.lunchCutoffTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.lunchCutoffTime))) {
+      return { statusCode: 400, message: 'lunchCutoffTime must be in HH:mm format' };
+    }
+
+    if (parsed.dinnerCutoffTime !== undefined && (typeof parsed.dinnerCutoffTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.dinnerCutoffTime))) {
+      return { statusCode: 400, message: 'dinnerCutoffTime must be in HH:mm format' };
+    }
+
     return parsed;
   } catch (e) {
     return { statusCode: 400, message: 'Invalid JSON in request body' };

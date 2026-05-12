@@ -12,6 +12,7 @@ export class ItemOrderCountDatabase extends Construct {
       partitionKey: { name: 'countKey', type: dynamodb.AttributeType.STRING }, // Format: itemId-slot-YYYY-MM-DD
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      timeToLiveAttribute: 'ttl',
     });
 
     // GSI for querying by itemId and date

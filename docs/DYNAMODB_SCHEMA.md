@@ -19,7 +19,7 @@ This document describes all DynamoDB tables used in the Manvi Kitchen Stack, inc
 - **Use Case**: Query customer order history sorted by recency
 
 #### status-createdAt-index
-- **Partition Key**: `status` (String) - Order status (CREATED, CONFIRMED, COMPLETED, CANCELLED)
+- **Partition Key**: `status` (String) - Order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
 - **Sort Key**: `createdAt` (String) - ISO timestamp of order creation
 - **Use Case**: Query orders by status sorted by creation time (most recent first)
 
@@ -31,6 +31,10 @@ This document describes all DynamoDB tables used in the Manvi Kitchen Stack, inc
 ### Attributes
 - `orderId` (String) - Unique order identifier
 - `status` (String) - Order status enum
+- `paymentMethod` (String) - `COD` or `ONLINE`
+- `paymentStatus` (String) - `NOT_REQUIRED` or `PENDING`
+- `capacityReserved` (Boolean) - Whether item capacity has been reserved
+- `capacityReservedAt` (String) - ISO timestamp when capacity was reserved
 - `items` (List) - Array of ordered items with quantities
 - `slot` (String) - Time slot (lunch/dinner)
 - `slotDate` (String) - Delivery date
@@ -123,6 +127,8 @@ None
 - `dinnerLimit` (Number) - Maximum orders allowed for dinner slot
 - `isAcceptingOrders` (Boolean) - Item-specific killswitch flag
 - `globalKillswitch` (Boolean) - System-wide order acceptance flag (only on GLOBAL record)
+- `lunchCutoffTime` (String) - HH:mm IST lunch cutoff on the GLOBAL record, default `13:00`
+- `dinnerCutoffTime` (String) - HH:mm IST dinner cutoff on the GLOBAL record, default `20:00`
 - `configType` (String) - Type identifier for GSI queries
 - `updatedAt` (String) - Last configuration update timestamp
 
@@ -153,13 +159,17 @@ None
 - `slot` (String) - Time slot (lunch/dinner)
 - `date` (String) - Date in YYYY-MM-DD format
 - `currentCount` (Number) - Current number of orders for this item/slot/date
+- `availableCount` (Number) - Remaining sellable portions for this item/slot/date
 - `lastResetTimestamp` (String) - When the count was last reset
+- `ttl` (Number) - Unix timestamp for cleanup, 48 hours after the slot date
 
 ### Special Features
 - **Billing Mode**: PAY_PER_REQUEST (on-demand)
 - **Removal Policy**: DESTROY (for development)
-- **Lazy Reset**: Counts reset on first request of a new day
-- **Atomic Updates**: Uses conditional expressions to prevent race conditions
+- **Same-day Capacity**: Counts are keyed by date, so no reset is needed for correctness
+- **Stored Availability**: `availableCount` is stored for fast UI sold-out checks
+- **TTL Cleanup**: Old count records expire after the slot date
+- **Atomic Updates**: Reservation updates `currentCount` and `availableCount` together with conditional expressions
 
 ---
 
@@ -183,7 +193,7 @@ Sort: ScanIndexForward = false (most recent first)
 ```
 Table: OrderTable
 Index: status-createdAt-index
-Pattern: status = "CREATED"
+Pattern: status = "CONFIRMED"
 Sort: ScanIndexForward = false (most recent first)
 ```
 
@@ -191,7 +201,7 @@ Sort: ScanIndexForward = false (most recent first)
 ```
 Table: OrderTable
 Index: status-createdAt-index
-Pattern: status = "CREATED"
+Pattern: status = "CONFIRMED"
 Filter: slotDate = "2024-01-15"
 Sort: ScanIndexForward = false
 ```
@@ -216,7 +226,7 @@ Pattern: slotDate = "2024-01-15"
 {
   IndexName: 'status-createdAt-index',
   KeyConditionExpression: 'status = :status',
-  ExpressionAttributeValues: { ':status': 'CREATED' },
+  ExpressionAttributeValues: { ':status': 'CONFIRMED' },
   Limit: 20,
   ScanIndexForward: false
 }
@@ -225,7 +235,7 @@ Pattern: slotDate = "2024-01-15"
 {
   IndexName: 'status-createdAt-index',
   KeyConditionExpression: 'status = :status',
-  ExpressionAttributeValues: { ':status': 'CREATED' },
+  ExpressionAttributeValues: { ':status': 'CONFIRMED' },
   Limit: 20,
   ExclusiveStartKey: previousResponse.LastEvaluatedKey,
   ScanIndexForward: false

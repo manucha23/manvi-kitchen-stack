@@ -1,7 +1,8 @@
 import { DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from '../utils';
-import { decrementOrderCount } from '../services';
+import { releaseCapacityForOrderItems, reserveCapacityForOrderItems } from '../services';
+import { OrderStatus } from '../models';
 
 export const deleteOrder = async (orderId: string): Promise<APIGatewayProxyResult> => {
   try {
@@ -15,18 +16,21 @@ export const deleteOrder = async (orderId: string): Promise<APIGatewayProxyResul
       return createErrorResponse(404, 'Order not found');
     }
 
-    // Check order status - only allow deletion for Created or Accepted
+    // Check order status - only allow deletion before kitchen processing starts
     const status = result.Item.status;
-    if (status !== 'Created' && status !== 'Accepted') {
-      return createErrorResponse(400, `Cannot delete order with status: ${status}. Only Created or Accepted orders can be deleted.`);
+    if (![OrderStatus.PENDING_PAYMENT, OrderStatus.CONFIRMED, OrderStatus.CREATED].includes(status)) {
+      return createErrorResponse(400, `Cannot delete order with status: ${status}. Only pending or confirmed orders can be deleted.`);
     }
 
-    // Decrement counts for each item
-    if (status === 'Created') {
+    let releasedCapacity = false;
+    if (result.Item.capacityReserved === true) {
       try {
-        for (const item of result.Item.items || []) {
-          await decrementOrderCount(item.itemId, result.Item.slot, result.Item.slotDate, item.quantity);
-        }
+        await releaseCapacityForOrderItems(
+          (result.Item.items || []).map((item: any) => ({ itemId: item.itemId, quantity: item.quantity })),
+          result.Item.slot,
+          result.Item.slotDate,
+        );
+        releasedCapacity = true;
       } catch (decrementError) {
         console.error('Error decrementing counts:', decrementError);
         return createErrorResponse(500, 'Failed to release order counts');
@@ -34,10 +38,21 @@ export const deleteOrder = async (orderId: string): Promise<APIGatewayProxyResul
     }
 
     // Delete the order
-    await docClient.send(new DeleteCommand({
-      TableName: process.env.ORDER_TABLE,
-      Key: { orderId }
-    }));
+    try {
+      await docClient.send(new DeleteCommand({
+        TableName: process.env.ORDER_TABLE,
+        Key: { orderId }
+      }));
+    } catch (deleteError) {
+      if (releasedCapacity) {
+        await reserveCapacityForOrderItems(
+          (result.Item.items || []).map((item: any) => ({ itemId: item.itemId, quantity: item.quantity })),
+          result.Item.slot,
+          result.Item.slotDate,
+        ).catch((reserveError) => console.error('Failed to restore capacity after order delete failure:', reserveError));
+      }
+      throw deleteError;
+    }
 
     return {
       statusCode: 204,

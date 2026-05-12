@@ -9,7 +9,7 @@ export const setOrderLimits = async (event: APIGatewayProxyEvent): Promise<APIGa
       return createErrorResponse(validationResult.statusCode, validationResult.message);
     }
 
-    const { itemId, lunchLimit, dinnerLimit, itemName } = validationResult;
+    const { itemId, lunchLimit, dinnerLimit, itemName, lunchCutoffTime, dinnerCutoffTime } = validationResult;
 
     // Get existing config
     const existingResult = await docClient.send(new GetCommand({
@@ -29,9 +29,17 @@ export const setOrderLimits = async (event: APIGatewayProxyEvent): Promise<APIGa
     if (itemName !== undefined) {
       config.itemName = itemName;
     }
+    if (lunchCutoffTime !== undefined) {
+      config.lunchCutoffTime = lunchCutoffTime;
+    }
+    if (dinnerCutoffTime !== undefined) {
+      config.dinnerCutoffTime = dinnerCutoffTime;
+    }
 
     config.updatedAt = new Date().toISOString();
-    config.isAcceptingOrders = config.isAcceptingOrders !== false; // Default to true if not set
+    if (itemId !== 'GLOBAL') {
+      config.isAcceptingOrders = config.isAcceptingOrders !== false; // Default to true if not set
+    }
 
     await docClient.send(new PutCommand({
       TableName: process.env.ORDER_LIMITS_CONFIG_TABLE!,

@@ -72,6 +72,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       imageBucket: imageStorage.bucket,
       imageDistribution: imageStorage.distribution,
       orderLimitsConfigTable: orderLimitsConfig.table,
+      itemOrderCountTable: itemOrderCount.table,
       imageDomain: `images.${environment === 'prod' ? 'cravnest.in' : `${environment}.cravnest.in`}`,
       allowedOrigins: 'https://admin.test.cravnest.in',
     });

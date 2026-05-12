@@ -1,11 +1,22 @@
 export enum OrderStatus {
   CREATED = 'CREATED',
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
   CONFIRMED = 'CONFIRMED',
   INKITCHEN = 'INKITCHEN',
   READY = 'READY',
   DISPATCHED = 'DISPATCHED',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED'
+}
+
+export enum PaymentMethod {
+  COD = 'COD',
+  ONLINE = 'ONLINE'
+}
+
+export enum PaymentStatus {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  PENDING = 'PENDING'
 }
 
 export enum Slot {
@@ -28,6 +39,10 @@ export interface Order {
   customerPhone: string;
   deliveryAddress: string;
   status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  capacityReserved: boolean;
+  capacityReservedAt?: string;
   slot: Slot;
   slotDate: string; // YYYY-MM-DD
   items: OrderItem[];

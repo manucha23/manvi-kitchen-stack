@@ -30,25 +30,14 @@ components:
           type: string
           description: Item unique identifier
           example: b7eac195-538f-4830-9c76-b483603dd89b
-        name:
-          type: string
-          description: Item name
-          example: Chicken Biryani
         quantity:
           type: integer
           minimum: 1
           description: Quantity ordered
           example: 1
-        price:
-          type: number
-          format: float
-          description: Price per item
-          example: 250
       required:
         - id
-        - name
         - quantity
-        - price
     CreateOrderRequest:
       type: object
       properties:
@@ -64,8 +53,14 @@ components:
         slotDate:
           type: string
           format: date
-          description: Date for the slot (YYYY-MM-DD)
-          example: "2026-05-11"
+          description: Same-day date for the slot in Asia/Kolkata (YYYY-MM-DD)
+          example: "2026-05-12"
+        paymentMethod:
+          type: string
+          description: Payment method. COD reserves capacity immediately; ONLINE waits for later payment confirmation.
+          enum: [COD, ONLINE]
+          default: COD
+          example: COD
         customerName:
           type: string
           description: Customer name
@@ -78,11 +73,6 @@ components:
           type: string
           description: Delivery address
           example: "Kumar Picasso, Hadapsar, Pune -411028"
-        totalAmount:
-          type: number
-          format: float
-          description: Total order amount
-          example: 250
       required:
         - items
         - slot
@@ -90,41 +80,18 @@ components:
         - customerName
         - customerPhone
         - deliveryAddress
-        - totalAmount
     UpdateOrderRequest:
       type: object
       properties:
         status:
           type: string
-          description: Order status (CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
-          enum: [CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          description: Order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
+          enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
           example: "CONFIRMED"
         instructions:
           type: string
           description: Special instructions for the order
           example: "Please add extra chutney."
-    UpdateSlotAvailabilityRequest:
-      type: object
-      properties:
-        itemId:
-          type: string
-          example: "ITEM123"
-        slot:
-          type: string
-          example: "saturday-lunch"
-        date:
-          type: string
-          format: date
-          example: "2026-05-10"
-        quantity:
-          type: integer
-          minimum: 0
-          example: 10
-      required:
-        - itemId
-        - slot
-        - date
-        - quantity
     CreateItemRequest:
       type: object
       properties:
@@ -237,7 +204,18 @@ components:
         status:
           type: string
           description: Order status
-          enum: [CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+        paymentMethod:
+          type: string
+          enum: [COD, ONLINE]
+        paymentStatus:
+          type: string
+          enum: [NOT_REQUIRED, PENDING]
+        capacityReserved:
+          type: boolean
+        capacityReservedAt:
+          type: string
+          format: date-time
         slot:
           type: string
           description: Time slot (lunch or dinner)
@@ -272,13 +250,66 @@ components:
         - customerPhone
         - deliveryAddress
         - status
+        - paymentMethod
+        - paymentStatus
+        - capacityReserved
         - slot
         - slotDate
         - items
         - totalAmount
         - createdAt
         - updatedAt
-        - timestamp
+    ItemAvailability:
+      type: object
+      properties:
+        itemId:
+          type: string
+        slot:
+          type: string
+          enum: [lunch, dinner]
+        slotDate:
+          type: string
+          format: date
+        limit:
+          type: integer
+          nullable: true
+        currentCount:
+          type: integer
+        availableCount:
+          type: integer
+        isAcceptingOrders:
+          type: boolean
+        globalKillswitch:
+          type: boolean
+        cutoffTime:
+          type: string
+          example: "13:00"
+        cutoffPassed:
+          type: boolean
+        available:
+          type: boolean
+      required:
+        - itemId
+        - slot
+        - slotDate
+        - limit
+        - currentCount
+        - availableCount
+        - isAcceptingOrders
+        - globalKillswitch
+        - cutoffTime
+        - cutoffPassed
+        - available
+    ItemTodayAvailability:
+      type: object
+      properties:
+        lunch:
+          $ref: '#/components/schemas/ItemAvailability'
+        dinner:
+          $ref: '#/components/schemas/ItemAvailability'
+      required:
+        - lunch
+        - dinner
     OrderListResponse:
       type: object
       properties:
@@ -345,6 +376,8 @@ components:
               type: boolean
             globalKillswitch:
               type: boolean
+        availability:
+          $ref: '#/components/schemas/ItemTodayAvailability'
       required:
         - itemId
         - name
@@ -381,6 +414,12 @@ components:
           type: boolean
         globalKillswitch:
           type: boolean
+        lunchCutoffTime:
+          type: string
+          example: "13:00"
+        dinnerCutoffTime:
+          type: string
+          example: "20:00"
     OrderLimitConfigListResponse:
       type: object
       properties:
@@ -417,11 +456,11 @@ paths:
       parameters:
         - name: orderStatus
           in: query
-          description: Filter by order status (CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
+          description: Filter by order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
           schema:
             type: string
-            enum: [CREATED, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
-          example: CREATED
+            enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          example: CONFIRMED
         - name: slotDate
           in: query
           description: Filter by slot date (YYYY-MM-DD)
@@ -653,51 +692,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
         - Cognito: []
-  /orders/slot-availability:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
-    put:
-      tags: [Orders]
-      summary: Update order slot availability for an item
-      operationId: updateSlotAvailability
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateSlotAvailabilityRequest'
-      responses:
-        '200':
-          description: Updated slot availability
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  itemId:
-                    type: string
-                  slot:
-                    type: string
-                  quantity:
-                    type: integer
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
   /items:
     x-amazon-apigateway-cors:
       allowOrigins: ['*']
@@ -871,6 +865,49 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
         - Cognito: []
+  /items/{itemId}/availability:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    parameters:
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: slot
+        in: query
+        required: true
+        description: Slot availability to retrieve
+        schema:
+          type: string
+          enum: [lunch, dinner]
+    get:
+      tags: [Items]
+      summary: Get today's availability for one item and slot
+      operationId: getItemAvailability
+      responses:
+        '200':
+          description: Item availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemAvailability'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
   /admin/order-limits:
     x-amazon-apigateway-cors:
       allowOrigins: ['*']
@@ -914,6 +951,14 @@ paths:
                   type: integer
                 itemName:
                   type: string
+                lunchCutoffTime:
+                  type: string
+                  description: HH:mm IST cutoff for GLOBAL config
+                  example: "13:00"
+                dinnerCutoffTime:
+                  type: string
+                  description: HH:mm IST cutoff for GLOBAL config
+                  example: "20:00"
               required:
                 - itemId
       responses:

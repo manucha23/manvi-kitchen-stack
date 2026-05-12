@@ -6,6 +6,7 @@ import { createItem } from './create-item';
 import { updateItem } from './update-item';
 import { deleteItem } from './delete-item';
 import { generateUploadUrl } from './generate-upload-url';
+import { getItemAvailability } from './get-availability';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
@@ -15,6 +16,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Handle image upload URL generation
     if (path === '/items/upload-url' && httpMethod === 'POST') {
       return generateUploadUrl(event);
+    }
+
+    if (path.includes('/availability') && httpMethod === 'GET') {
+      if (!itemId) {
+        return createErrorResponse(400, 'Item ID is required');
+      }
+      return getItemAvailability(itemId, event);
     }
 
     switch (httpMethod) {

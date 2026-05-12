@@ -25,7 +25,7 @@ The Lambda chooses the GSI based on this priority:
 1. customerPhone (if provided)
 2. slotDate (if provided and no customerPhone)
 3. orderStatus (if provided and no customerPhone/slotDate)
-4. Default: orderStatus=CREATED
+4. Default: orderStatus=CONFIRMED
 ```
 
 ## Examples with Performance Notes

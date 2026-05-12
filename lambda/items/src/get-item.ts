@@ -1,6 +1,7 @@
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from './utils';
+import { getTodayAvailability } from './availability';
 
 const getOrderLimits = async (itemId: string) => {
   const result = await docClient.send(new GetCommand({
@@ -36,8 +37,11 @@ export const getItem = async (itemId: string): Promise<APIGatewayProxyResult> =>
       return createErrorResponse(404, 'Item not found');
     }
 
-    const limits = await getOrderLimits(itemId);
-    const item = { ...result.Item, limits };
+    const [limits, availability] = await Promise.all([
+      getOrderLimits(itemId),
+      getTodayAvailability(itemId),
+    ]);
+    const item = { ...result.Item, limits, availability };
 
     return createSuccessResponse(200, item);
   } catch (error) {

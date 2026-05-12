@@ -2,7 +2,10 @@
 !jest.config.js
 !kitchen-frontend/src/assets/env.template.js
 *.d.ts
+*.map
+lambda/**/dist/
 node_modules
+.DS_Store
 
 # CDK asset staging directory
 .cdk.staging
