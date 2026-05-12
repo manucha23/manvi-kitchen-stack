@@ -65,6 +65,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const imageStorage = new ImageStorage(this, 'ImageStorage', { 
       environment,
       hostedZone: hostedZone.hostedZone,
+      certificate: certificates.cloudfrontCertificate,
     });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
       itemTable: itemDatabase.table,

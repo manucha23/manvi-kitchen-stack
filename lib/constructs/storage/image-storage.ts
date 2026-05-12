@@ -4,11 +4,13 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
 
 export interface ImageStorageProps {
   environment: string;
   hostedZone?: route53.IHostedZone;
+  certificate?: acm.ICertificate;
 }
 
 export class ImageStorage extends Construct {
@@ -34,7 +36,7 @@ export class ImageStorage extends Construct {
       ],
     });
 
-    this.distribution = new cloudfront.Distribution(this, 'ImageDistribution', {
+    const distributionConfig: any = {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -44,7 +46,16 @@ export class ImageStorage extends Construct {
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-    });
+    };
+
+    // Add custom domain and certificate if provided
+    if (props.certificate && props.hostedZone) {
+      const imageDomain = `images.${props.environment === 'prod' ? 'cravnest.in' : `${props.environment}.cravnest.in`}`;
+      distributionConfig.domainNames = [imageDomain];
+      distributionConfig.certificate = props.certificate;
+    }
+
+    this.distribution = new cloudfront.Distribution(this, 'ImageDistribution', distributionConfig);
 
     // Add DNS record for images domain if hosted zone is provided
     if (props.hostedZone) {
