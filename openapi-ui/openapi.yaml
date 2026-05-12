@@ -130,29 +130,27 @@ components:
       properties:
         name:
           type: string
-          example: "Paneer Butter Masala"
+          description: Item name
+          example: "Tandoori Paneer Tikka"
         description:
           type: string
-          example: "Rich paneer in tomato gravy"
+          description: Item description
+          example: "Soft from inside chared from outside"
         price:
           type: number
           format: float
-          example: 299.99
-        category:
-          type: string
-          example: "Main Course"
+          description: Item price
+          example: 200
         imageUrl:
           type: string
           format: uri
-          example: "https://images.example.com/paneer.jpg"
-        available:
-          type: boolean
-          example: true
+          description: Image URL returned from generate-upload-url endpoint
+          example: "https://images.test.cravnest.in/items/2c28d16d-5513-4378-bce9-304b22245c6c.png"
       required:
         - name
         - description
         - price
-        - category
+        - imageUrl
     UpdateItemRequest:
       type: object
       properties:
