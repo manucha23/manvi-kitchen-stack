@@ -29,6 +29,17 @@ export class LandingPageHosting extends Construct {
       autoDeleteObjects: true,
     });
 
+    const responseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'LandingPageSecurityHeaders', {
+      securityHeadersBehavior: {
+        strictTransportSecurity: {
+          accessControlMaxAge: cdk.Duration.days(730),
+          includeSubdomains: true,
+          preload: true,
+          override: true,
+        },
+      },
+    });
+
     const distributionConfig: any = {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
@@ -37,6 +48,7 @@ export class LandingPageHosting extends Construct {
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
         compress: true,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        responseHeadersPolicy,
       },
       defaultRootObject: 'index.html',
       errorResponses: [

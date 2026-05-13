@@ -30,6 +30,17 @@ class LandingPageStack extends cdk.Stack {
       cloudfrontCertificate = acm.Certificate.fromCertificateArn(this, 'CloudFrontCertificate', cloudfrontCertificateArn);
     }
 
+    const redirectResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'RedirectSecurityHeaders', {
+      securityHeadersBehavior: {
+        strictTransportSecurity: {
+          accessControlMaxAge: cdk.Duration.days(730),
+          includeSubdomains: true,
+          preload: true,
+          override: true,
+        },
+      },
+    });
+
     // Landing Page Hosting for www.cravnest.in and www.test.cravnest.in
     const landingPage = new LandingPageHosting(this, 'LandingPage', {
       environment,
@@ -76,6 +87,7 @@ class LandingPageStack extends cdk.Stack {
           protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        responseHeadersPolicy: redirectResponseHeadersPolicy,
       },
       domainNames: ['cravnest.in'],
       certificate: cloudfrontCertificate,
@@ -112,6 +124,7 @@ class LandingPageStack extends cdk.Stack {
           protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        responseHeadersPolicy: redirectResponseHeadersPolicy,
       },
       domainNames: ['test.cravnest.in'],
       certificate: cloudfrontCertificate,
