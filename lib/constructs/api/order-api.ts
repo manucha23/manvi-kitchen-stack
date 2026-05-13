@@ -9,6 +9,7 @@ export interface OrderApiProps {
   orderFunction: lambda.Function;
   itemFunction: lambda.Function;
   adminFunction: lambda.Function;
+  whatsappWebhookFunction: lambda.Function;
   userPool: cognito.UserPool;
   environment: string;
   cloudfrontDomainName: string;
@@ -36,6 +37,20 @@ export class OrderApi extends Construct {
         stageName: props.environment,
         throttlingRateLimit: 100,
         throttlingBurstLimit: 200,
+        methodOptions: {
+          '/webhooks/whatsapp/GET': {
+            throttlingRateLimit: 2,
+            throttlingBurstLimit: 5,
+          },
+          '/webhooks/whatsapp/POST': {
+            throttlingRateLimit: 10,
+            throttlingBurstLimit: 20,
+          },
+          '/webhooks/whatsapp/flows/POST': {
+            throttlingRateLimit: 10,
+            throttlingBurstLimit: 20,
+          },
+        },
         loggingLevel: apigw.MethodLoggingLevel.INFO,
         dataTraceEnabled: props.environment !== 'prod',
         metricsEnabled: true,
@@ -100,6 +115,15 @@ export class OrderApi extends Construct {
 
     const adminKillswitch = admin.addResource('killswitch');
     adminKillswitch.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), authOptions);
+
+    // WhatsApp webhook endpoints (public callback secured by Meta verification/signature checks)
+    const webhooks = this.api.root.addResource('webhooks');
+    const whatsappWebhook = webhooks.addResource('whatsapp');
+    whatsappWebhook.addMethod('GET', new apigw.LambdaIntegration(props.whatsappWebhookFunction));
+    whatsappWebhook.addMethod('POST', new apigw.LambdaIntegration(props.whatsappWebhookFunction));
+
+    const whatsappFlowsWebhook = whatsappWebhook.addResource('flows');
+    whatsappFlowsWebhook.addMethod('POST', new apigw.LambdaIntegration(props.whatsappWebhookFunction));
 
     // Create custom domain if certificate and domain name are provided
     if (props.certificate && props.domainName) {
