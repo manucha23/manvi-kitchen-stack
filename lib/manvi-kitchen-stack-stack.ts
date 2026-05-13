@@ -11,6 +11,7 @@ import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
+import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
@@ -86,6 +87,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
       orderLimitsConfigTable: orderLimitsConfig.table,
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
+
+    const whatsappWebhook = new WhatsAppWebhookLambda(this, 'WhatsAppWebhook', {
+      environment,
+    });
     
     const frontend = new FrontendHosting(this, 'Frontend', { 
       environment,
@@ -101,6 +106,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       orderFunction: lambdas.orderFunction,
       itemFunction: itemLambdas.itemFunction,
       adminFunction: adminLambdas.adminFunction,
+      whatsappWebhookFunction: whatsappWebhook.webhookFunction,
       userPool: auth.userPool,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,
