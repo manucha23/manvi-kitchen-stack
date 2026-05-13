@@ -26,7 +26,6 @@ export class WhatsAppWebhookLambda extends Construct {
         WHATSAPP_VERIFY_TOKEN_PARAM: `${parameterPrefix}/verify-token`,
         WHATSAPP_APP_SECRET_PARAM: `${parameterPrefix}/app-secret`,
       },
-      reservedConcurrentExecutions: 10,
       timeout: cdk.Duration.seconds(10),
     });
 
