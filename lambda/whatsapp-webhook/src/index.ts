@@ -1,9 +1,10 @@
-import { createHmac, timingSafeEqual } from 'crypto';
-import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
+import { SendMessageCommand, SendMessageCommandInput, SQSClient } from '@aws-sdk/client-sqs';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { getRequiredParameter } from './parameters';
+import { extractInboundTextMessages, WhatsAppInboundTextMessage } from './whatsapp-payload';
 
-const ssmClient = new SSMClient({});
-const parameterCache = new Map<string, string>();
+const sqsClient = new SQSClient({});
 
 const jsonResponse = (statusCode: number, body: Record<string, unknown>): APIGatewayProxyResult => ({
   statusCode,
@@ -22,26 +23,6 @@ const getHeader = (event: APIGatewayProxyEvent, headerName: string): string | un
     ([key]) => key.toLowerCase() === headerName.toLowerCase(),
   );
   return match?.[1] ?? undefined;
-};
-
-const getRequiredParameter = async (parameterName: string): Promise<string> => {
-  const cached = parameterCache.get(parameterName);
-  if (cached) {
-    return cached;
-  }
-
-  const response = await ssmClient.send(new GetParameterCommand({
-    Name: parameterName,
-    WithDecryption: true,
-  }));
-
-  const value = response.Parameter?.Value;
-  if (!value) {
-    throw new Error(`SSM parameter not found or empty: ${parameterName}`);
-  }
-
-  parameterCache.set(parameterName, value);
-  return value;
 };
 
 const getRawBodyBuffer = (event: APIGatewayProxyEvent): Buffer => {
@@ -112,6 +93,34 @@ const getVerifyTokenParameterName = (): string =>
 const getAppSecretParameterName = (): string =>
   process.env.WHATSAPP_APP_SECRET_PARAM || `/manvi-kitchen/${getEnvironment()}/whatsapp/app-secret`;
 
+const getInboundQueueUrl = (): string => {
+  const queueUrl = process.env.WHATSAPP_INBOUND_QUEUE_URL;
+  if (!queueUrl) {
+    throw new Error('WHATSAPP_INBOUND_QUEUE_URL is required');
+  }
+  return queueUrl;
+};
+
+export const buildInboundMessageQueueInput = (
+  message: WhatsAppInboundTextMessage,
+  queueUrl: string,
+): SendMessageCommandInput => ({
+  QueueUrl: queueUrl,
+  MessageBody: JSON.stringify(message),
+  MessageGroupId: toSqsFifoId(message.from),
+  MessageDeduplicationId: toSqsFifoId(message.messageId),
+});
+
+const toSqsFifoId = (value: string): string =>
+  value.length <= 128 ? value : createHash('sha256').update(value).digest('hex');
+
+const enqueueInboundMessage = async (message: WhatsAppInboundTextMessage): Promise<void> => {
+  await sqsClient.send(new SendMessageCommand(buildInboundMessageQueueInput(
+    message,
+    getInboundQueueUrl(),
+  )));
+};
+
 const handleVerification = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const mode = event.queryStringParameters?.['hub.mode'];
   const token = event.queryStringParameters?.['hub.verify_token'];
@@ -156,6 +165,16 @@ const handleWebhookPost = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     queryStringParameters: event.queryStringParameters,
     body: parseBodyForLogging(event),
   });
+
+  const inboundMessages = extractInboundTextMessages(parseBodyForLogging(event));
+  for (const message of inboundMessages) {
+    await enqueueInboundMessage(message);
+  }
+
+  console.log('Processed WhatsApp webhook text messages', JSON.stringify({
+    requestId: event.requestContext.requestId,
+    enqueuedMessages: inboundMessages.length,
+  }));
 
   return jsonResponse(200, { status: 'received' });
 };

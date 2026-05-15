@@ -1,7 +1,9 @@
-import * as cdk from 'aws-cdk-lib';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
+import { createWhatsAppInboundQueue } from '../messaging/whatsapp-inbound-queue';
+import { createWhatsAppInboundWorkerLambda } from './whatsapp-inbound-worker-lambda';
+import { createWhatsAppWebhookHandlerLambda } from './whatsapp-webhook-handler-lambda';
 
 export interface WhatsAppWebhookLambdaProps {
   environment: string;
@@ -9,6 +11,8 @@ export interface WhatsAppWebhookLambdaProps {
 
 export class WhatsAppWebhookLambda extends Construct {
   public readonly webhookFunction: lambda.Function;
+  public readonly workerFunction: lambda.Function;
+  public readonly inboundQueue: sqs.Queue;
 
   constructor(scope: Construct, id: string, props: WhatsAppWebhookLambdaProps) {
     super(scope, id);
@@ -18,25 +22,23 @@ export class WhatsAppWebhookLambda extends Construct {
       supportsInlineCode: true,
     });
 
-    this.webhookFunction = new lambda.Function(this, 'WhatsAppWebhookHandler', {
-      runtime: nodeJs24Runtime,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/whatsapp-webhook', {
-        exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
-      }),
-      environment: {
-        ENVIRONMENT: props.environment,
-        WHATSAPP_VERIFY_TOKEN_PARAM: `${parameterPrefix}/verify-token`,
-        WHATSAPP_APP_SECRET_PARAM: `${parameterPrefix}/app-secret`,
-      },
-      timeout: cdk.Duration.seconds(10),
+    const queueResources = createWhatsAppInboundQueue(this, {
+      environment: props.environment,
+    });
+    this.inboundQueue = queueResources.inboundQueue;
+
+    this.webhookFunction = createWhatsAppWebhookHandlerLambda(this, {
+      environment: props.environment,
+      inboundQueue: this.inboundQueue,
+      nodeRuntime: nodeJs24Runtime,
+      parameterPrefix,
     });
 
-    this.webhookFunction.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['ssm:GetParameter'],
-      resources: [
-        `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter${parameterPrefix}/*`,
-      ],
-    }));
+    this.workerFunction = createWhatsAppInboundWorkerLambda(this, {
+      environment: props.environment,
+      inboundQueue: this.inboundQueue,
+      nodeRuntime: nodeJs24Runtime,
+      parameterPrefix,
+    });
   }
 }
