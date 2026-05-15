@@ -14,9 +14,12 @@ export class WhatsAppWebhookLambda extends Construct {
     super(scope, id);
 
     const parameterPrefix = `/manvi-kitchen/${props.environment}/whatsapp`;
+    const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
+      supportsInlineCode: true,
+    });
 
     this.webhookFunction = new lambda.Function(this, 'WhatsAppWebhookHandler', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
+      runtime: nodeJs24Runtime,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/whatsapp-webhook', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],

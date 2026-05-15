@@ -100,6 +100,10 @@ const parseBodyForLogging = (event: APIGatewayProxyEvent): unknown => {
   }
 };
 
+const logStructuredPayload = (message: string, payload: Record<string, unknown>): void => {
+  console.log(message, JSON.stringify(payload, null, 2));
+};
+
 const getEnvironment = (): string => process.env.ENVIRONMENT || 'test';
 
 const getVerifyTokenParameterName = (): string =>
@@ -144,7 +148,7 @@ const handleWebhookPost = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     return jsonResponse(403, { message: 'Forbidden' });
   }
 
-  console.log('Received WhatsApp webhook request', {
+  logStructuredPayload('Received WhatsApp webhook request', {
     path: event.path,
     httpMethod: event.httpMethod,
     requestId: event.requestContext.requestId,
