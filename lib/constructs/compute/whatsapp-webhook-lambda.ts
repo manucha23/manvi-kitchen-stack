@@ -1,4 +1,5 @@
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 import { createWhatsAppInboundQueue } from '../messaging/whatsapp-inbound-queue';
@@ -7,6 +8,9 @@ import { createWhatsAppWebhookHandlerLambda } from './whatsapp-webhook-handler-l
 
 export interface WhatsAppWebhookLambdaProps {
   environment: string;
+  conversationTable: dynamodb.ITable;
+  itemTable: dynamodb.ITable;
+  orderLimitsConfigTable: dynamodb.ITable;
 }
 
 export class WhatsAppWebhookLambda extends Construct {
@@ -39,6 +43,9 @@ export class WhatsAppWebhookLambda extends Construct {
       inboundQueue: this.inboundQueue,
       nodeRuntime: nodeJs24Runtime,
       parameterPrefix,
+      conversationTable: props.conversationTable,
+      itemTable: props.itemTable,
+      orderLimitsConfigTable: props.orderLimitsConfigTable,
     });
   }
 }
