@@ -5,6 +5,7 @@ import { ItemDatabase } from './constructs/database/item-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { OrderLimitsConfigDatabase } from './constructs/database/order-limits-config-database';
 import { ItemOrderCountDatabase } from './constructs/database/item-order-count-database';
+import { WhatsAppConversationDatabase } from './constructs/database/whatsapp-conversation-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
@@ -36,6 +37,9 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
     const orderLimitsConfig = new OrderLimitsConfigDatabase(this, 'OrderLimitsConfig');
     const itemOrderCount = new ItemOrderCountDatabase(this, 'ItemOrderCount');
+    const whatsappConversations = new WhatsAppConversationDatabase(this, 'WhatsAppConversations', {
+      environment,
+    });
     const auth = new CognitoAuth(this, 'Auth', { environment });
     
     // Domain and SSL setup
@@ -90,6 +94,9 @@ export class ManviKitchenStackStack extends cdk.Stack {
 
     const whatsappWebhook = new WhatsAppWebhookLambda(this, 'WhatsAppWebhook', {
       environment,
+      conversationTable: whatsappConversations.table,
+      itemTable: itemDatabase.table,
+      orderLimitsConfigTable: orderLimitsConfig.table,
     });
     
     const frontend = new FrontendHosting(this, 'Frontend', { 
