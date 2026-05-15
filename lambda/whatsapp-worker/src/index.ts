@@ -52,7 +52,7 @@ interface MenuToolResult {
 
 const SESSION_TTL_SECONDS = 60 * 60;
 const MAX_RECENT_MESSAGES = 10;
-const DEFAULT_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1:0';
+const DEFAULT_MODEL_ID = 'global.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 const ssmClient = new SSMClient({});
 const bedrockClient = new BedrockRuntimeClient({});

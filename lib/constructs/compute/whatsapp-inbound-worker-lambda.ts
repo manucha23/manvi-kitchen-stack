@@ -34,7 +34,7 @@ export const createWhatsAppInboundWorkerLambda = (
       WHATSAPP_CONVERSATION_TABLE: props.conversationTable.tableName,
       ITEM_TABLE: props.itemTable.tableName,
       ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
-      BEDROCK_MODEL_ID: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+      BEDROCK_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     },
     timeout: cdk.Duration.seconds(60),
   });
@@ -56,9 +56,10 @@ export const createWhatsAppInboundWorkerLambda = (
   props.orderLimitsConfigTable.grantReadData(workerFunction);
 
   workerFunction.addToRolePolicy(new iam.PolicyStatement({
-    actions: ['bedrock:InvokeModel'],
+    actions: ['bedrock:InvokeModel*'],
     resources: [
-      `arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+      `arn:aws:bedrock:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0`,
+      'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
     ],
   }));
 
