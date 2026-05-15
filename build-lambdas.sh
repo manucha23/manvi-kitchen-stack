@@ -58,6 +58,14 @@ run_tests_if_exist "whatsapp-webhook"
 npm run build
 cd ../..
 
+# Build WhatsApp worker Lambda
+echo "Building WhatsApp worker Lambda..."
+cd lambda/whatsapp-worker
+npm ci
+run_tests_if_exist "whatsapp-worker"
+npm run build
+cd ../..
+
 # Build order-audit Lambda
 echo "Building order-audit Lambda..."
 cd lambda/order-audit
