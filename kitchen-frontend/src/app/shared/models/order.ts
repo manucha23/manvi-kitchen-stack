@@ -1,12 +1,13 @@
-
 export enum OrderStatus {
-  CREATED = 'Created',
-  ACCEPTED = 'Accepted',
-  COOKING = 'Cooking',
-  READY = 'Ready',
-  DELIVERED = 'Delivered'
+  CREATED = 'CREATED',
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  CONFIRMED = 'CONFIRMED',
+  INKITCHEN = 'INKITCHEN',
+  READY = 'READY',
+  DISPATCHED = 'DISPATCHED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
 }
-
 
 export interface OrderItem {
   itemId: string;
@@ -36,4 +37,12 @@ export interface Order {
   updatedAt?: string;
   acceptanceStatus?: string; // 'accepted' or 'rejected'
   rejectionReason?: string;
+}
+
+export interface IOrderFilters {
+  orderedBy?: string;
+  customerPhone?: string;
+  fromDate?: string;
+  toDate?: string;
+  orderStatus?: string[];
 }

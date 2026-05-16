@@ -8,14 +8,14 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="field">
-            <label for="name" class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Customer
+            <label for="customerName" class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Customer
               Name</label>
-            <input pInputText id="name" formControlName="name" placeholder="Enter customer name" />
+            <input pInputText id="customerName" formControlName="customerName" placeholder="Enter customer name" />
           </div>
           <div class="field">
-            <label for="contactNumber"
+            <label for="customerPhone"
               class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Contact Number</label>
-            <input pInputText id="contactNumber" formControlName="contactNumber" placeholder="+91-XXXXXXXXXX" />
+            <input pInputText id="customerPhone" formControlName="customerPhone" placeholder="+91-XXXXXXXXXX" />
           </div>
         </div>
 
@@ -88,9 +88,9 @@
         <div class="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4"></div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="field">
-            <label for="address"
+            <label for="deliveryAddress"
               class="block font-semibold mb-1 text-sm text-surface-700 dark:text-surface-300">Delivery Address</label>
-            <textarea pTextarea id="address" formControlName="address" rows="3"
+            <textarea pTextarea id="deliveryAddress" formControlName="deliveryAddress" rows="3"
               placeholder="Full delivery address with pincode"></textarea>
           </div>
           <div class="field">

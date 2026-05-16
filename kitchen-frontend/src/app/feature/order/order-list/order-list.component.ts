@@ -1,6 +1,16 @@
-import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
-import { Order, OrderItem, OrderStatus } from '../../../shared/models/order';
+import {
+  IOrderFilters,
+  Order,
+  OrderItem,
+  OrderStatus,
+} from '../../../shared/models/order';
 
 import { CommonModule } from '@angular/common'; // For pipes: number, date, uppercase
 import { OrderCreateComponent } from '../order-create/order-create.component';
@@ -18,6 +28,11 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { debounceTime, Subject } from 'rxjs';
 
+enum FilterType {
+  SEARCH = 'search',
+  DATE = 'date',
+  STATUS = 'status',
+}
 @Component({
   selector: 'app-order-list',
   templateUrl: './order-list.component.html',
@@ -36,9 +51,9 @@ import { debounceTime, Subject } from 'rxjs';
     InputTextModule,
     DatePickerModule,
     MultiSelectModule,
-    OrderCreateComponent
+    OrderCreateComponent,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrderListComponent implements OnInit {
   orders = this.orderService.orders;
@@ -48,52 +63,83 @@ export class OrderListComponent implements OnInit {
   auditDetails = signal<Order[]>([]);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
-  
+
+  FILTER_TYPE = FilterType;
+
   // Filter state
   searchText = '';
   rangeDates: Date[] | undefined;
   selectedStatuses: OrderStatus[] = [];
-  private searchSubject = new Subject<void>();
+  private searchSubject = new Subject<FilterType>();
 
-  statusOptions = Object.values(OrderStatus).map(status => ({ label: status, value: status }));
+  statusOptions = Object.values(OrderStatus).map((status) => ({
+    label: status,
+    value: status,
+  }));
 
-  getStatusSeverity(status: string): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" | undefined {
+  getStatusSeverity(
+    status: string,
+  ):
+    | 'success'
+    | 'info'
+    | 'warn'
+    | 'danger'
+    | 'secondary'
+    | 'contrast'
+    | undefined {
     switch (status) {
-      case OrderStatus.CREATED: return 'info';
-      case OrderStatus.ACCEPTED: return 'warn';
-      case OrderStatus.COOKING: return 'primary' as any; // PrimeNG Tag severity doesn't have 'primary' but 'info' or custom
-      case OrderStatus.READY: return 'success';
-      case OrderStatus.DELIVERED: return 'secondary';
-      default: return 'info';
+      case OrderStatus.CREATED:
+        return 'info';
+      case OrderStatus.PENDING_PAYMENT:
+        return 'warn';
+      case OrderStatus.CONFIRMED:
+        return 'success';
+      case OrderStatus.INKITCHEN:
+        return 'warn';
+      case OrderStatus.READY:
+        return 'success';
+      case OrderStatus.DISPATCHED:
+        return 'info';
+      case OrderStatus.COMPLETED:
+        return 'secondary';
+      case OrderStatus.CANCELLED:
+        return 'danger';
+      default:
+        return 'info';
     }
   }
 
   constructor(
     private orderService: OrderService,
-    private notificationService: NotificationService
-  ) { }
+    private notificationService: NotificationService,
+  ) {}
 
   ngOnInit(): void {
     this.loadOrders();
-    
+
     // Setup debounced search
-    this.searchSubject.pipe(debounceTime(400)).subscribe(() => {
-      this.executeSearch();
+    this.searchSubject.pipe(debounceTime(400)).subscribe((type) => {
+      this.executeSearch(type);
     });
   }
 
-  onSearch(): void {
-    this.searchSubject.next();
+  onFilterSearchChanges(filterType: FilterType): void {
+    this.searchSubject.next(filterType);
   }
 
-  executeSearch(): void {
-    const filters: any = {};
+  executeSearch(filterType: FilterType): void {
+    const filters: IOrderFilters = {};
     if (this.searchText) {
-      filters.orderedBy = this.searchText;
+      filters.customerPhone = this.searchText;
     }
-    if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
-      filters.fromDate = this.rangeDates[0].toISOString();
-      filters.toDate = this.rangeDates[1].toISOString();
+
+    if (filterType === FilterType.DATE) {
+      if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
+        filters.fromDate = this.rangeDates[0].toISOString().split('T')[0];
+        filters.toDate = this.rangeDates[1].toISOString().split('T')[0];
+      } else {
+        return;
+      }
     }
     if (this.selectedStatuses && this.selectedStatuses.length > 0) {
       filters.orderStatus = this.selectedStatuses;
@@ -106,19 +152,25 @@ export class OrderListComponent implements OnInit {
   }
 
   getTotalAmount(items: OrderItem[]): number {
-    return items.reduce((total, item) => total + (item.amount * item.quantity), 0);
+    return items.reduce(
+      (total, item) => total + item.amount * item.quantity,
+      0,
+    );
   }
 
   updateOrderStatus(orderId: string, newStatus: OrderStatus): void {
     this.orderService.updateOrderStatus(orderId, newStatus).subscribe({
       next: () => {
         this.loadOrders();
-        this.notificationService.showSuccess('Order Updated', `Order ${orderId} status changed to ${newStatus}`);
+        this.notificationService.showSuccess(
+          'Order Updated',
+          `Order ${orderId} status changed to ${newStatus}`,
+        );
       },
       error: (error) => {
-        console.error('Error updating order status:', error);
-        this.notificationService.showError('Update Failed', 'Could not update order status');
-      }
+        const errorMsg = error?.error?.error || 'Could not update order status';
+        this.notificationService.showError('Update Failed', errorMsg);
+      },
     });
   }
 
@@ -136,7 +188,7 @@ export class OrderListComponent implements OnInit {
       error: (error) => {
         console.error('Error fetching audit details:', error);
         this.auditLoading.set(false);
-      }
+      },
     });
   }
 

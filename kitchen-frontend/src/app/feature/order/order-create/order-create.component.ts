@@ -63,15 +63,16 @@ export class OrderCreateComponent implements OnInit {
   private notificationService = inject(NotificationService);
 
   slotOptions = [
-    { label: 'Saturday Lunch', value: 'saturday-lunch' }
+    { label: 'Lunch', value: 'lunch' },
+    { label: 'Dinner', value: 'dinner' }
   ];
 
   orderForm: FormGroup = this.fb.group({
-    name: ['', Validators.required],
-    address: ['', Validators.required],
-    contactNumber: ['', [Validators.required, Validators.pattern(/^\+?[\d\s-]{10,}$/)]],
+    customerName: ['', Validators.required],
+    deliveryAddress: ['', Validators.required],
+    customerPhone: ['', [Validators.required, Validators.pattern(/^\+?[\d\s-]{10,}$/)]],
     orderScheduled: [new Date(), Validators.required],
-    slot: ['saturday-lunch', Validators.required],
+    slot: ['lunch', Validators.required],
     instructions: [''],
     items: this.fb.array([]),
   });
@@ -135,13 +136,14 @@ export class OrderCreateComponent implements OnInit {
 
     // Transform data to match API request body
     const orderData = {
-      customerName: formValue.name,
-      deliveryAddress: formValue.address,
-      contactNumber: formValue.contactNumber,
-      orderScheduled: formValue.orderScheduled instanceof Date 
-        ? formValue.orderScheduled.toISOString() 
-        : new Date(formValue.orderScheduled).toISOString(),
+      customerName: formValue.customerName,
+      deliveryAddress: formValue.deliveryAddress,
+      customerPhone: formValue.customerPhone,
+      slotDate: formValue.orderScheduled instanceof Date 
+        ? formValue.orderScheduled.toISOString().split('T')[0] 
+        : new Date(formValue.orderScheduled).toISOString().split('T')[0],
       slot: formValue.slot,
+      paymentMethod: 'COD',
       instructions: formValue.instructions,
       items: formValue.items.map((item: any) => ({
         id: item.selectedItem.itemId,
@@ -156,8 +158,8 @@ export class OrderCreateComponent implements OnInit {
         this.close();
       },
       error: (error) => {
-        console.error('Error creating order:', error);
-        this.notificationService.showError('Error', error?.error?.message || 'Failed to create order');
+        const errorMsg = error?.error?.error || error?.error?.message || 'Failed to create order';
+        this.notificationService.showError('Error', errorMsg);
         this.creating.set(false);
       },
     });
@@ -170,11 +172,11 @@ export class OrderCreateComponent implements OnInit {
 
   resetForm(): void {
     this.orderForm.reset({
-      name: '',
-      address: '',
-      contactNumber: '',
+      customerName: '',
+      deliveryAddress: '',
+      customerPhone: '',
       orderScheduled: new Date(),
-      slot: 'saturday-lunch',
+      slot: 'lunch',
       instructions: '',
       items: [],
     });

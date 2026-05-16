@@ -19,17 +19,18 @@
           <h5 class="m-0 text-xl font-semibold">Manage Kitchen Orders</h5>
           <div class="flex flex-wrap items-center gap-3">
             <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" placeholder="Date Range"
-              (onSelect)="onSearch()" [showIcon]="true" appendTo="body" />
+              (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true" appendTo="body" />
 
             <p-multiselect [options]="statusOptions" [(ngModel)]="selectedStatuses" placeholder="Select Status"
-              (onChange)="onSearch()" display="chip" appendTo="body" [maxSelectedLabels]="2" class="min-w-48" />
+              (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" display="chip" appendTo="body"
+              [maxSelectedLabels]="2" class="min-w-48" />
 
             <p-iconfield>
               <p-inputicon>
                 <i class="pi pi-search"></i>
               </p-inputicon>
-              <input pInputText type="text" [(ngModel)]="searchText" (input)="onSearch()"
-                placeholder="Search Customer Name..." />
+              <input pInputText type="text" [(ngModel)]="searchText" (input)="onFilterSearchChanges(FILTER_TYPE.SEARCH)"
+                placeholder="Search Customer Phone..." />
             </p-iconfield>
           </div>
         </div>
@@ -46,7 +47,7 @@
           <th style="width:8%">Total</th>
           <th pSortableColumn="status" style="width:10%">Status <p-sortIcon field="status" /></th>
           <th style="width:12%">Action</th>
-          <th pSortableColumn="timestamp" style="width:12%">Date <p-sortIcon field="timestamp" /></th>
+          <th pSortableColumn="createdAt" style="width:12%">Date <p-sortIcon field="createdAt" /></th>
         </tr>
       </ng-template>
 
@@ -77,7 +78,7 @@
           </td>
           <td>
             <span class="font-semibold text-surface-900 dark:text-surface-0">
-              ₹{{order.total | number:'1.2-2'}}
+              ₹{{order.totalAmount | number:'1.2-2'}}
             </span>
           </td>
           <td>
@@ -88,7 +89,7 @@
               (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body" class="w-full" />
           </td>
           <td>
-            <span class="text-sm">{{order.timestamp | date:'short'}}</span>
+            <span class="text-sm">{{order.createdAt | date:'short'}}</span>
           </td>
         </tr>
       </ng-template>

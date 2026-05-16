@@ -2,8 +2,9 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Order } from '../models/order';
+import { IOrderFilters, Order } from '../models/order';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from './notification.service';
 
 @Injectable({
   providedIn: 'root',
@@ -18,18 +19,17 @@ export class OrderService {
   private _loading = signal(false);
   public readonly loading = this._loading.asReadonly();
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private notificationService: NotificationService,
+  ) {}
 
-  loadOrders(filters?: {
-    orderedBy?: string;
-    fromDate?: string;
-    toDate?: string;
-    orderStatus?: string[];
-  }): void {
+  loadOrders(filters?: IOrderFilters): void {
     this._loading.set(true);
     let params: any = {};
     if (filters) {
       if (filters.orderedBy) params.orderedBy = filters.orderedBy;
+      if (filters.customerPhone) params.customerPhone = filters.customerPhone;
       if (filters.fromDate) params.fromDate = filters.fromDate;
       if (filters.toDate) params.toDate = filters.toDate;
       if (filters.orderStatus && filters.orderStatus.length > 0) {
@@ -47,6 +47,8 @@ export class OrderService {
         },
         error: (error) => {
           console.error('Error loading orders:', error);
+          const errorMsg = error?.error?.error || 'Failed to load orders';
+          this.notificationService.showError('Fetch Error', errorMsg);
           this._loading.set(false);
         },
       });
