@@ -26,6 +26,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { DatePickerModule } from 'primeng/datepicker';
 import { MultiSelectModule } from 'primeng/multiselect';
+import { SkeletonModule } from 'primeng/skeleton';
 import { debounceTime, Subject } from 'rxjs';
 
 enum FilterType {
@@ -51,6 +52,7 @@ enum FilterType {
     InputTextModule,
     DatePickerModule,
     MultiSelectModule,
+    SkeletonModule,
     OrderCreateComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -63,6 +65,7 @@ export class OrderListComponent implements OnInit {
   auditDetails = signal<Order[]>([]);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
+  placeholderOrders = Array(5).fill({}) as Order[];
 
   FILTER_TYPE = FilterType;
 

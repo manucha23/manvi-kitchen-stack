@@ -28,7 +28,7 @@ export interface Order {
   slot: string;
   slotDate: string;
   items: OrderItem[];
-  total: number;
+  totalAmount: number;
   instructions?: string;
   feedbackProvided: boolean;
   feedbackRequestCount: number;
