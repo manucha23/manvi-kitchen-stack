@@ -9,6 +9,8 @@ import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeuix/themes/aura';
 import { routes } from './app/app.routes';
 
+import { MessageService } from 'primeng/api';
+
 bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
@@ -20,6 +22,7 @@ bootstrapApplication(AppComponent, {
       multi: true
     },
     provideHttpClient(withInterceptorsFromDi()),
+    MessageService,
     providePrimeNG({
       theme: {
         preset: Aura,

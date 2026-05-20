@@ -2,6 +2,7 @@ import { Component, OnInit, ChangeDetectionStrategy, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { AuthService } from './shared/services/auth.service';
 import { Router, RouterOutlet } from '@angular/router';
+import { ToastModule } from 'primeng/toast';
 import { ButtonModule } from 'primeng/button';
 
 @Component({
@@ -9,7 +10,7 @@ import { ButtonModule } from 'primeng/button';
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
   standalone: true,
-  imports: [RouterOutlet, ButtonModule, CommonModule],
+  imports: [RouterOutlet, ButtonModule, CommonModule, ToastModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent implements OnInit {

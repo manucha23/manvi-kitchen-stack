@@ -1,38 +1,61 @@
-import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
-import { Order, OrderItem } from '../../../shared/models/order';
+import {
+  IOrderFilters,
+  Order,
+  OrderItem,
+  OrderStatus,
+} from '../../../shared/models/order';
 
 import { CommonModule } from '@angular/common'; // For pipes: number, date, uppercase
-import { FormsModule } from '@angular/forms';
 import { OrderCreateComponent } from '../order-create/order-create.component';
+import { NotificationService } from '../../../shared/services/notification.service';
+import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { SelectModule } from 'primeng/select';
+import { DialogModule } from 'primeng/dialog';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { DialogModule } from 'primeng/dialog';
+import { DatePickerModule } from 'primeng/datepicker';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { SkeletonModule } from 'primeng/skeleton';
+import { debounceTime, Subject } from 'rxjs';
 
+enum FilterType {
+  SEARCH = 'search',
+  DATE = 'date',
+  STATUS = 'status',
+}
 @Component({
   selector: 'app-order-list',
   templateUrl: './order-list.component.html',
-  styleUrls: ['./order-list.component.scss'],
+  styleUrl: './order-list.component.scss',
   standalone: true,
   imports: [
     CommonModule,
     FormsModule,
-    OrderCreateComponent,
     TableModule,
     ButtonModule,
     TagModule,
     SelectModule,
+    DialogModule,
     IconFieldModule,
     InputIconModule,
     InputTextModule,
-    DialogModule
+    DatePickerModule,
+    MultiSelectModule,
+    SkeletonModule,
+    OrderCreateComponent,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrderListComponent implements OnInit {
   orders = this.orderService.orders;
@@ -42,19 +65,89 @@ export class OrderListComponent implements OnInit {
   auditDetails = signal<Order[]>([]);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
+  placeholderOrders = Array(5).fill({}) as Order[];
 
-  statusOptions = [
-    { label: 'CREATED', value: 'Created' },
-    { label: 'ACCEPTED', value: 'Accepted' },
-    { label: 'COOKING', value: 'Cooking' },
-    { label: 'READY', value: 'Ready' },
-    { label: 'DELIVERED', value: 'Delivered' }
-  ];
+  FILTER_TYPE = FilterType;
 
-  constructor(private orderService: OrderService) { }
+  // Filter state
+  searchText = '';
+  rangeDates: Date[] | undefined;
+  selectedStatuses: OrderStatus[] = [];
+  private searchSubject = new Subject<FilterType>();
+
+  statusOptions = Object.values(OrderStatus).map((status) => ({
+    label: status,
+    value: status,
+  }));
+
+  getStatusSeverity(
+    status: string,
+  ):
+    | 'success'
+    | 'info'
+    | 'warn'
+    | 'danger'
+    | 'secondary'
+    | 'contrast'
+    | undefined {
+    switch (status) {
+      case OrderStatus.CREATED:
+        return 'info';
+      case OrderStatus.PENDING_PAYMENT:
+        return 'warn';
+      case OrderStatus.CONFIRMED:
+        return 'success';
+      case OrderStatus.INKITCHEN:
+        return 'warn';
+      case OrderStatus.READY:
+        return 'success';
+      case OrderStatus.DISPATCHED:
+        return 'info';
+      case OrderStatus.COMPLETED:
+        return 'secondary';
+      case OrderStatus.CANCELLED:
+        return 'danger';
+      default:
+        return 'info';
+    }
+  }
+
+  constructor(
+    private orderService: OrderService,
+    private notificationService: NotificationService,
+  ) {}
 
   ngOnInit(): void {
-    this.orderService.loadOrders();
+    this.loadOrders();
+
+    // Setup debounced search
+    this.searchSubject.pipe(debounceTime(400)).subscribe((type) => {
+      this.executeSearch(type);
+    });
+  }
+
+  onFilterSearchChanges(filterType: FilterType): void {
+    this.searchSubject.next(filterType);
+  }
+
+  executeSearch(filterType: FilterType): void {
+    const filters: IOrderFilters = {};
+    if (this.searchText) {
+      filters.customerPhone = this.searchText;
+    }
+
+    if (filterType === FilterType.DATE) {
+      if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
+        filters.fromDate = this.rangeDates[0].toISOString().split('T')[0];
+        filters.toDate = this.rangeDates[1].toISOString().split('T')[0];
+      } else {
+        return;
+      }
+    }
+    if (this.selectedStatuses && this.selectedStatuses.length > 0) {
+      filters.orderStatus = this.selectedStatuses;
+    }
+    this.orderService.loadOrders(filters);
   }
 
   loadOrders(): void {
@@ -62,18 +155,25 @@ export class OrderListComponent implements OnInit {
   }
 
   getTotalAmount(items: OrderItem[]): number {
-    return items.reduce((total, item) => total + (item.amount * item.quantity), 0);
+    return items.reduce(
+      (total, item) => total + item.amount * item.quantity,
+      0,
+    );
   }
 
-  updateOrderStatus(orderId: string, event: any): void {
-    const newStatus = event.target.value;
+  updateOrderStatus(orderId: string, newStatus: OrderStatus): void {
     this.orderService.updateOrderStatus(orderId, newStatus).subscribe({
       next: () => {
-        // State update handled by service
+        this.loadOrders();
+        this.notificationService.showSuccess(
+          'Order Updated',
+          `Order ${orderId} status changed to ${newStatus}`,
+        );
       },
       error: (error) => {
-        console.error('Error updating order status:', error);
-      }
+        const errorMsg = error?.error?.error || 'Could not update order status';
+        this.notificationService.showError('Update Failed', errorMsg);
+      },
     });
   }
 
@@ -85,13 +185,13 @@ export class OrderListComponent implements OnInit {
 
     this.orderService.getOrderAudit(orderId).subscribe({
       next: (data: Order[]) => {
-        this.auditDetails.set(data.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+        // this.auditDetails.set(data.sort((a, b) => b.version - a.version));
         this.auditLoading.set(false);
       },
       error: (error) => {
         console.error('Error fetching audit details:', error);
         this.auditLoading.set(false);
-      }
+      },
     });
   }
 
@@ -104,22 +204,5 @@ export class OrderListComponent implements OnInit {
   onOrderCreated(): void {
     // List is refreshed by service
     this.showCreatePopup.set(false);
-  }
-
-  getStatusSeverity(status: string): "success" | "secondary" | "info" | "warn" | "danger" | "contrast" | undefined {
-    switch (status?.toLowerCase()) {
-      case 'created':
-        return 'info';
-      case 'accepted':
-        return 'warn';
-      case 'cooking':
-        return 'contrast';
-      case 'ready':
-        return 'success';
-      case 'delivered':
-        return 'secondary';
-      default:
-        return 'info';
-    }
   }
 }
