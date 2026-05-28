@@ -11,7 +11,7 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanComma
 import { SQSEvent } from 'aws-lambda';
 
 type WhatsAppInboundMessageKind = 'text' | 'button';
-type WhatsAppButtonId = 'place_similar_order' | 'view_menu';
+type WhatsAppButtonId = 'review_similar_order' | 'confirm_similar_order' | 'change_items' | 'view_menu';
 
 interface WhatsAppInboundMessage {
   kind?: WhatsAppInboundMessageKind;
@@ -106,7 +106,9 @@ const MAX_RECENT_MESSAGES = 10;
 const DEFAULT_MODEL_ID = 'global.anthropic.claude-haiku-4-5-20251001-v1:0';
 const DEFAULT_MENU_URL = 'https://cravnest.in/#menu';
 const BUTTON_TITLES: Record<WhatsAppButtonId, string> = {
-  place_similar_order: 'Similar order',
+  review_similar_order: 'Review order',
+  confirm_similar_order: 'Confirm order',
+  change_items: 'Change items',
   view_menu: 'View menu',
 };
 
@@ -168,7 +170,7 @@ export const calculateExpiresAt = (date = new Date()): number =>
 
 const isMenuExitIntent = (message: WhatsAppInboundMessage): boolean => {
   const value = (message.buttonId || message.text || '').trim().toLowerCase();
-  return ['view_menu', 'menu', 'view menu', 'stop', 'exit', 'cancel'].includes(value);
+  return ['view_menu', 'change_items', 'menu', 'view menu', 'change items', 'stop', 'exit', 'cancel'].includes(value);
 };
 
 const loadConversation = async (message: WhatsAppInboundMessage): Promise<ConversationSession> => {
@@ -228,14 +230,6 @@ const appendConversation = (
     expiresAt: calculateExpiresAt(now),
   };
 };
-
-const clearAiMode = (session: ConversationSession): ConversationSession => ({
-  ...session,
-  mode: 'STATIC',
-  messages: [],
-  updatedAt: new Date().toISOString(),
-  expiresAt: calculateExpiresAt(),
-});
 
 const queryRecentOrders = async (phoneNumber: string): Promise<OrderRecord[]> => {
   const candidates = Array.from(new Set([phoneNumber, `+${phoneNumber}`]));
@@ -370,7 +364,8 @@ Return ONLY valid JSON in this shape:
 {
   "body": "short WhatsApp message",
   "buttons": [
-    { "id": "place_similar_order", "title": "Similar order" },
+    { "id": "review_similar_order", "title": "Review order" },
+    { "id": "change_items", "title": "Change items" },
     { "id": "view_menu", "title": "View menu" }
   ]
 }
@@ -378,12 +373,14 @@ Return ONLY valid JSON in this shape:
 Rules:
 - Keep the body under 450 characters.
 - Use at most 3 buttons.
-- Allowed button ids: place_similar_order, view_menu.
+- Allowed button ids: review_similar_order, change_items, view_menu.
 - Prefer buttons over asking the user to type.
-- Always explicitly ask whether they want to place a similar order or view the menu.
+- Always explicitly ask whether they want to review a similar order, change items, or view the menu.
 - Make it clear the buttons are quick options and the customer can type any question too.
 - Personalize from the last 5 orders, not only the latest order.
-- Mention favorite items only if the preference summary supports it.
+- Mention favorite items only if they appear in at least 2 analyzed orders.
+- If only 1 order is analyzed, say "Last time you ordered..." instead of "you often enjoy...".
+- Use the customer's first name when it is available and not "there".
 - Do not say you are AI. If useful, use only a subtle note like "I can help quickly here."
 - Delivery promise is within 1 hour after order confirmation.
 - If the customer sounds uncertain, explain they can type their question or use View menu.
@@ -410,7 +407,8 @@ ${getIstTimestamp()}
 const sanitizeAiButtons = (buttons: unknown): WhatsAppButton[] => {
   if (!Array.isArray(buttons)) {
     return [
-      { id: 'place_similar_order', title: BUTTON_TITLES.place_similar_order },
+      { id: 'review_similar_order', title: BUTTON_TITLES.review_similar_order },
+      { id: 'change_items', title: BUTTON_TITLES.change_items },
       { id: 'view_menu', title: BUTTON_TITLES.view_menu },
     ];
   }
@@ -421,7 +419,7 @@ const sanitizeAiButtons = (buttons: unknown): WhatsAppButton[] => {
       continue;
     }
     const id = (button as { id?: unknown }).id;
-    if (!['place_similar_order', 'view_menu'].includes(String(id))) {
+    if (!['review_similar_order', 'change_items', 'view_menu'].includes(String(id))) {
       continue;
     }
     sanitized.push({
@@ -447,7 +445,8 @@ const parseAiResponse = (text: string, preferenceSummary: PreferenceSummary): Wh
     return {
       body: buildReturningFallbackBody(preferenceSummary),
       buttons: [
-        { id: 'place_similar_order', title: BUTTON_TITLES.place_similar_order },
+        { id: 'review_similar_order', title: BUTTON_TITLES.review_similar_order },
+        { id: 'change_items', title: BUTTON_TITLES.change_items },
         { id: 'view_menu', title: BUTTON_TITLES.view_menu },
       ],
     };
@@ -455,12 +454,16 @@ const parseAiResponse = (text: string, preferenceSummary: PreferenceSummary): Wh
 };
 
 const buildReturningFallbackBody = (preferenceSummary: PreferenceSummary): string => {
-  const favorite = preferenceSummary.favoriteItems[0]?.name;
+  const favorite = preferenceSummary.favoriteItems.find((item) => item.timesOrdered >= 2)?.name;
   const repeatText = preferenceSummary.repeatCandidate?.itemsText;
+  const name = preferenceSummary.repeatCandidate ? 'Welcome back' : 'Hi';
   if (favorite && repeatText) {
-    return `Welcome back. I see you often enjoy ${favorite}. Would you like a similar order (${repeatText}) or today's menu?`;
+    return `${name}. I see you often enjoy ${favorite}. Want to review a similar order (${repeatText}), change items, or view today's menu?`;
   }
-  return `Welcome back. Would you like to place a similar order or view today's menu?`;
+  if (repeatText) {
+    return `${name}. Last time you ordered ${repeatText}. Want to review it, change items, or view today's menu?`;
+  }
+  return `${name}. Would you like to review a similar order, change items, or view today's menu?`;
 };
 
 const runReturningCustomerAssistant = async (
@@ -572,6 +575,27 @@ const sendMenuLink = async (to: string, firstName: string): Promise<void> => {
   );
 };
 
+export const buildOrderReviewMessage = (order: OrderRecord): string => {
+  const instructions = order.instructions ? `\nInstructions: ${order.instructions}` : '';
+  return `Please review your order:\n${formatOrderItems(order.items)}\nDelivery address: ${order.deliveryAddress}\nPhone: ${order.customerPhone}${instructions}\n\nPayment: COD\nDelivery: within 1 hour after confirmation.\n\nShould I confirm this order?`;
+};
+
+const sendOrderReview = async (message: WhatsAppInboundMessage, orders: OrderRecord[]): Promise<string> => {
+  const latestOrder = orders[0];
+  if (!latestOrder) {
+    await sendMenuLink(message.from, message.firstName);
+    return 'No previous order found; sent menu link.';
+  }
+
+  const body = buildOrderReviewMessage(latestOrder);
+  await sendButtonMessage(message.from, body, [
+    { id: 'confirm_similar_order', title: BUTTON_TITLES.confirm_similar_order },
+    { id: 'change_items', title: BUTTON_TITLES.change_items },
+    { id: 'view_menu', title: BUTTON_TITLES.view_menu },
+  ]);
+  return body;
+};
+
 const invokeCreateOrder = async (sourceMessage: WhatsAppInboundMessage, order: OrderRecord): Promise<OrderRecord> => {
   const payload = {
     httpMethod: 'POST',
@@ -613,27 +637,27 @@ const invokeCreateOrder = async (sourceMessage: WhatsAppInboundMessage, order: O
   return (body.order || body) as OrderRecord;
 };
 
-const placeSimilarOrder = async (message: WhatsAppInboundMessage, orders: OrderRecord[]): Promise<void> => {
+const confirmSimilarOrder = async (message: WhatsAppInboundMessage, orders: OrderRecord[]): Promise<string> => {
   const latestOrder = orders[0];
   if (!latestOrder) {
     await sendMenuLink(message.from, message.firstName);
-    return;
+    return 'No previous order found; sent menu link.';
   }
 
   try {
     const newOrder = await invokeCreateOrder(message, latestOrder);
-    await sendButtonMessage(
-      message.from,
-      `Done, your similar order is confirmed. We'll deliver it by ${formatPromisedDelivery(newOrder.promisedDeliveryAt)}.`,
-      [{ id: 'view_menu', title: BUTTON_TITLES.view_menu }],
-    );
+    const body = `Thanks, your COD order is confirmed. We'll deliver within 1 hour, by ${formatPromisedDelivery(newOrder.promisedDeliveryAt)}.`;
+    await sendButtonMessage(message.from, body, [
+      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
+    ]);
+    return body;
   } catch (error) {
     console.error('Unable to create similar WhatsApp order', error);
-    await sendButtonMessage(
-      message.from,
-      `I couldn't place the same order because some details may have changed. Please view today's menu and place a fresh order.`,
-      [{ id: 'view_menu', title: BUTTON_TITLES.view_menu }],
-    );
+    const body = `I couldn't place the same order because some details may have changed. Please view today's menu and place a fresh order.`;
+    await sendButtonMessage(message.from, body, [
+      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
+    ]);
+    return body;
   }
 };
 
@@ -644,13 +668,31 @@ const handleReturningCustomer = async (
 ): Promise<void> => {
   if (isMenuExitIntent(message)) {
     await sendMenuLink(message.from, session.firstName);
-    await saveConversation(clearAiMode(session));
+    await saveConversation(appendConversation(
+      session,
+      message.buttonTitle || message.text,
+      `Sent menu link: ${getMenuUrl()}`,
+    ));
     return;
   }
 
-  if (message.buttonId === 'place_similar_order') {
-    await placeSimilarOrder(message, orders);
-    await saveConversation(clearAiMode(session));
+  if (message.buttonId === 'review_similar_order') {
+    const reviewBody = await sendOrderReview(message, orders);
+    await saveConversation(appendConversation(
+      session,
+      message.buttonTitle || message.text,
+      reviewBody,
+    ));
+    return;
+  }
+
+  if (message.buttonId === 'confirm_similar_order') {
+    const confirmationBody = await confirmSimilarOrder(message, orders);
+    await saveConversation(appendConversation(
+      session,
+      message.buttonTitle || message.text,
+      confirmationBody,
+    ));
     return;
   }
 
@@ -677,7 +719,11 @@ export const handler = async (event: SQSEvent): Promise<void> => {
 
     if (!orders.length) {
       await sendNewCustomerWelcome(message);
-      await saveConversation(clearAiMode(session));
+      await saveConversation(appendConversation(
+        session,
+        message.buttonTitle || message.text,
+        `Sent new customer menu link: ${getMenuUrl()}`,
+      ));
       continue;
     }
 

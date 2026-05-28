@@ -1,4 +1,4 @@
-import { calculateExpiresAt, formatOrderItems, summarizePreferences } from '../index';
+import { buildOrderReviewMessage, calculateExpiresAt, formatOrderItems, summarizePreferences } from '../index';
 
 describe('WhatsApp worker helpers', () => {
   it('sets the conversation TTL one hour ahead', () => {
@@ -52,5 +52,49 @@ describe('WhatsApp worker helpers', () => {
       itemsText: '2 Biryani, 1 Paneer Tikka',
       deliveryAddress: 'Bavdhan',
     }));
+  });
+
+  it('does not invent repeat preference from a single prior order', () => {
+    const summary = summarizePreferences([
+      {
+        orderId: 'ORD-1',
+        customerName: 'Rahul',
+        customerPhone: '919999999999',
+        deliveryAddress: 'Bavdhan',
+        items: [
+          { itemId: 'biryani', name: 'Biryani', price: 250, quantity: 2, amount: 500 },
+        ],
+        totalAmount: 500,
+        createdAt: '2026-05-15T10:00:00.000Z',
+      },
+    ]);
+
+    expect(summary.orderCountAnalyzed).toBe(1);
+    expect(summary.favoriteItems[0]).toEqual(expect.objectContaining({
+      name: 'Biryani',
+      timesOrdered: 1,
+    }));
+  });
+
+  it('builds a review message before confirming a repeat order', () => {
+    const body = buildOrderReviewMessage({
+      orderId: 'ORD-5',
+      customerName: 'Rahul',
+      customerPhone: '919999999999',
+      deliveryAddress: 'Bavdhan, Pune',
+      items: [
+        { itemId: 'biryani', name: 'Biryani', price: 250, quantity: 2, amount: 500 },
+      ],
+      totalAmount: 500,
+      instructions: 'Less spicy',
+      createdAt: '2026-05-15T10:00:00.000Z',
+    });
+
+    expect(body).toContain('Please review your order');
+    expect(body).toContain('2 Biryani');
+    expect(body).toContain('Delivery address: Bavdhan, Pune');
+    expect(body).toContain('Phone: 919999999999');
+    expect(body).toContain('Instructions: Less spicy');
+    expect(body).toContain('Should I confirm this order?');
   });
 });
