@@ -38,8 +38,6 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     const {
       customerPhone,
       orderStatus,
-      slotDate,
-      slot,
       orderedBy,
       fromDate,
       toDate,
@@ -55,8 +53,8 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     }
 
     // Validate date formats
-    if (slotDate && !validateDateFormat(slotDate)) {
-      return createErrorResponse(400, 'Invalid slotDate format. Use YYYY-MM-DD');
+    if (params.slotDate || params.slot) {
+      return createErrorResponse(400, 'slot and slotDate filters are no longer supported');
     }
     if (fromDate && !validateDateFormat(fromDate)) {
       return createErrorResponse(400, 'Invalid fromDate format. Use YYYY-MM-DD');
@@ -85,7 +83,7 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     const expressionAttributeValues: Record<string, any> = {};
     const expressionAttributeNames: Record<string, string> = {};
 
-    // Priority: customerPhone > slotDate > orderStatus
+    // Priority: customerPhone > orderStatus
     if (customerPhone) {
       // Strategy 1: Query by customer phone
       indexName = 'customerPhone-createdAt-index';
@@ -104,19 +102,8 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
         keyConditionExpression += ' AND createdAt <= :toDate';
         expressionAttributeValues[':toDate'] = toDate;
       }
-    } else if (slotDate) {
-      // Strategy 2: Query by date and slot
-      indexName = 'slotDate-slot-index';
-      keyConditionExpression = 'slotDate = :slotDate';
-      expressionAttributeValues[':slotDate'] = slotDate;
-
-      // Add slot to key condition if provided
-      if (slot) {
-        keyConditionExpression += ' AND slot = :slot';
-        expressionAttributeValues[':slot'] = slot;
-      }
     } else {
-      // Strategy 3: Query by status (default)
+      // Strategy 2: Query by status (default)
       indexName = 'status-createdAt-index';
       const status = orderStatus || OrderStatus.CONFIRMED;
       keyConditionExpression = '#status = :status';
@@ -144,23 +131,11 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       expressionAttributeValues[':orderedBy'] = orderedBy;
     }
 
-    // Add status filter when querying by customerPhone or slotDate (since status is not in key)
-    if ((customerPhone || slotDate) && orderStatus) {
+    // Add status filter when querying by customerPhone since status is not in key
+    if (customerPhone && orderStatus) {
       filterExpression += filterExpression ? ' AND #status = :statusFilter' : '#status = :statusFilter';
       expressionAttributeValues[':statusFilter'] = orderStatus;
       expressionAttributeNames['#status'] = 'status';
-    }
-
-    // Add slot filter when querying by status or customerPhone (if slot provided but not in key)
-    if (!slotDate && slot) {
-      filterExpression += filterExpression ? ' AND slot = :slotFilter' : 'slot = :slotFilter';
-      expressionAttributeValues[':slotFilter'] = slot;
-    }
-
-    // Add slotDate filter when querying by customerPhone or status (if slotDate provided but not in key)
-    if (!slotDate && customerPhone && params.slotDate) {
-      filterExpression += filterExpression ? ' AND slotDate = :slotDateFilter' : 'slotDate = :slotDateFilter';
-      expressionAttributeValues[':slotDateFilter'] = params.slotDate;
     }
 
     // Determine sort order (default: descending for most recent first)

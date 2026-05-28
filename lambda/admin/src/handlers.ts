@@ -9,7 +9,7 @@ export const setOrderLimits = async (event: APIGatewayProxyEvent): Promise<APIGa
       return createErrorResponse(validationResult.statusCode, validationResult.message);
     }
 
-    const { itemId, lunchLimit, dinnerLimit, itemName, lunchCutoffTime, dinnerCutoffTime } = validationResult;
+    const { itemId, openTime, closeTime, deliveryPromiseMinutes, isAcceptingOrders } = validationResult;
 
     // Get existing config
     const existingResult = await docClient.send(new GetCommand({
@@ -19,27 +19,20 @@ export const setOrderLimits = async (event: APIGatewayProxyEvent): Promise<APIGa
 
     const config = existingResult.Item || { itemId };
 
-    // Update limits
-    if (lunchLimit !== undefined) {
-      config.lunchLimit = lunchLimit;
+    if (openTime !== undefined) {
+      config.openTime = openTime;
     }
-    if (dinnerLimit !== undefined) {
-      config.dinnerLimit = dinnerLimit;
+    if (closeTime !== undefined) {
+      config.closeTime = closeTime;
     }
-    if (itemName !== undefined) {
-      config.itemName = itemName;
+    if (deliveryPromiseMinutes !== undefined) {
+      config.deliveryPromiseMinutes = deliveryPromiseMinutes;
     }
-    if (lunchCutoffTime !== undefined) {
-      config.lunchCutoffTime = lunchCutoffTime;
-    }
-    if (dinnerCutoffTime !== undefined) {
-      config.dinnerCutoffTime = dinnerCutoffTime;
+    if (isAcceptingOrders !== undefined) {
+      config.isAcceptingOrders = isAcceptingOrders;
     }
 
     config.updatedAt = new Date().toISOString();
-    if (itemId !== 'GLOBAL') {
-      config.isAcceptingOrders = config.isAcceptingOrders !== false; // Default to true if not set
-    }
 
     await docClient.send(new PutCommand({
       TableName: process.env.ORDER_LIMITS_CONFIG_TABLE!,
@@ -47,11 +40,11 @@ export const setOrderLimits = async (event: APIGatewayProxyEvent): Promise<APIGa
     }));
 
     return createSuccessResponse(200, {
-      message: 'Order limits updated successfully',
+      message: 'Ordering configuration updated successfully',
       config
     });
   } catch (error) {
-    console.error('Error setting order limits:', error);
-    return createErrorResponse(500, 'Failed to set order limits');
+    console.error('Error setting ordering configuration:', error);
+    return createErrorResponse(500, 'Failed to set ordering configuration');
   }
 };

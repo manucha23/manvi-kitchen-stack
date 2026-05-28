@@ -1,15 +1,11 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { createErrorResponse } from './response.util';
-import { PaymentMethod, Slot } from '../models';
-
-const VALID_SLOTS = [Slot.LUNCH, Slot.DINNER];
+import { PaymentMethod } from '../models';
 
 export interface ValidatedOrderRequest {
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
-  slot: Slot;
-  slotDate: string;
   paymentMethod: PaymentMethod;
   items: Array<{ id: string; quantity: number }>;
   instructions?: string;
@@ -36,7 +32,7 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { customerName, customerPhone, deliveryAddress, slot, slotDate, paymentMethod = PaymentMethod.COD, items, instructions } = parsed;
+  const { customerName, customerPhone, deliveryAddress, paymentMethod = PaymentMethod.COD, items, instructions } = parsed;
 
   if (customerName !== undefined && typeof customerName !== 'string') {
     return createErrorResponse(400, 'customerName must be a string');
@@ -46,12 +42,6 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
   }
   if (deliveryAddress !== undefined && typeof deliveryAddress !== 'string') {
     return createErrorResponse(400, 'deliveryAddress must be a string');
-  }
-  if (slot !== undefined && typeof slot !== 'string') {
-    return createErrorResponse(400, 'slot must be a string');
-  }
-  if (slotDate !== undefined && typeof slotDate !== 'string') {
-    return createErrorResponse(400, 'slotDate must be a string');
   }
   if (items !== undefined && !Array.isArray(items)) {
     return createErrorResponse(400, 'items must be an array');
@@ -63,21 +53,12 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'instructions must be a string');
   }
 
-  if (!customerName || !customerPhone || !deliveryAddress || !slot || !slotDate || !items?.length) {
-    return createErrorResponse(400, 'Missing required fields: customerName, customerPhone, deliveryAddress, slot, slotDate, items');
-  }
-
-  if (!VALID_SLOTS.includes(slot as Slot)) {
-    return createErrorResponse(400, `Invalid slot. Must be one of: ${VALID_SLOTS.join(', ')}`);
+  if (!customerName || !customerPhone || !deliveryAddress || !items?.length) {
+    return createErrorResponse(400, 'Missing required fields: customerName, customerPhone, deliveryAddress, items');
   }
 
   if (!Object.values(PaymentMethod).includes(paymentMethod as PaymentMethod)) {
     return createErrorResponse(400, `Invalid paymentMethod. Must be one of: ${Object.values(PaymentMethod).join(', ')}`);
-  }
-
-  // Validate date format YYYY-MM-DD
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
-    return createErrorResponse(400, 'slotDate must be in YYYY-MM-DD format');
   }
 
   for (let i = 0; i < items.length; i++) {
@@ -93,7 +74,7 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     }
   }
 
-  return { customerName, customerPhone, deliveryAddress, slot: slot as Slot, slotDate, paymentMethod: paymentMethod as PaymentMethod, items, instructions };
+  return { customerName, customerPhone, deliveryAddress, paymentMethod: paymentMethod as PaymentMethod, items, instructions };
 };
 
 export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdateOrderRequest | APIGatewayProxyResult => {

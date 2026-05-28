@@ -8,10 +8,4 @@ export interface MenuItem {
   available: boolean;
   createdAt: string;
   updatedAt: string;
-  limits: {
-    lunchLimit: number;
-    dinnerLimit: number;
-    isAcceptingOrders: boolean;
-    globalKillswitch: boolean;
-  };
 }

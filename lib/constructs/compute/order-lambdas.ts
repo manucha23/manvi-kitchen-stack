@@ -8,7 +8,6 @@ export interface OrderLambdasProps {
   itemTable: dynamodb.Table;
   orderHistoryTable: dynamodb.Table;
   orderLimitsConfigTable: dynamodb.Table;
-  itemOrderCountTable: dynamodb.Table;
   allowedOrigins?: string;
 }
 
@@ -29,7 +28,6 @@ export class OrderLambdas extends Construct {
         ITEM_TABLE: props.itemTable.tableName,
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
         ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
-        ITEM_ORDER_COUNT_TABLE: props.itemOrderCountTable.tableName,
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
@@ -39,6 +37,5 @@ export class OrderLambdas extends Construct {
     props.itemTable.grantReadData(this.orderFunction);
     props.orderHistoryTable.grantReadData(this.orderFunction);
     props.orderLimitsConfigTable.grantReadData(this.orderFunction);
-    props.itemOrderCountTable.grantReadWriteData(this.orderFunction);
   }
 }

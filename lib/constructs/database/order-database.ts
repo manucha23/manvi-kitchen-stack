@@ -29,11 +29,5 @@ export class OrderDatabase extends Construct {
       sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
     });
 
-    // GSI 3: Orders by date and slot type
-    this.table.addGlobalSecondaryIndex({
-      indexName: 'slotDate-slot-index',
-      partitionKey: { name: 'slotDate', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'slot', type: dynamodb.AttributeType.STRING },
-    });
   }
 }

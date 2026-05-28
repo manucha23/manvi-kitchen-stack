@@ -46,18 +46,9 @@ components:
           description: Array of items in the order
           items:
             $ref: '#/components/schemas/OrderItemRequest'
-        slot:
-          type: string
-          description: Time slot (e.g., lunch, dinner)
-          example: "lunch"
-        slotDate:
-          type: string
-          format: date
-          description: Same-day date for the slot in Asia/Kolkata (YYYY-MM-DD)
-          example: "2026-05-12"
         paymentMethod:
           type: string
-          description: Payment method. COD reserves capacity immediately; ONLINE waits for later payment confirmation.
+          description: Payment method.
           enum: [COD, ONLINE]
           default: COD
           example: COD
@@ -75,8 +66,6 @@ components:
           example: "Kumar Picasso, Hadapsar, Pune -411028"
       required:
         - items
-        - slot
-        - slotDate
         - customerName
         - customerPhone
         - deliveryAddress
@@ -211,19 +200,10 @@ components:
         paymentStatus:
           type: string
           enum: [NOT_REQUIRED, PENDING]
-        capacityReserved:
-          type: boolean
-        capacityReservedAt:
+        promisedDeliveryAt:
           type: string
           format: date-time
-        slot:
-          type: string
-          description: Time slot (lunch or dinner)
-          enum: [lunch, dinner]
-        slotDate:
-          type: string
-          format: date
-          description: Date for the slot (YYYY-MM-DD)
+          description: Promised delivery timestamp
         items:
           type: array
           items:
@@ -252,64 +232,11 @@ components:
         - status
         - paymentMethod
         - paymentStatus
-        - capacityReserved
-        - slot
-        - slotDate
+        - promisedDeliveryAt
         - items
         - totalAmount
         - createdAt
         - updatedAt
-    ItemAvailability:
-      type: object
-      properties:
-        itemId:
-          type: string
-        slot:
-          type: string
-          enum: [lunch, dinner]
-        slotDate:
-          type: string
-          format: date
-        limit:
-          type: integer
-          nullable: true
-        currentCount:
-          type: integer
-        availableCount:
-          type: integer
-        isAcceptingOrders:
-          type: boolean
-        globalKillswitch:
-          type: boolean
-        cutoffTime:
-          type: string
-          example: "13:00"
-        cutoffPassed:
-          type: boolean
-        available:
-          type: boolean
-      required:
-        - itemId
-        - slot
-        - slotDate
-        - limit
-        - currentCount
-        - availableCount
-        - isAcceptingOrders
-        - globalKillswitch
-        - cutoffTime
-        - cutoffPassed
-        - available
-    ItemTodayAvailability:
-      type: object
-      properties:
-        lunch:
-          $ref: '#/components/schemas/ItemAvailability'
-        dinner:
-          $ref: '#/components/schemas/ItemAvailability'
-      required:
-        - lunch
-        - dinner
     OrderListResponse:
       type: object
       properties:
@@ -363,21 +290,6 @@ components:
         updatedAt:
           type: string
           format: date-time
-        limits:
-          type: object
-          properties:
-            lunchLimit:
-              type: integer
-              nullable: true
-            dinnerLimit:
-              type: integer
-              nullable: true
-            isAcceptingOrders:
-              type: boolean
-            globalKillswitch:
-              type: boolean
-        availability:
-          $ref: '#/components/schemas/ItemTodayAvailability'
       required:
         - itemId
         - name
@@ -401,12 +313,6 @@ components:
       properties:
         itemId:
           type: string
-        lunchLimit:
-          type: integer
-        dinnerLimit:
-          type: integer
-        itemName:
-          type: string
         updatedAt:
           type: string
           format: date-time
@@ -414,12 +320,15 @@ components:
           type: boolean
         globalKillswitch:
           type: boolean
-        lunchCutoffTime:
+        openTime:
           type: string
-          example: "13:00"
-        dinnerCutoffTime:
+          example: "11:00"
+        closeTime:
           type: string
-          example: "20:00"
+          example: "21:00"
+        deliveryPromiseMinutes:
+          type: integer
+          example: 60
     OrderLimitConfigListResponse:
       type: object
       properties:
@@ -441,7 +350,7 @@ tags:
   - name: Items
     description: Menu item management
   - name: Admin
-    description: Admin controls for order limits and killswitch
+    description: Admin controls for ordering window and killswitch
 
 paths:
   /orders:
@@ -461,19 +370,6 @@ paths:
             type: string
             enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
           example: CONFIRMED
-        - name: slotDate
-          in: query
-          description: Filter by slot date (YYYY-MM-DD)
-          schema:
-            type: string
-            format: date
-          example: "2026-05-11"
-        - name: slot
-          in: query
-          description: Filter by time slot (lunch, dinner)
-          schema:
-            type: string
-          example: lunch
         - name: fromDate
           in: query
           description: Start date for date range filter (YYYY-MM-DD)
@@ -865,49 +761,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
         - Cognito: []
-  /items/{itemId}/availability:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
-    parameters:
-      - name: itemId
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: slot
-        in: query
-        required: true
-        description: Slot availability to retrieve
-        schema:
-          type: string
-          enum: [lunch, dinner]
-    get:
-      tags: [Items]
-      summary: Get today's availability for one item and slot
-      operationId: getItemAvailability
-      responses:
-        '200':
-          description: Item availability
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ItemAvailability'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
   /admin/order-limits:
     x-amazon-apigateway-cors:
       allowOrigins: ['*']
@@ -915,11 +768,11 @@ paths:
       allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     get:
       tags: [Admin]
-      summary: Get order limit configuration
+      summary: Get ordering configuration
       operationId: getOrderLimits
       responses:
         '200':
-          description: Order limits configuration
+          description: Ordering configuration
           content:
             application/json:
               schema:
@@ -934,7 +787,7 @@ paths:
         - Cognito: []
     put:
       tags: [Admin]
-      summary: Set order limit configuration
+      summary: Set ordering configuration
       operationId: setOrderLimits
       requestBody:
         required: true
@@ -945,25 +798,24 @@ paths:
               properties:
                 itemId:
                   type: string
-                lunchLimit:
+                openTime:
+                  type: string
+                  description: HH:mm IST opening time
+                  example: "11:00"
+                closeTime:
+                  type: string
+                  description: HH:mm IST closing time
+                  example: "21:00"
+                deliveryPromiseMinutes:
                   type: integer
-                dinnerLimit:
-                  type: integer
-                itemName:
-                  type: string
-                lunchCutoffTime:
-                  type: string
-                  description: HH:mm IST cutoff for GLOBAL config
-                  example: "13:00"
-                dinnerCutoffTime:
-                  type: string
-                  description: HH:mm IST cutoff for GLOBAL config
-                  example: "20:00"
+                  example: 60
+                isAcceptingOrders:
+                  type: boolean
               required:
                 - itemId
       responses:
         '200':
-          description: Order limits updated
+          description: Ordering configuration updated
           content:
             application/json:
               schema:

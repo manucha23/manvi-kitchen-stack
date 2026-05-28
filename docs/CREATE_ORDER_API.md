@@ -1,22 +1,14 @@
 # Create Order API
 
-## Endpoint
+`POST /orders` creates an order when the kitchen is currently accepting orders.
 
-```http
-POST /orders
-```
-
-Creates a same-day order for either COD or future online payment.
-
-## Request Body
+## Request
 
 ```json
 {
-  "customerName": "Rajesh Kumar",
-  "customerPhone": "+919876543210",
-  "deliveryAddress": "123, MG Road, Pune, Maharashtra - 411028",
-  "slot": "lunch",
-  "slotDate": "2026-05-12",
+  "customerName": "Manvi",
+  "customerPhone": "+917042622062",
+  "deliveryAddress": "Kumar Picasso, Hadapsar, Pune - 411028",
   "paymentMethod": "COD",
   "items": [
     {
@@ -28,75 +20,41 @@ Creates a same-day order for either COD or future online payment.
 }
 ```
 
-## Fields
-
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `customerName` | String | Yes | Customer full name |
-| `customerPhone` | String | Yes | Contact number with country code |
+| `customerPhone` | String | Yes | Contact number |
 | `deliveryAddress` | String | Yes | Full delivery address |
-| `slot` | Enum | Yes | `lunch` or `dinner` |
-| `slotDate` | String | Yes | Today's date in `Asia/Kolkata`, `YYYY-MM-DD` |
 | `paymentMethod` | Enum | No | `COD` or `ONLINE`; defaults to `COD` |
 | `items` | Array | Yes | Items to order |
 | `items[].id` | String | Yes | Item UUID from `ItemTable` |
 | `items[].quantity` | Number | Yes | Positive integer |
 | `instructions` | String | No | Special instructions |
 
-Clients must not send item name, price, amount, or order total. The backend fetches item details and calculates totals.
+Clients do not send slot, slot date, item name, price, amount, order total, or delivery promise. The backend fetches item details, calculates totals, and assigns `promisedDeliveryAt`.
 
-## Slot Rules
+## Ordering Rules
 
-- Orders are same-day only in `Asia/Kolkata`.
-- `slot` must be exactly `lunch` or `dinner`.
-- Lunch accepts orders until configured lunch cutoff, default `13:00` IST.
-- Dinner accepts orders until configured dinner cutoff, default `20:00` IST.
-- Cutoff fields are configured on the `GLOBAL` record in `ORDER_LIMITS_CONFIG_TABLE`:
-  - `lunchCutoffTime`
-  - `dinnerCutoffTime`
+- Orders are accepted only when global ordering is enabled.
+- Orders are accepted only between configured `openTime` and `closeTime` in `Asia/Kolkata`.
+- Defaults are `11:00` to `21:00`.
+- Successful orders receive `promisedDeliveryAt = createdAt + deliveryPromiseMinutes`.
+- Default `deliveryPromiseMinutes` is `60`.
+- Each item must exist and be marked `available = true`.
 
-## Payment and Capacity Behavior
-
-### COD
-
-`paymentMethod = COD` reserves item capacity immediately.
-
-Successful COD order:
-
-- reserves capacity for all requested item quantities
-- returns `status = CONFIRMED`
-- returns `paymentStatus = NOT_REQUIRED`
-- returns `capacityReserved = true`
-
-### ONLINE
-
-`paymentMethod = ONLINE` creates a pending order for later Razorpay integration.
-
-Successful online order:
-
-- does not reserve capacity during create
-- returns `status = PENDING_PAYMENT`
-- returns `paymentStatus = PENDING`
-- returns `capacityReserved = false`
-
-Capacity is reserved later when payment succeeds and the order transitions to `CONFIRMED`.
-
-## Success Response
+## Response
 
 ```json
 {
-  "orderId": "ABC123",
-  "orderedBy": "user-sub-from-cognito",
-  "customerName": "Rajesh Kumar",
-  "customerPhone": "+919876543210",
-  "deliveryAddress": "123, MG Road, Pune, Maharashtra - 411028",
+  "orderId": "ORD-20260512-0001",
+  "orderedBy": "user-sub",
+  "customerName": "Manvi",
+  "customerPhone": "+917042622062",
+  "deliveryAddress": "Kumar Picasso, Hadapsar, Pune - 411028",
   "status": "CONFIRMED",
   "paymentMethod": "COD",
   "paymentStatus": "NOT_REQUIRED",
-  "capacityReserved": true,
-  "capacityReservedAt": "2026-05-12T07:00:00.000Z",
-  "slot": "lunch",
-  "slotDate": "2026-05-12",
+  "promisedDeliveryAt": "2026-05-12T07:00:00.000Z",
   "items": [
     {
       "itemId": "b7eac195-538f-4830-9c76-b483603dd89b",
@@ -108,52 +66,21 @@ Capacity is reserved later when payment succeeds and the order transitions to `C
   ],
   "totalAmount": 500,
   "instructions": "Please ring the doorbell twice",
-  "createdAt": "2026-05-12T07:00:00.000Z",
-  "updatedAt": "2026-05-12T07:00:00.000Z"
+  "createdAt": "2026-05-12T06:00:00.000Z",
+  "updatedAt": "2026-05-12T06:00:00.000Z"
 }
 ```
 
 ## Error Examples
 
 ```json
-{ "error": "Orders are accepted for today only" }
+{ "error": "Orders are accepted between 11:00 and 21:00 IST" }
 ```
 
 ```json
-{ "error": "Lunch orders are closed for today" }
+{ "error": "Ordering is temporarily disabled" }
 ```
 
 ```json
-{ "error": "Invalid slot. Must be one of: lunch, dinner" }
-```
-
-```json
-{ "error": "No order limit configured for this item" }
-```
-
-```json
-{ "error": "Only 1 order available for this item in lunch" }
-```
-
-## Order Status Values
-
-```typescript
-enum OrderStatus {
-  PENDING_PAYMENT = "PENDING_PAYMENT",
-  CONFIRMED = "CONFIRMED",
-  INKITCHEN = "INKITCHEN",
-  READY = "READY",
-  DISPATCHED = "DISPATCHED",
-  COMPLETED = "COMPLETED",
-  CANCELLED = "CANCELLED"
-}
-```
-
-## Order Lifecycle
-
-```text
-COD:    POST /orders -> CONFIRMED -> INKITCHEN -> READY -> DISPATCHED -> COMPLETED
-ONLINE: POST /orders -> PENDING_PAYMENT -> CONFIRMED -> INKITCHEN -> READY -> DISPATCHED -> COMPLETED
-
-Any reserved order can move to CANCELLED, which releases capacity once.
+{ "error": "Item Chicken Biryani is not available" }
 ```
