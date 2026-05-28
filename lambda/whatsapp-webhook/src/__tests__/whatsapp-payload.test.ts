@@ -25,6 +25,7 @@ const textPayload: any = {
 describe('WhatsApp payload extraction', () => {
   it('extracts a valid inbound text message with profile first name', () => {
     expect(extractInboundTextMessages(textPayload)).toEqual([{
+      kind: 'text',
       messageId: 'wamid.abc123',
       from: '919999999999',
       firstName: 'Rahul',
@@ -66,6 +67,34 @@ describe('WhatsApp payload extraction', () => {
     };
 
     expect(extractInboundTextMessages(payload)).toEqual([]);
+  });
+
+  it('extracts WhatsApp interactive button replies', () => {
+    const payload = structuredClone(textPayload);
+    payload.entry[0].changes[0].value.messages[0] = {
+      from: '919999999999',
+      id: 'wamid.button123',
+      timestamp: '1778841600',
+      type: 'interactive',
+      interactive: {
+        type: 'button_reply',
+        button_reply: {
+          id: 'view_menu',
+          title: 'View menu',
+        },
+      },
+    };
+
+    expect(extractInboundTextMessages(payload)).toEqual([{
+      kind: 'button',
+      messageId: 'wamid.button123',
+      from: '919999999999',
+      firstName: 'Rahul',
+      text: 'View menu',
+      buttonId: 'view_menu',
+      buttonTitle: 'View menu',
+      receivedAt: '2026-05-15T10:40:00.000Z',
+    }]);
   });
 
   it('maps WhatsApp message and sender IDs to FIFO deduplication and group IDs', () => {

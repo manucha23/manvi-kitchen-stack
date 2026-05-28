@@ -12,8 +12,10 @@ export interface WhatsAppInboundWorkerLambdaProps {
   nodeRuntime: lambda.Runtime;
   parameterPrefix: string;
   conversationTable: dynamodb.ITable;
+  orderTable: dynamodb.ITable;
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
+  orderFunction: lambda.IFunction;
 }
 
 export const createWhatsAppInboundWorkerLambda = (
@@ -32,8 +34,11 @@ export const createWhatsAppInboundWorkerLambda = (
       WHATSAPP_PHONE_NUMBER_ID_PARAM: `${props.parameterPrefix}/phone-number-id`,
       WHATSAPP_GRAPH_API_VERSION: 'v25.0',
       WHATSAPP_CONVERSATION_TABLE: props.conversationTable.tableName,
+      ORDER_TABLE: props.orderTable.tableName,
       ITEM_TABLE: props.itemTable.tableName,
       ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
+      ORDER_FUNCTION_NAME: props.orderFunction.functionName,
+      WHATSAPP_MENU_URL: props.environment === 'prod' ? 'https://cravnest.in/#menu' : 'https://test.cravnest.in/#menu',
       BEDROCK_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     },
     timeout: cdk.Duration.seconds(60),
@@ -52,8 +57,10 @@ export const createWhatsAppInboundWorkerLambda = (
 
   props.inboundQueue.grantConsumeMessages(workerFunction);
   props.conversationTable.grantReadWriteData(workerFunction);
+  props.orderTable.grantReadData(workerFunction);
   props.itemTable.grantReadData(workerFunction);
   props.orderLimitsConfigTable.grantReadData(workerFunction);
+  props.orderFunction.grantInvoke(workerFunction);
 
   workerFunction.addToRolePolicy(new iam.PolicyStatement({
     actions: ['bedrock:InvokeModel*'],

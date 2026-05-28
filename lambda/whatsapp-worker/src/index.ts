@@ -1,21 +1,26 @@
 import {
   BedrockRuntimeClient,
-  ContentBlock,
   ConverseCommand,
   ConverseCommandInput,
   Message,
-  ToolUseBlock,
 } from '@aws-sdk/client-bedrock-runtime';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSEvent } from 'aws-lambda';
 
-interface WhatsAppInboundTextMessage {
+type WhatsAppInboundMessageKind = 'text' | 'button';
+type WhatsAppButtonId = 'place_similar_order' | 'view_menu';
+
+interface WhatsAppInboundMessage {
+  kind?: WhatsAppInboundMessageKind;
   messageId: string;
   from: string;
   firstName: string;
   text: string;
+  buttonId?: string;
+  buttonTitle?: string;
   receivedAt: string;
 }
 
@@ -28,10 +33,33 @@ interface ConversationMessage {
 interface ConversationSession {
   phoneNumber: string;
   firstName: string;
+  mode?: 'AI' | 'STATIC';
   messages: ConversationMessage[];
   createdAt: string;
   updatedAt: string;
   expiresAt: number;
+}
+
+interface OrderItem {
+  itemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  amount: number;
+}
+
+interface OrderRecord {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  status?: string;
+  paymentMethod?: string;
+  promisedDeliveryAt?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  instructions?: string;
+  createdAt: string;
 }
 
 interface MenuItem {
@@ -41,21 +69,50 @@ interface MenuItem {
   category?: string;
   price?: number;
   available: boolean;
-  lunchLimit?: number | null;
-  dinnerLimit?: number | null;
 }
 
-interface MenuToolResult {
-  kitchenOpen: boolean;
-  items: MenuItem[];
+interface WhatsAppButton {
+  id: WhatsAppButtonId;
+  title: string;
+}
+
+interface WhatsAppAiResponse {
+  body: string;
+  buttons: WhatsAppButton[];
+}
+
+interface PreferenceItem {
+  itemId: string;
+  name: string;
+  timesOrdered: number;
+  totalQuantity: number;
+  usualQuantity: number;
+}
+
+interface PreferenceSummary {
+  orderCountAnalyzed: number;
+  favoriteItems: PreferenceItem[];
+  repeatCandidate?: {
+    orderId: string;
+    itemsText: string;
+    totalAmount: number;
+    deliveryAddress: string;
+    instructions?: string;
+  };
 }
 
 const SESSION_TTL_SECONDS = 60 * 60;
 const MAX_RECENT_MESSAGES = 10;
 const DEFAULT_MODEL_ID = 'global.anthropic.claude-haiku-4-5-20251001-v1:0';
+const DEFAULT_MENU_URL = 'https://cravnest.in/#menu';
+const BUTTON_TITLES: Record<WhatsAppButtonId, string> = {
+  place_similar_order: 'Similar order',
+  view_menu: 'View menu',
+};
 
 const ssmClient = new SSMClient({});
 const bedrockClient = new BedrockRuntimeClient({});
+const lambdaClient = new LambdaClient({});
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const parameterCache = new Map<string, string>();
 
@@ -99,47 +156,22 @@ const getGraphApiVersion = (): string => process.env.WHATSAPP_GRAPH_API_VERSION 
 
 const getModelId = (): string => process.env.BEDROCK_MODEL_ID || DEFAULT_MODEL_ID;
 
-const getIstTimestamp = (date = new Date()): string =>
-  date.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
-
-export const buildSystemPrompt = (date = new Date()): string => `
-You are a friendly WhatsApp ordering assistant for Manvi's Kitchen, a home cloud kitchen in Pune run by Manvi.
-
-Style:
-- Be warm, helpful, and conversational, like a friendly neighbourhood kitchen.
-- Match the customer's language: Hindi, English, or Hinglish.
-- Use light food emojis occasionally, but keep replies short for WhatsApp.
-
-You can:
-- Greet customers and help them start an order.
-- Show today's menu using the get_menu tool.
-- Answer basic ordering questions from the menu.
-
-Rules:
-- On the first reply to a customer, clearly say you are Manvi's Kitchen's AI assistant.
-- This version cannot create orders yet. When the customer is ready, say order confirmation is coming soon and ask them to contact support if urgent.
-- Never promise items that are not on today's menu.
-- Never make up prices. Always use get_menu before listing items or prices.
-- Keep replies short.
-- Payment options are UPI link and COD.
-- Kitchen hours: lunch 11 AM to 3 PM, dinner 6 PM to 10 PM. Deliveries happen every hour on the hour.
-
-Current time in India: ${getIstTimestamp(date)}
-`.trim();
-
-export const calculateExpiresAt = (date = new Date()): number =>
-  Math.floor(date.getTime() / 1000) + SESSION_TTL_SECONDS;
+const getMenuUrl = (): string => process.env.WHATSAPP_MENU_URL || DEFAULT_MENU_URL;
 
 const normalizeFirstName = (firstName?: string): string => {
   const trimmed = (firstName || '').trim();
   return trimmed || 'there';
 };
 
-const loadConversation = async (message: WhatsAppInboundTextMessage): Promise<ConversationSession> => {
+export const calculateExpiresAt = (date = new Date()): number =>
+  Math.floor(date.getTime() / 1000) + SESSION_TTL_SECONDS;
+
+const isMenuExitIntent = (message: WhatsAppInboundMessage): boolean => {
+  const value = (message.buttonId || message.text || '').trim().toLowerCase();
+  return ['view_menu', 'menu', 'view menu', 'stop', 'exit', 'cancel'].includes(value);
+};
+
+const loadConversation = async (message: WhatsAppInboundMessage): Promise<ConversationSession> => {
   const now = new Date();
   const result = await docClient.send(new GetCommand({
     TableName: getRequiredEnv('WHATSAPP_CONVERSATION_TABLE'),
@@ -150,6 +182,7 @@ const loadConversation = async (message: WhatsAppInboundTextMessage): Promise<Co
     return {
       phoneNumber: message.from,
       firstName: normalizeFirstName(result.Item.firstName || message.firstName),
+      mode: result.Item.mode === 'STATIC' ? 'STATIC' : 'AI',
       messages: Array.isArray(result.Item.messages) ? result.Item.messages : [],
       createdAt: result.Item.createdAt || now.toISOString(),
       updatedAt: now.toISOString(),
@@ -160,6 +193,7 @@ const loadConversation = async (message: WhatsAppInboundTextMessage): Promise<Co
   return {
     phoneNumber: message.from,
     firstName: normalizeFirstName(message.firstName),
+    mode: 'AI',
     messages: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -188,45 +222,92 @@ const appendConversation = (
 
   return {
     ...session,
+    mode: 'AI',
     messages,
     updatedAt: now.toISOString(),
     expiresAt: calculateExpiresAt(now),
   };
 };
 
-export const formatMenuToolResult = (
-  items: Record<string, unknown>[],
-  configs: Record<string, unknown>[],
-): MenuToolResult => {
-  const configByItemId = new Map(configs.map((config) => [String(config.itemId), config]));
-  const globalConfig = configByItemId.get('GLOBAL');
-  const kitchenOpen = globalConfig?.globalKillswitch !== true;
+const clearAiMode = (session: ConversationSession): ConversationSession => ({
+  ...session,
+  mode: 'STATIC',
+  messages: [],
+  updatedAt: new Date().toISOString(),
+  expiresAt: calculateExpiresAt(),
+});
 
+const queryRecentOrders = async (phoneNumber: string): Promise<OrderRecord[]> => {
+  const candidates = Array.from(new Set([phoneNumber, `+${phoneNumber}`]));
+
+  for (const candidate of candidates) {
+    const result = await docClient.send(new QueryCommand({
+      TableName: getRequiredEnv('ORDER_TABLE'),
+      IndexName: 'customerPhone-createdAt-index',
+      KeyConditionExpression: 'customerPhone = :customerPhone',
+      ExpressionAttributeValues: {
+        ':customerPhone': candidate,
+      },
+      ScanIndexForward: false,
+      Limit: 10,
+    }));
+
+    if (result.Items?.length) {
+      return (result.Items as OrderRecord[])
+        .filter((order) => !['CANCELLED', 'PENDING_PAYMENT'].includes(order.status || ''))
+        .slice(0, 5);
+    }
+  }
+
+  return [];
+};
+
+export const summarizePreferences = (orders: OrderRecord[]): PreferenceSummary => {
+  const itemStats = new Map<string, PreferenceItem>();
+
+  for (const order of orders) {
+    const uniqueItemsInOrder = new Set<string>();
+    for (const item of order.items || []) {
+      const key = item.itemId;
+      const existing = itemStats.get(key) || {
+        itemId: item.itemId,
+        name: item.name,
+        timesOrdered: 0,
+        totalQuantity: 0,
+        usualQuantity: 0,
+      };
+      if (!uniqueItemsInOrder.has(key)) {
+        existing.timesOrdered += 1;
+        uniqueItemsInOrder.add(key);
+      }
+      existing.totalQuantity += item.quantity;
+      existing.usualQuantity = Math.max(1, Math.round(existing.totalQuantity / existing.timesOrdered));
+      itemStats.set(key, existing);
+    }
+  }
+
+  const latestOrder = orders[0];
   return {
-    kitchenOpen,
-    items: items
-      .map((item) => {
-        const itemConfig = configByItemId.get(String(item.itemId)) || {};
-        const available = kitchenOpen &&
-          item.available !== false &&
-          itemConfig.isAcceptingOrders !== false;
-
-        return {
-          itemId: String(item.itemId),
-          name: String(item.name || 'Unnamed item'),
-          description: typeof item.description === 'string' ? item.description : undefined,
-          category: typeof item.category === 'string' ? item.category : undefined,
-          price: typeof item.price === 'number' ? item.price : undefined,
-          available,
-          lunchLimit: typeof itemConfig.lunchLimit === 'number' ? itemConfig.lunchLimit : null,
-          dinnerLimit: typeof itemConfig.dinnerLimit === 'number' ? itemConfig.dinnerLimit : null,
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    orderCountAnalyzed: orders.length,
+    favoriteItems: Array.from(itemStats.values())
+      .sort((a, b) => b.timesOrdered - a.timesOrdered || b.totalQuantity - a.totalQuantity)
+      .slice(0, 3),
+    repeatCandidate: latestOrder
+      ? {
+        orderId: latestOrder.orderId,
+        itemsText: formatOrderItems(latestOrder.items),
+        totalAmount: latestOrder.totalAmount,
+        deliveryAddress: latestOrder.deliveryAddress,
+        instructions: latestOrder.instructions,
+      }
+      : undefined,
   };
 };
 
-const getMenu = async (): Promise<MenuToolResult> => {
+export const formatOrderItems = (items: OrderItem[] = []): string =>
+  items.map((item) => `${item.quantity} ${item.name}`).join(', ');
+
+const getMenu = async (): Promise<MenuItem[]> => {
   const [itemsResult, configsResult] = await Promise.all([
     docClient.send(new ScanCommand({
       TableName: getRequiredEnv('ITEM_TABLE'),
@@ -236,139 +317,193 @@ const getMenu = async (): Promise<MenuToolResult> => {
     })),
   ]);
 
-  return formatMenuToolResult(
-    (itemsResult.Items || []) as Record<string, unknown>[],
-    (configsResult.Items || []) as Record<string, unknown>[],
-  );
+  const configByItemId = new Map((configsResult.Items || []).map((config) => [String(config.itemId), config]));
+  const globalConfig = configByItemId.get('GLOBAL');
+  const kitchenOpen = globalConfig?.globalKillswitch !== true && globalConfig?.isAcceptingOrders !== false;
+
+  return ((itemsResult.Items || []) as Record<string, unknown>[])
+    .map((item) => {
+      const itemConfig = configByItemId.get(String(item.itemId)) || {};
+      return {
+        itemId: String(item.itemId),
+        name: String(item.name || 'Unnamed item'),
+        description: typeof item.description === 'string' ? item.description : undefined,
+        category: typeof item.category === 'string' ? item.category : undefined,
+        price: typeof item.price === 'number' ? item.price : undefined,
+        available: kitchenOpen && item.available !== false && itemConfig.isAcceptingOrders !== false,
+      };
+    })
+    .filter((item) => item.available)
+    .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-const toBedrockMessages = (
-  session: ConversationSession,
-  inboundMessage: WhatsAppInboundTextMessage,
-): Message[] => {
-  const contextText = JSON.stringify({
-    customer: {
-      firstName: session.firstName,
-      whatsappId: session.phoneNumber,
-    },
-    note: 'Use this customer context silently. Do not repeat IDs to the customer.',
+const getIstTimestamp = (date = new Date()): string =>
+  date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    timeStyle: 'short',
   });
 
-  const recentMessages = session.messages.map((message) => ({
-    role: message.role,
-    content: [{ text: message.text }],
-  }));
-
-  return [
-    {
-      role: 'user',
-      content: [{ text: `Customer context: ${contextText}` }],
-    },
-    ...recentMessages,
-    {
-      role: 'user',
-      content: [{ text: inboundMessage.text }],
-    },
-  ];
-};
-
-const getTextFromMessage = (message?: Message): string => {
-  const parts = message?.content
-    ?.map((block) => ('text' in block ? block.text : undefined))
-    .filter((text): text is string => Boolean(text?.trim())) || [];
-
-  return parts.join('\n').trim();
-};
-
-const getToolUses = (message?: Message): ToolUseBlock[] =>
-  message?.content
-    ?.map((block) => ('toolUse' in block ? block.toolUse : undefined))
-    .filter((toolUse): toolUse is ToolUseBlock => Boolean(toolUse?.toolUseId)) || [];
-
-const buildToolResult = async (toolUse: ToolUseBlock): Promise<ContentBlock> => {
-  if (toolUse.name !== 'get_menu') {
-    return {
-      toolResult: {
-        toolUseId: toolUse.toolUseId,
-        status: 'error',
-        content: [{ text: `Unsupported tool: ${toolUse.name}` }],
-      },
-    };
+const formatPromisedDelivery = (isoTimestamp?: string): string => {
+  if (!isoTimestamp) {
+    return 'within 1 hour';
   }
 
-  const menu = await getMenu();
-  return {
-    toolResult: {
-      toolUseId: toolUse.toolUseId,
-      status: 'success',
-      content: [{ text: JSON.stringify(menu) }],
-    },
-  };
+  return new Date(isoTimestamp).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: '2-digit',
+    day: 'numeric',
+    month: 'short',
+  });
 };
 
-const buildConverseInput = (messages: Message[]): ConverseCommandInput => ({
-  modelId: getModelId(),
-  system: [{ text: buildSystemPrompt() }],
-  messages,
-  inferenceConfig: {
-    maxTokens: 500,
-    temperature: 0.4,
-  },
-  toolConfig: {
-    tools: [{
-      toolSpec: {
-        name: 'get_menu',
-        description: "Fetch today's Manvi's Kitchen menu with item names, prices, and availability.",
-        inputSchema: {
-          json: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-      },
-    }],
-  },
-});
-
-const runAssistant = async (
+const buildReturningCustomerPrompt = (
+  message: WhatsAppInboundMessage,
   session: ConversationSession,
-  inboundMessage: WhatsAppInboundTextMessage,
-): Promise<string> => {
-  let messages = toBedrockMessages(session, inboundMessage);
+  preferenceSummary: PreferenceSummary,
+  menu: MenuItem[],
+): string => `
+You are Manvi's Kitchen's friendly WhatsApp kitchen assistant.
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await bedrockClient.send(new ConverseCommand(buildConverseInput(messages)));
-    const outputMessage = response.output?.message;
-    const toolUses = getToolUses(outputMessage);
+Return ONLY valid JSON in this shape:
+{
+  "body": "short WhatsApp message",
+  "buttons": [
+    { "id": "place_similar_order", "title": "Similar order" },
+    { "id": "view_menu", "title": "View menu" }
+  ]
+}
 
-    if (toolUses.length === 0) {
-      const text = getTextFromMessage(outputMessage);
-      return text || "Sorry, I couldn't process that. Would you like to see today's menu?";
-    }
+Rules:
+- Keep the body under 450 characters.
+- Use at most 3 buttons.
+- Allowed button ids: place_similar_order, view_menu.
+- Prefer buttons over asking the user to type.
+- Always explicitly ask whether they want to place a similar order or view the menu.
+- Make it clear the buttons are quick options and the customer can type any question too.
+- Personalize from the last 5 orders, not only the latest order.
+- Mention favorite items only if the preference summary supports it.
+- Do not say you are AI. If useful, use only a subtle note like "I can help quickly here."
+- Delivery promise is within 1 hour after order confirmation.
+- If the customer sounds uncertain, explain they can type their question or use View menu.
 
-    messages = [
-      ...messages,
-      outputMessage as Message,
-      {
-        role: 'user',
-        content: await Promise.all(toolUses.map((toolUse) => buildToolResult(toolUse))),
-      },
+Customer:
+${JSON.stringify({ firstName: session.firstName, whatsappId: session.phoneNumber })}
+
+Preference summary from last ${preferenceSummary.orderCountAnalyzed} orders:
+${JSON.stringify(preferenceSummary)}
+
+Available menu preview:
+${JSON.stringify(menu.slice(0, 12).map((item) => ({ name: item.name, price: item.price })))}
+
+Recent conversation:
+${JSON.stringify(session.messages.slice(-6))}
+
+Customer message:
+${message.buttonTitle || message.text}
+
+Current India time:
+${getIstTimestamp()}
+`.trim();
+
+const sanitizeAiButtons = (buttons: unknown): WhatsAppButton[] => {
+  if (!Array.isArray(buttons)) {
+    return [
+      { id: 'place_similar_order', title: BUTTON_TITLES.place_similar_order },
+      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
     ];
   }
 
-  return "Sorry, I'm taking longer than expected. Please ask me for the menu again.";
+  const sanitized: WhatsAppButton[] = [];
+  for (const button of buttons) {
+    if (typeof button !== 'object' || button === null) {
+      continue;
+    }
+    const id = (button as { id?: unknown }).id;
+    if (!['place_similar_order', 'view_menu'].includes(String(id))) {
+      continue;
+    }
+    sanitized.push({
+      id: id as WhatsAppButtonId,
+      title: BUTTON_TITLES[id as WhatsAppButtonId],
+    });
+  }
+
+  return sanitized.slice(0, 3);
 };
 
-const sendWhatsAppTextMessage = async (
-  message: WhatsAppInboundTextMessage,
-  responseText: string,
-): Promise<void> => {
+const parseAiResponse = (text: string, preferenceSummary: PreferenceSummary): WhatsAppAiResponse => {
+  try {
+    const parsed = JSON.parse(text) as { body?: unknown; buttons?: unknown };
+    const body = typeof parsed.body === 'string' && parsed.body.trim()
+      ? parsed.body.trim()
+      : buildReturningFallbackBody(preferenceSummary);
+    return {
+      body,
+      buttons: sanitizeAiButtons(parsed.buttons),
+    };
+  } catch {
+    return {
+      body: buildReturningFallbackBody(preferenceSummary),
+      buttons: [
+        { id: 'place_similar_order', title: BUTTON_TITLES.place_similar_order },
+        { id: 'view_menu', title: BUTTON_TITLES.view_menu },
+      ],
+    };
+  }
+};
+
+const buildReturningFallbackBody = (preferenceSummary: PreferenceSummary): string => {
+  const favorite = preferenceSummary.favoriteItems[0]?.name;
+  const repeatText = preferenceSummary.repeatCandidate?.itemsText;
+  if (favorite && repeatText) {
+    return `Welcome back. I see you often enjoy ${favorite}. Would you like a similar order (${repeatText}) or today's menu?`;
+  }
+  return `Welcome back. Would you like to place a similar order or view today's menu?`;
+};
+
+const runReturningCustomerAssistant = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  preferenceSummary: PreferenceSummary,
+): Promise<WhatsAppAiResponse> => {
+  const menu = await getMenu();
+  const messages: Message[] = [{
+    role: 'user',
+    content: [{ text: buildReturningCustomerPrompt(message, session, preferenceSummary, menu) }],
+  }];
+
+  const input: ConverseCommandInput = {
+    modelId: getModelId(),
+    messages,
+    inferenceConfig: {
+      maxTokens: 600,
+      temperature: 0.3,
+    },
+  };
+
+  const response = await bedrockClient.send(new ConverseCommand(input));
+  const text = response.output?.message?.content
+    ?.map((block) => ('text' in block ? block.text : undefined))
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join('\n')
+    .trim();
+
+  return parseAiResponse(text || '', preferenceSummary);
+};
+
+const getWhatsAppCredentials = async (): Promise<{ accessToken: string; phoneNumberId: string }> => {
   const [accessToken, phoneNumberId] = await Promise.all([
     getRequiredParameter(getAccessTokenParameterName()),
     getRequiredParameter(getPhoneNumberIdParameterName()),
   ]);
 
+  return { accessToken, phoneNumberId };
+};
+
+const sendWhatsAppPayload = async (to: string, payload: Record<string, unknown>): Promise<void> => {
+  const { accessToken, phoneNumberId } = await getWhatsAppCredentials();
   const response = await fetch(`https://graph.facebook.com/${getGraphApiVersion()}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
@@ -378,33 +513,174 @@ const sendWhatsAppTextMessage = async (
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
-      to: message.from,
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: responseText,
-      },
+      to,
+      ...payload,
     }),
   });
 
   if (!response.ok) {
     throw new Error(`WhatsApp API request failed with ${response.status}: ${await response.text()}`);
   }
+};
 
-  console.log('Sent WhatsApp assistant message', JSON.stringify({
-    inboundMessageId: message.messageId,
-    to: message.from,
-    status: response.status,
+const sendTextMessage = async (to: string, body: string): Promise<void> => {
+  await sendWhatsAppPayload(to, {
+    type: 'text',
+    text: {
+      preview_url: true,
+      body,
+    },
+  });
+};
+
+const sendButtonMessage = async (to: string, body: string, buttons: WhatsAppButton[]): Promise<void> => {
+  const uniqueButtons = Array.from(new Map(buttons.map((button) => [button.id, button])).values()).slice(0, 3);
+  if (!uniqueButtons.length) {
+    await sendTextMessage(to, body);
+    return;
+  }
+
+  await sendWhatsAppPayload(to, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: body },
+      action: {
+        buttons: uniqueButtons.map((button) => ({
+          type: 'reply',
+          reply: {
+            id: button.id,
+            title: button.title,
+          },
+        })),
+      },
+    },
+  });
+};
+
+const sendNewCustomerWelcome = async (message: WhatsAppInboundMessage): Promise<void> => {
+  await sendTextMessage(
+    message.from,
+    `Hi ${normalizeFirstName(message.firstName)}, welcome to Manvi's Kitchen. You can explore today's menu and place your order here: ${getMenuUrl()}\n\nConfirmed orders are delivered within 1 hour.`,
+  );
+};
+
+const sendMenuLink = async (to: string, firstName: string): Promise<void> => {
+  await sendTextMessage(
+    to,
+    `Sure ${normalizeFirstName(firstName)}, you can view today's menu and place an order here: ${getMenuUrl()}`,
+  );
+};
+
+const invokeCreateOrder = async (sourceMessage: WhatsAppInboundMessage, order: OrderRecord): Promise<OrderRecord> => {
+  const payload = {
+    httpMethod: 'POST',
+    path: '/orders',
+    headers: {},
+    queryStringParameters: null,
+    pathParameters: null,
+    body: JSON.stringify({
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      deliveryAddress: order.deliveryAddress,
+      paymentMethod: 'COD',
+      items: order.items.map((item) => ({ id: item.itemId, quantity: item.quantity })),
+      instructions: order.instructions,
+    }),
+    requestContext: {
+      authorizer: {
+        claims: {
+          sub: `whatsapp:${sourceMessage.from}`,
+          username: `whatsapp:${sourceMessage.from}`,
+        },
+      },
+    },
+  };
+
+  const response = await lambdaClient.send(new InvokeCommand({
+    FunctionName: getRequiredEnv('ORDER_FUNCTION_NAME'),
+    InvocationType: 'RequestResponse',
+    Payload: Buffer.from(JSON.stringify(payload)),
   }));
+
+  const responsePayload = response.Payload ? JSON.parse(Buffer.from(response.Payload).toString('utf8')) : {};
+  const statusCode = Number(responsePayload.statusCode || 500);
+  const body = responsePayload.body ? JSON.parse(responsePayload.body) : {};
+  if (statusCode >= 400) {
+    throw new Error(body.message || body.error || 'Unable to create repeat order');
+  }
+
+  return (body.order || body) as OrderRecord;
+};
+
+const placeSimilarOrder = async (message: WhatsAppInboundMessage, orders: OrderRecord[]): Promise<void> => {
+  const latestOrder = orders[0];
+  if (!latestOrder) {
+    await sendMenuLink(message.from, message.firstName);
+    return;
+  }
+
+  try {
+    const newOrder = await invokeCreateOrder(message, latestOrder);
+    await sendButtonMessage(
+      message.from,
+      `Done, your similar order is confirmed. We'll deliver it by ${formatPromisedDelivery(newOrder.promisedDeliveryAt)}.`,
+      [{ id: 'view_menu', title: BUTTON_TITLES.view_menu }],
+    );
+  } catch (error) {
+    console.error('Unable to create similar WhatsApp order', error);
+    await sendButtonMessage(
+      message.from,
+      `I couldn't place the same order because some details may have changed. Please view today's menu and place a fresh order.`,
+      [{ id: 'view_menu', title: BUTTON_TITLES.view_menu }],
+    );
+  }
+};
+
+const handleReturningCustomer = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  orders: OrderRecord[],
+): Promise<void> => {
+  if (isMenuExitIntent(message)) {
+    await sendMenuLink(message.from, session.firstName);
+    await saveConversation(clearAiMode(session));
+    return;
+  }
+
+  if (message.buttonId === 'place_similar_order') {
+    await placeSimilarOrder(message, orders);
+    await saveConversation(clearAiMode(session));
+    return;
+  }
+
+  const preferenceSummary = summarizePreferences(orders);
+  const assistantResponse = await runReturningCustomerAssistant(
+    message,
+    session,
+    preferenceSummary,
+  );
+
+  await sendButtonMessage(message.from, assistantResponse.body, assistantResponse.buttons);
+  await saveConversation(appendConversation(
+    session,
+    message.buttonTitle || message.text,
+    `${assistantResponse.body} [${assistantResponse.buttons.map((button) => button.title).join(', ')}]`,
+  ));
 };
 
 export const handler = async (event: SQSEvent): Promise<void> => {
   for (const record of event.Records) {
-    const message = JSON.parse(record.body) as WhatsAppInboundTextMessage;
+    const message = JSON.parse(record.body) as WhatsAppInboundMessage;
+    const orders = await queryRecentOrders(message.from);
     const session = await loadConversation(message);
-    const assistantResponse = await runAssistant(session, message);
 
-    await sendWhatsAppTextMessage(message, assistantResponse);
-    await saveConversation(appendConversation(session, message.text, assistantResponse));
+    if (!orders.length) {
+      await sendNewCustomerWelcome(message);
+      await saveConversation(clearAiMode(session));
+      continue;
+    }
+
+    await handleReturningCustomer(message, session, orders);
   }
 };
