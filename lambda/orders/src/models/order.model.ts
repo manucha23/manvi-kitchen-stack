@@ -19,11 +19,6 @@ export enum PaymentStatus {
   PENDING = 'PENDING'
 }
 
-export enum Slot {
-  LUNCH = 'lunch',
-  DINNER = 'dinner'
-}
-
 export interface OrderItem {
   itemId: string;
   name: string;
@@ -41,10 +36,7 @@ export interface Order {
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
-  capacityReserved: boolean;
-  capacityReservedAt?: string;
-  slot: Slot;
-  slotDate: string; // YYYY-MM-DD
+  promisedDeliveryAt: string; // ISO timestamp
   items: OrderItem[];
   totalAmount: number;
   instructions?: string;

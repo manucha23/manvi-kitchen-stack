@@ -22,11 +22,9 @@ export interface Order {
   orderedBy: string;
   customerName: string;
   deliveryAddress: string;
-  contactNumber: string;
+  customerPhone: string;
   status: OrderStatus;
-  orderScheduled: string;
-  slot: string;
-  slotDate: string;
+  promisedDeliveryAt: string;
   items: OrderItem[];
   totalAmount: number;
   instructions?: string;

@@ -70,7 +70,7 @@ export class OrderService {
   updateOrderStatus(orderId: string, status: string): Observable<any> {
     const currentOrder = this._orders().find((o) => o.orderId === orderId);
     const body = {
-      orderStatus: status,
+      status,
       feedbackProvided: currentOrder?.feedbackProvided ?? false,
       incrementFeedbackRequest: true,
       instructions: currentOrder?.instructions,

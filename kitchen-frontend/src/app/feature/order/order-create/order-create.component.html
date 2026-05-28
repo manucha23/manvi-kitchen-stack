@@ -41,20 +41,21 @@
                 class="pi pi-calendar"></i> Delivery Schedule</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div class="field">
-                <label for="orderScheduled"
-                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Delivery Date &
-                  Time</label>
-                <p-datepicker id="orderScheduled" formControlName="orderScheduled" [showTime]="true" styleClass="w-full"
-                  inputStyleClass="rounded-xl w-full border-surface-300 dark:border-surface-600 px-4 py-3"
-                  [showIcon]="true" iconDisplay="input" />
+                <label
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Delivery
+                  Promise</label>
+                <div
+                  class="min-h-12 rounded-xl border border-surface-300 dark:border-surface-600 px-4 py-3 bg-surface-50 dark:bg-surface-800 flex items-center font-bold text-surface-900 dark:text-surface-0">
+                  {{ deliveryPromise().label }}
+                </div>
               </div>
               <div class="field">
-                <label for="slot"
-                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Preferred
-                  Slot</label>
-                <p-select id="slot" [options]="slotOptions" formControlName="slot" optionLabel="label"
-                  optionValue="value" placeholder="Select a slot"
-                  styleClass="w-full rounded-xl border-surface-300 dark:border-surface-600" />
+                <label
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Promise</label>
+                <div
+                  class="min-h-12 rounded-xl border border-surface-300 dark:border-surface-600 px-4 py-3 bg-surface-50 dark:bg-surface-800 flex items-center font-bold text-surface-900 dark:text-surface-0">
+                  Within 60 minutes
+                </div>
               </div>
             </div>
           </div>

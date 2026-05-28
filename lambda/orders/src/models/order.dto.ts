@@ -6,9 +6,7 @@ export interface OrderItemRequest {
 export interface CreateOrderRequest {
   customerName: string;
   deliveryAddress: string;
-  contactNumber: string;
-  orderScheduled: string;
-  slot: string;
+  customerPhone: string;
   items: OrderItemRequest[];
   instructions?: string;
 }

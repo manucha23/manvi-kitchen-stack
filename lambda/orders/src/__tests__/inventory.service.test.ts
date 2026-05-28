@@ -1,6 +1,5 @@
 import { docClient } from '../utils';
-import { reserveCapacityForOrderItems, validateSameDaySlotAndCutoff } from '../services/inventory.service';
-import { Slot } from '../models';
+import { getPromisedDeliveryAt, validateOrderingWindow } from '../services/inventory.service';
 
 jest.mock('../utils', () => ({
   docClient: {
@@ -10,7 +9,7 @@ jest.mock('../utils', () => ({
 
 const sendMock = docClient.send as jest.Mock;
 
-describe('inventory capacity service', () => {
+describe('ordering window service', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     sendMock.mockReset();
@@ -20,57 +19,59 @@ describe('inventory capacity service', () => {
     jest.useRealTimers();
   });
 
-  it('accepts same-day lunch before the configured cutoff', async () => {
-    jest.setSystemTime(new Date('2026-05-12T06:00:00.000Z')); // 11:30 IST
-    sendMock.mockResolvedValueOnce({ Item: { lunchCutoffTime: '13:00', dinnerCutoffTime: '20:00' } });
+  it('accepts orders inside the configured IST window and promises delivery in configured minutes', async () => {
+    const now = new Date('2026-05-12T06:00:00.000Z'); // 11:30 IST
+    sendMock.mockResolvedValueOnce({
+      Item: {
+        openTime: '11:00',
+        closeTime: '21:00',
+        deliveryPromiseMinutes: 45,
+        isAcceptingOrders: true,
+      },
+    });
 
-    const result = await validateSameDaySlotAndCutoff(Slot.LUNCH, '2026-05-12');
-
-    expect(result.valid).toBe(true);
-  });
-
-  it('rejects same-day lunch after the configured cutoff', async () => {
-    jest.setSystemTime(new Date('2026-05-12T08:00:00.000Z')); // 13:30 IST
-    sendMock.mockResolvedValueOnce({ Item: { lunchCutoffTime: '13:00', dinnerCutoffTime: '20:00' } });
-
-    const result = await validateSameDaySlotAndCutoff(Slot.LUNCH, '2026-05-12');
+    const result = await validateOrderingWindow(now);
 
     expect(result).toMatchObject({
-      valid: false,
-      reason: 'Lunch orders are closed for today',
-      cutoffPassed: true,
+      valid: true,
+      promisedDeliveryAt: '2026-05-12T06:45:00.000Z',
     });
   });
 
-  it('rejects future dates for Day 1 same-day ordering', async () => {
-    jest.setSystemTime(new Date('2026-05-12T06:00:00.000Z'));
+  it('rejects orders outside the configured IST window', async () => {
+    const now = new Date('2026-05-12T04:59:00.000Z'); // 10:29 IST
+    sendMock.mockResolvedValueOnce({
+      Item: {
+        openTime: '11:00',
+        closeTime: '21:00',
+        deliveryPromiseMinutes: 60,
+      },
+    });
 
-    const result = await validateSameDaySlotAndCutoff(Slot.DINNER, '2026-05-13');
+    const result = await validateOrderingWindow(now);
 
     expect(result).toMatchObject({
       valid: false,
-      reason: 'Orders are accepted for today only',
+      reason: 'Orders are accepted between 11:00 and 21:00 IST',
     });
-    expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it('initializes a missing count record and reserves aggregated duplicate items', async () => {
-    jest.setSystemTime(new Date('2026-05-12T06:00:00.000Z'));
-    sendMock
-      .mockResolvedValueOnce({ Item: { lunchCutoffTime: '13:00', dinnerCutoffTime: '20:00' } }) // global config
-      .mockResolvedValueOnce({ Item: { lunchLimit: 10, isAcceptingOrders: true } }) // item config
-      .mockResolvedValueOnce({ Item: { lunchCutoffTime: '13:00', dinnerCutoffTime: '20:00' } }) // cutoff validation global
-      .mockResolvedValueOnce({}) // count record missing
-      .mockResolvedValueOnce({}) // initialize put
-      .mockResolvedValueOnce({}); // transact reserve
+  it('rejects orders when global accepting is disabled', async () => {
+    sendMock.mockResolvedValueOnce({
+      Item: {
+        isAcceptingOrders: false,
+      },
+    });
 
-    await reserveCapacityForOrderItems([
-      { itemId: 'biryani', quantity: 2 },
-      { itemId: 'biryani', quantity: 3 },
-    ], Slot.LUNCH, '2026-05-12');
+    const result = await validateOrderingWindow(new Date('2026-05-12T06:00:00.000Z'));
 
-    const transactCommand = sendMock.mock.calls[5][0];
-    expect(transactCommand.input.TransactItems).toHaveLength(1);
-    expect(transactCommand.input.TransactItems[0].Update.ExpressionAttributeValues[':qty']).toBe(5);
+    expect(result).toMatchObject({
+      valid: false,
+      reason: 'Ordering is temporarily disabled',
+    });
+  });
+
+  it('uses a 60 minute promise by default', () => {
+    expect(getPromisedDeliveryAt(60, new Date('2026-05-12T06:00:00.000Z'))).toBe('2026-05-12T07:00:00.000Z');
   });
 });

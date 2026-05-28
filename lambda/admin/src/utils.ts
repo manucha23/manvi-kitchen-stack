@@ -34,24 +34,20 @@ export const validateSetLimitsRequest = (body: string | null): any => {
       return { statusCode: 400, message: 'itemId is required and must be a string' };
     }
 
-    if (parsed.lunchLimit !== undefined && (typeof parsed.lunchLimit !== 'number' || parsed.lunchLimit < 0)) {
-      return { statusCode: 400, message: 'lunchLimit must be a non-negative number' };
+    if (parsed.openTime !== undefined && (typeof parsed.openTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.openTime))) {
+      return { statusCode: 400, message: 'openTime must be in HH:mm format' };
     }
 
-    if (parsed.dinnerLimit !== undefined && (typeof parsed.dinnerLimit !== 'number' || parsed.dinnerLimit < 0)) {
-      return { statusCode: 400, message: 'dinnerLimit must be a non-negative number' };
+    if (parsed.closeTime !== undefined && (typeof parsed.closeTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.closeTime))) {
+      return { statusCode: 400, message: 'closeTime must be in HH:mm format' };
     }
 
-    if (parsed.itemName !== undefined && typeof parsed.itemName !== 'string') {
-      return { statusCode: 400, message: 'itemName must be a string' };
+    if (parsed.deliveryPromiseMinutes !== undefined && (!Number.isInteger(parsed.deliveryPromiseMinutes) || parsed.deliveryPromiseMinutes <= 0)) {
+      return { statusCode: 400, message: 'deliveryPromiseMinutes must be a positive integer' };
     }
 
-    if (parsed.lunchCutoffTime !== undefined && (typeof parsed.lunchCutoffTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.lunchCutoffTime))) {
-      return { statusCode: 400, message: 'lunchCutoffTime must be in HH:mm format' };
-    }
-
-    if (parsed.dinnerCutoffTime !== undefined && (typeof parsed.dinnerCutoffTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.dinnerCutoffTime))) {
-      return { statusCode: 400, message: 'dinnerCutoffTime must be in HH:mm format' };
+    if (parsed.isAcceptingOrders !== undefined && typeof parsed.isAcceptingOrders !== 'boolean') {
+      return { statusCode: 400, message: 'isAcceptingOrders must be a boolean' };
     }
 
     return parsed;

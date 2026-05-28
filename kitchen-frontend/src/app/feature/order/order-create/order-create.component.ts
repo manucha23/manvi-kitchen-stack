@@ -25,11 +25,14 @@ import { TextareaModule } from 'primeng/textarea';
 import { FluidModule } from 'primeng/fluid';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
-import { DatePickerModule } from 'primeng/datepicker';
 import { CommonModule } from '@angular/common';
 import { MenuItem } from 'src/app/shared/models/items';
 import { IconField } from 'primeng/iconfield';
 import { InputIcon } from 'primeng/inputicon';
+
+interface DeliveryPromise {
+  label: string;
+}
 
 @Component({
   selector: 'app-order-create',
@@ -47,7 +50,6 @@ import { InputIcon } from 'primeng/inputicon';
     FluidModule,
     DialogModule,
     SelectModule,
-    DatePickerModule,
     IconField,
     InputIcon,
   ],
@@ -60,16 +62,12 @@ export class OrderCreateComponent implements OnInit {
 
   creating = signal(false);
   menuItems = signal<MenuItem[]>([]);
+  deliveryPromise = signal<DeliveryPromise>(this.calculateDeliveryPromise());
 
   private fb = inject(FormBuilder);
   private orderService = inject(OrderService);
   private menuItemsService = inject(MenuItemsService);
   private notificationService = inject(NotificationService);
-
-  slotOptions = [
-    { label: 'Lunch', value: 'lunch' },
-    { label: 'Dinner', value: 'dinner' },
-  ];
 
   orderForm: FormGroup = this.fb.group({
     customerName: ['', Validators.required],
@@ -78,8 +76,6 @@ export class OrderCreateComponent implements OnInit {
       '',
       [Validators.required, Validators.pattern(/^\+?[\d\s-]{10,}$/)],
     ],
-    orderScheduled: [new Date(), Validators.required],
-    slot: ['lunch', Validators.required],
     instructions: [''],
     items: this.fb.array([]),
   });
@@ -91,6 +87,15 @@ export class OrderCreateComponent implements OnInit {
   ngOnInit(): void {
     this.fetchMenuItems();
     this.addItem();
+  }
+
+  private calculateDeliveryPromise(now = new Date()): DeliveryPromise {
+    return {
+      label: new Date(now.getTime() + 60 * 60 * 1000).toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
+    };
   }
 
   fetchMenuItems(): void {
@@ -147,17 +152,13 @@ export class OrderCreateComponent implements OnInit {
 
     this.creating.set(true);
     const formValue = this.orderForm.getRawValue();
+    this.deliveryPromise.set(this.calculateDeliveryPromise());
 
     // Transform data to match API request body
     const orderData = {
       customerName: formValue.customerName,
       deliveryAddress: formValue.deliveryAddress,
       customerPhone: formValue.customerPhone,
-      slotDate:
-        formValue.orderScheduled instanceof Date
-          ? formValue.orderScheduled.toISOString().split('T')[0]
-          : new Date(formValue.orderScheduled).toISOString().split('T')[0],
-      slot: formValue.slot,
       paymentMethod: 'COD',
       instructions: formValue.instructions,
       items: formValue.items.map((item: any) => ({
@@ -196,11 +197,10 @@ export class OrderCreateComponent implements OnInit {
       customerName: '',
       deliveryAddress: '',
       customerPhone: '',
-      orderScheduled: new Date(),
-      slot: 'lunch',
       instructions: '',
       items: [],
     });
+    this.deliveryPromise.set(this.calculateDeliveryPromise());
     this.items.clear();
     this.addItem();
     this.creating.set(false);

@@ -4,7 +4,6 @@ import { OrderDatabase } from './constructs/database/order-database';
 import { ItemDatabase } from './constructs/database/item-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { OrderLimitsConfigDatabase } from './constructs/database/order-limits-config-database';
-import { ItemOrderCountDatabase } from './constructs/database/item-order-count-database';
 import { WhatsAppConversationDatabase } from './constructs/database/whatsapp-conversation-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
@@ -36,7 +35,6 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const itemDatabase = new ItemDatabase(this, 'ItemDatabase');
     const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
     const orderLimitsConfig = new OrderLimitsConfigDatabase(this, 'OrderLimitsConfig');
-    const itemOrderCount = new ItemOrderCountDatabase(this, 'ItemOrderCount');
     const whatsappConversations = new WhatsAppConversationDatabase(this, 'WhatsAppConversations', {
       environment,
     });
@@ -63,7 +61,6 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemTable: itemDatabase.table,
       orderHistoryTable: orderHistory.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
-      itemOrderCountTable: itemOrderCount.table,
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
@@ -76,8 +73,6 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemTable: itemDatabase.table,
       imageBucket: imageStorage.bucket,
       imageDistribution: imageStorage.distribution,
-      orderLimitsConfigTable: orderLimitsConfig.table,
-      itemOrderCountTable: itemOrderCount.table,
       imageDomain: `images.${environment === 'prod' ? 'cravnest.in' : `${environment}.cravnest.in`}`,
       allowedOrigins: 'https://admin.test.cravnest.in',
     });

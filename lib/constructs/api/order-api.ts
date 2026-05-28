@@ -104,9 +104,6 @@ export class OrderApi extends Construct {
     item.addMethod('PUT', new apigw.LambdaIntegration(props.itemFunction), authOptions);
     item.addMethod('DELETE', new apigw.LambdaIntegration(props.itemFunction), authOptions);
 
-    const itemAvailability = item.addResource('availability');
-    itemAvailability.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
-
     // Admin endpoints (require authentication)
     const admin = this.api.root.addResource('admin');
     const adminOrderLimits = admin.addResource('order-limits');

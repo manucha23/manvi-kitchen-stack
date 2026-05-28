@@ -1,30 +1,6 @@
-import { ScanCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from './utils';
-import { getTodayAvailability } from './availability';
-
-const getOrderLimits = async (itemId: string) => {
-  const result = await docClient.send(new GetCommand({
-    TableName: process.env.ORDER_LIMITS_CONFIG_TABLE!,
-    Key: { itemId }
-  }));
-  
-  if (!result.Item) {
-    return {
-      lunchLimit: null,
-      dinnerLimit: null,
-      isAcceptingOrders: true,
-      globalKillswitch: false
-    };
-  }
-  
-  return {
-    lunchLimit: result.Item.lunchLimit || null,
-    dinnerLimit: result.Item.dinnerLimit || null,
-    isAcceptingOrders: result.Item.isAcceptingOrders !== false,
-    globalKillswitch: result.Item.globalKillswitch === true
-  };
-};
 
 export const listItems = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
@@ -32,13 +8,7 @@ export const listItems = async (event: APIGatewayProxyEvent): Promise<APIGateway
       TableName: process.env.ITEM_TABLE
     }));
 
-    const items = await Promise.all((result.Items || []).map(async (item) => {
-      const [limits, availability] = await Promise.all([
-        getOrderLimits(item.itemId),
-        getTodayAvailability(item.itemId),
-      ]);
-      return { ...item, limits, availability };
-    }));
+    const items = result.Items || [];
 
     return createSuccessResponse(200, { items });
   } catch (error) {
