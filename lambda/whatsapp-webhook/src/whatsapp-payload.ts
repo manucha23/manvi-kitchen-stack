@@ -1,8 +1,13 @@
+export type WhatsAppInboundMessageKind = 'text' | 'button';
+
 export interface WhatsAppInboundTextMessage {
+  kind: WhatsAppInboundMessageKind;
   messageId: string;
   from: string;
   firstName: string;
   text: string;
+  buttonId?: string;
+  buttonTitle?: string;
   receivedAt: string;
 }
 
@@ -20,6 +25,17 @@ interface WhatsAppMessage {
   type?: unknown;
   text?: {
     body?: unknown;
+  };
+  interactive?: {
+    type?: unknown;
+    button_reply?: {
+      id?: unknown;
+      title?: unknown;
+    };
+  };
+  button?: {
+    payload?: unknown;
+    text?: unknown;
   };
 }
 
@@ -64,16 +80,29 @@ const extractFromValue = (value: Record<string, unknown>): WhatsAppInboundTextMe
     const messageId = asString(message.id);
     const from = asString(message.from);
     const text = message.type === 'text' ? asString(message.text?.body) : undefined;
+    const interactiveButtonId = message.type === 'interactive' && message.interactive?.type === 'button_reply'
+      ? asString(message.interactive.button_reply?.id)
+      : undefined;
+    const interactiveButtonTitle = message.type === 'interactive' && message.interactive?.type === 'button_reply'
+      ? asString(message.interactive.button_reply?.title)
+      : undefined;
+    const templateButtonId = message.type === 'button' ? asString(message.button?.payload) : undefined;
+    const templateButtonTitle = message.type === 'button' ? asString(message.button?.text) : undefined;
+    const buttonId = interactiveButtonId || templateButtonId;
+    const buttonTitle = interactiveButtonTitle || templateButtonTitle;
 
-    if (!messageId || !from || !text) {
+    if (!messageId || !from || (!text && !buttonId)) {
       continue;
     }
 
     extractedMessages.push({
+      kind: buttonId ? 'button' : 'text',
       messageId,
       from,
       firstName: deriveFirstName(getContactName(contacts, from)),
-      text,
+      text: (text || buttonTitle || buttonId) as string,
+      buttonId,
+      buttonTitle,
       receivedAt: toReceivedAt(message.timestamp),
     });
   }

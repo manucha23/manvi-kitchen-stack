@@ -90,8 +90,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const whatsappWebhook = new WhatsAppWebhookLambda(this, 'WhatsAppWebhook', {
       environment,
       conversationTable: whatsappConversations.table,
+      orderTable: orderDatabase.table,
       itemTable: itemDatabase.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
+      orderFunction: lambdas.orderFunction,
     });
     
     const frontend = new FrontendHosting(this, 'Frontend', { 
