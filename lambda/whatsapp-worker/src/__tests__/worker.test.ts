@@ -1,4 +1,11 @@
-import { buildOrderReviewMessage, calculateExpiresAt, formatOrderItems, summarizePreferences } from '../index';
+import {
+  applyAddressChange,
+  applySimpleQuantityChange,
+  buildOrderReviewMessage,
+  calculateExpiresAt,
+  formatOrderItems,
+  summarizePreferences,
+} from '../index';
 
 describe('WhatsApp worker helpers', () => {
   it('sets the conversation TTL one hour ahead', () => {
@@ -118,4 +125,55 @@ describe('WhatsApp worker helpers', () => {
     expect(body).toContain('Instructions: Less spicy');
     expect(body).toContain('Please confirm only if these details are correct.');
   });
+
+  it('updates flat number on an active draft instead of restarting the flow', () => {
+    const draft = {
+      customerType: 'RETURNING' as const,
+      source: 'PREVIOUS_ORDER' as const,
+      items: [
+        { itemId: 'biryani', name: 'Chicken Biryani', price: 300, quantity: 1, amount: 300 },
+      ],
+      totalAmount: 300,
+      customerName: 'Mohit Manucha',
+      customerPhone: '+919921765581',
+      deliveryAddress: 'E1-306, Kumar Picasso\nSadesatra Nali, Hadapsar',
+      paymentMethod: 'COD' as const,
+      lastReviewTimestamp: '2026-06-02T16:45:00.000Z',
+    };
+
+    const updated = applyAddressChange(draft, {
+      kind: 'text',
+      messageId: 'wamid.1',
+      from: '919921765581',
+      firstName: 'Mohit',
+      text: 'Delivery address change my flat number to E1-206',
+      receivedAt: '2026-06-02T16:46:00.000Z',
+    });
+
+    expect(updated?.deliveryAddress).toContain('E1-206');
+    expect(updated?.deliveryAddress).not.toContain('E1-306');
+    expect(updated?.items[0].quantity).toBe(1);
+  });
+
+  it('updates quantity on an active draft', () => {
+    const draft = {
+      customerType: 'RETURNING' as const,
+      source: 'PREVIOUS_ORDER' as const,
+      items: [
+        { itemId: 'biryani', name: 'Chicken Biryani', price: 300, quantity: 2, amount: 600 },
+      ],
+      totalAmount: 600,
+      customerName: 'Mohit Manucha',
+      customerPhone: '+919921765581',
+      deliveryAddress: 'E1-306, Kumar Picasso',
+      paymentMethod: 'COD' as const,
+      lastReviewTimestamp: '2026-06-02T16:45:00.000Z',
+    };
+
+    const updated = applySimpleQuantityChange(draft, 'Make 1 chicken biryani instead of 2');
+
+    expect(updated?.items[0].quantity).toBe(1);
+    expect(updated?.totalAmount).toBe(300);
+  });
+
 });

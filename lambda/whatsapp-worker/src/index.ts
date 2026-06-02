@@ -11,13 +11,6 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanComma
 import { SQSEvent } from 'aws-lambda';
 
 type WhatsAppInboundMessageKind = 'text' | 'button';
-type WhatsAppButtonId =
-  | 'show_suggestions'
-  | 'review_previous_order'
-  | 'try_best_seller'
-  | 'confirm_order'
-  | 'change_items'
-  | 'view_menu';
 
 interface WhatsAppInboundMessage {
   kind?: WhatsAppInboundMessageKind;
@@ -92,16 +85,6 @@ interface MenuItem {
   available: boolean;
 }
 
-interface WhatsAppButton {
-  id: WhatsAppButtonId;
-  title: string;
-}
-
-interface WhatsAppAiResponse {
-  body: string;
-  buttons: WhatsAppButton[];
-}
-
 interface PreferenceItem {
   itemId: string;
   name: string;
@@ -129,14 +112,6 @@ const DEFAULT_MODEL_ID = 'global.anthropic.claude-haiku-4-5-20251001-v1:0';
 const DEFAULT_MENU_URL = 'https://cravnest.in/#menu';
 const BEST_SELLER_ITEM_NAME = 'Chicken Biryani';
 const RECOMMENDATION_MIN_ORDER_COUNT = 5;
-const BUTTON_TITLES: Record<WhatsAppButtonId, string> = {
-  show_suggestions: 'Suggestions',
-  review_previous_order: 'Previous order',
-  try_best_seller: 'Try best seller',
-  confirm_order: 'Confirm order',
-  change_items: 'Change items',
-  view_menu: 'View menu',
-};
 
 const ssmClient = new SSMClient({});
 const bedrockClient = new BedrockRuntimeClient({});
@@ -196,7 +171,7 @@ export const calculateExpiresAt = (date = new Date()): number =>
 
 const isMenuExitIntent = (message: WhatsAppInboundMessage): boolean => {
   const value = (message.buttonId || message.text || '').trim().toLowerCase();
-  return ['view_menu', 'change_items', 'menu', 'view menu', 'change items', 'stop', 'exit', 'cancel'].includes(value);
+  return ['view_menu', 'menu', 'view menu', 'stop', 'exit', 'cancel'].includes(value);
 };
 
 const isConfirmIntent = (message: WhatsAppInboundMessage): boolean => {
@@ -253,6 +228,25 @@ const appendConversation = (
     ...session.messages,
     { role: 'user' as const, text: inboundText, timestamp: now.toISOString() },
     { role: 'assistant' as const, text: assistantText, timestamp: now.toISOString() },
+  ].slice(-MAX_RECENT_MESSAGES);
+
+  return {
+    ...session,
+    mode: 'AI',
+    messages,
+    updatedAt: now.toISOString(),
+    expiresAt: calculateExpiresAt(now),
+  };
+};
+
+const appendUserConversation = (
+  session: ConversationSession,
+  inboundText: string,
+): ConversationSession => {
+  const now = new Date();
+  const messages = [
+    ...session.messages,
+    { role: 'user' as const, text: inboundText, timestamp: now.toISOString() },
   ].slice(-MAX_RECENT_MESSAGES);
 
   return {
@@ -400,15 +394,8 @@ const buildCustomerPrompt = (
 ): string => `
 You are Manvi's Kitchen's AI assistant on WhatsApp.
 
-Return ONLY valid JSON in this shape:
-{
-  "body": "short WhatsApp message",
-  "buttons": [
-    { "id": "show_suggestions", "title": "Suggestions" },
-    { "id": "try_best_seller", "title": "Try best seller" },
-    { "id": "view_menu", "title": "View menu" }
-  ]
-}
+Return only the WhatsApp message text to send to the customer.
+If no response is useful, return an empty string.
 
 Style:
 - Be warm, helpful, and conversational, like a friendly neighbourhood kitchen.
@@ -417,10 +404,6 @@ Style:
 
 Rules:
 - Keep the body under 450 characters.
-- Use at most 3 buttons.
-- Allowed button ids: show_suggestions, review_previous_order, try_best_seller, confirm_order, change_items, view_menu.
-- Prefer buttons over asking the user to type.
-- Make it clear the buttons are quick options and the customer can type any question too.
 - On the first reply to a customer, clearly but subtly say you are Manvi's Kitchen's AI assistant.
 - If recent conversation already exists, do not repeat the AI disclaimer every time.
 - Never promise items that are not on today's menu.
@@ -429,13 +412,17 @@ Rules:
 - Payment options are UPI link and COD.
 - Delivery promise is within 1 hour after order confirmation.
 - Use the customer's first name when it is available and not "there".
-- If the customer sounds uncertain, explain they can type their question or use View menu.
+- Do not sound like a database lookup. Lead with hospitality, then help.
+- Do not push quick replies, menus of buttons, or "click one option" wording.
 
 Customer flow:
-- For NEW customers, welcome them and offer today's menu, the static best seller "${getBestSellerName()}", or free-form help.
-- For RETURNING customers with fewer than ${RECOMMENDATION_MIN_ORDER_COUNT} orders, do not make preference claims. Offer previous order, menu, or free-form help.
+- For NEW customers, welcome them and say "${getBestSellerName()}" is a popular pick if it is available in the menu.
+- For the first RETURNING customer reply, greet them warmly first. Do not lead with "Last time you ordered..." in the opening message.
+- First RETURNING reply style: "Hi {name}, welcome back. I'm Manvi's Kitchen's AI assistant. How can I help today?"
+- For RETURNING customers with fewer than ${RECOMMENDATION_MIN_ORDER_COUNT} orders, do not make preference claims. You may gently mention that you can help with the previous order if the customer asks.
 - For RETURNING customers with at least ${RECOMMENDATION_MIN_ORDER_COUNT} orders, you may suggest favorites from the preference summary.
-- If the customer asks to customize or add items, use change_items so the worker can send the menu link unless it is a simple quantity change.
+- If the customer asks to add items or customize beyond the current draft, answer naturally and use the menu data you have.
+- If the customer wants to place or confirm an order, remind them that you will show a review first and need explicit confirmation.
 
 Customer:
 ${JSON.stringify({
@@ -464,115 +451,12 @@ Current India time:
 ${getIstTimestamp()}
 `.trim();
 
-const fallbackButtonsForCustomer = (customerType: 'NEW' | 'RETURNING', preferenceSummary: PreferenceSummary): WhatsAppButton[] => {
-  if (customerType === 'NEW') {
-    return [
-      { id: 'try_best_seller', title: BUTTON_TITLES.try_best_seller },
-      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-    ];
-  }
-
-  if (preferenceSummary.recommendationEligible) {
-    return [
-      { id: 'show_suggestions', title: BUTTON_TITLES.show_suggestions },
-      { id: 'review_previous_order', title: BUTTON_TITLES.review_previous_order },
-      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-    ];
-  }
-
-  return [
-    { id: 'review_previous_order', title: BUTTON_TITLES.review_previous_order },
-    { id: 'change_items', title: BUTTON_TITLES.change_items },
-    { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-  ];
-};
-
-const getAllowedAiButtonIds = (
-  customerType: 'NEW' | 'RETURNING',
-  preferenceSummary: PreferenceSummary,
-): WhatsAppButtonId[] => {
-  if (customerType === 'NEW') {
-    return ['try_best_seller', 'view_menu', 'change_items'];
-  }
-
-  return preferenceSummary.recommendationEligible
-    ? ['show_suggestions', 'review_previous_order', 'change_items', 'view_menu']
-    : ['review_previous_order', 'change_items', 'view_menu'];
-};
-
-const sanitizeAiButtons = (
-  buttons: unknown,
-  customerType: 'NEW' | 'RETURNING',
-  preferenceSummary: PreferenceSummary,
-): WhatsAppButton[] => {
-  if (!Array.isArray(buttons)) {
-    return fallbackButtonsForCustomer(customerType, preferenceSummary);
-  }
-
-  const allowedButtonIds = getAllowedAiButtonIds(customerType, preferenceSummary);
-  const sanitized: WhatsAppButton[] = [];
-  for (const button of buttons) {
-    if (typeof button !== 'object' || button === null) {
-      continue;
-    }
-    const id = String((button as { id?: unknown }).id);
-    if (!allowedButtonIds.includes(id as WhatsAppButtonId)) {
-      continue;
-    }
-    sanitized.push({
-      id: id as WhatsAppButtonId,
-      title: BUTTON_TITLES[id as WhatsAppButtonId],
-    });
-  }
-
-  return sanitized.length ? sanitized.slice(0, 3) : fallbackButtonsForCustomer(customerType, preferenceSummary);
-};
-
-const parseAiResponse = (
-  text: string,
-  preferenceSummary: PreferenceSummary,
-  customerType: 'NEW' | 'RETURNING',
-): WhatsAppAiResponse => {
-  try {
-    const parsed = JSON.parse(text) as { body?: unknown; buttons?: unknown };
-    const body = typeof parsed.body === 'string' && parsed.body.trim()
-      ? parsed.body.trim()
-      : buildFallbackBody(preferenceSummary, customerType);
-    return {
-      body,
-      buttons: sanitizeAiButtons(parsed.buttons, customerType, preferenceSummary),
-    };
-  } catch {
-    return {
-      body: buildFallbackBody(preferenceSummary, customerType),
-      buttons: fallbackButtonsForCustomer(customerType, preferenceSummary),
-    };
-  }
-};
-
-const buildFallbackBody = (preferenceSummary: PreferenceSummary, customerType: 'NEW' | 'RETURNING'): string => {
-  if (customerType === 'NEW') {
-    return `Hi, I am Manvi's Kitchen's AI assistant. ${getBestSellerName()} is a popular pick today. Would you like to try it, view the menu, or ask me anything?`;
-  }
-
-  const favorite = preferenceSummary.favoriteItems.find((item) => item.timesOrdered >= 2)?.name;
-  const repeatText = preferenceSummary.repeatCandidate?.itemsText;
-  const name = preferenceSummary.repeatCandidate ? 'Welcome back' : 'Hi';
-  if (preferenceSummary.recommendationEligible && favorite && repeatText) {
-    return `${name}. I see you often enjoy ${favorite}. Want to review a similar order (${repeatText}), change items, or view today's menu?`;
-  }
-  if (repeatText) {
-    return `${name}. Last time you ordered ${repeatText}. Want to review it, change items, or view today's menu?`;
-  }
-  return `${name}. Would you like to review a similar order, change items, or view today's menu?`;
-};
-
 const runCustomerAssistant = async (
   message: WhatsAppInboundMessage,
   session: ConversationSession,
   preferenceSummary: PreferenceSummary,
   customerType: 'NEW' | 'RETURNING',
-): Promise<WhatsAppAiResponse> => {
+): Promise<string | undefined> => {
   const menu = await getMenu();
   const messages: Message[] = [{
     role: 'user',
@@ -595,7 +479,7 @@ const runCustomerAssistant = async (
     .join('\n')
     .trim();
 
-  return parseAiResponse(text || '', preferenceSummary, customerType);
+  return text || undefined;
 };
 
 const getWhatsAppCredentials = async (): Promise<{ accessToken: string; phoneNumberId: string }> => {
@@ -638,31 +522,6 @@ const sendTextMessage = async (to: string, body: string): Promise<void> => {
   });
 };
 
-const sendButtonMessage = async (to: string, body: string, buttons: WhatsAppButton[]): Promise<void> => {
-  const uniqueButtons = Array.from(new Map(buttons.map((button) => [button.id, button])).values()).slice(0, 3);
-  if (!uniqueButtons.length) {
-    await sendTextMessage(to, body);
-    return;
-  }
-
-  await sendWhatsAppPayload(to, {
-    type: 'interactive',
-    interactive: {
-      type: 'button',
-      body: { text: body },
-      action: {
-        buttons: uniqueButtons.map((button) => ({
-          type: 'reply',
-          reply: {
-            id: button.id,
-            title: button.title,
-          },
-        })),
-      },
-    },
-  });
-};
-
 const sendMenuLink = async (to: string, firstName: string): Promise<void> => {
   await sendTextMessage(
     to,
@@ -672,88 +531,6 @@ const sendMenuLink = async (to: string, firstName: string): Promise<void> => {
 
 const calculateDraftTotal = (items: OrderItem[]): number =>
   items.reduce((total, item) => total + item.price * item.quantity, 0);
-
-const buildDraftFromOrder = (order: OrderRecord, source: PendingOrderDraft['source']): PendingOrderDraft => ({
-  customerType: 'RETURNING',
-  source,
-  sourceOrderId: order.orderId,
-  items: order.items.map((item) => ({ ...item })),
-  totalAmount: order.totalAmount,
-  customerName: order.customerName,
-  customerPhone: order.customerPhone,
-  deliveryAddress: order.deliveryAddress,
-  paymentMethod: 'COD',
-  instructions: order.instructions,
-  lastReviewTimestamp: new Date().toISOString(),
-});
-
-const buildDraftFromBestSeller = (message: WhatsAppInboundMessage, menu: MenuItem[]): PendingOrderDraft | undefined => {
-  const bestSeller = menu.find((item) => item.name.toLowerCase() === getBestSellerName().toLowerCase());
-  if (!bestSeller || typeof bestSeller.price !== 'number') {
-    return undefined;
-  }
-
-  const items = [{
-    itemId: bestSeller.itemId,
-    name: bestSeller.name,
-    price: bestSeller.price,
-    quantity: 1,
-    amount: bestSeller.price,
-  }];
-
-  return {
-    customerType: 'NEW',
-    source: 'BEST_SELLER',
-    items,
-    totalAmount: calculateDraftTotal(items),
-    customerName: normalizeFirstName(message.firstName) === 'there' ? undefined : normalizeFirstName(message.firstName),
-    customerPhone: message.from,
-    paymentMethod: 'COD',
-    lastReviewTimestamp: new Date().toISOString(),
-  };
-};
-
-const buildDraftFromFavorite = (
-  orders: OrderRecord[],
-  preferenceSummary: PreferenceSummary,
-): PendingOrderDraft | undefined => {
-  if (!preferenceSummary.recommendationEligible) {
-    return undefined;
-  }
-
-  const favorite = preferenceSummary.favoriteItems[0];
-  const latestOrder = orders[0];
-  if (!favorite || !latestOrder) {
-    return undefined;
-  }
-
-  const matchingItem = orders
-    .flatMap((order) => order.items || [])
-    .find((item) => item.itemId === favorite.itemId);
-  if (!matchingItem) {
-    return undefined;
-  }
-
-  const quantity = Math.max(1, favorite.usualQuantity);
-  const items = [{
-    ...matchingItem,
-    quantity,
-    amount: matchingItem.price * quantity,
-  }];
-
-  return {
-    customerType: 'RETURNING',
-    source: 'AI_DRAFT',
-    items,
-    totalAmount: calculateDraftTotal(items),
-    customerName: latestOrder.customerName,
-    customerPhone: latestOrder.customerPhone,
-    deliveryAddress: latestOrder.deliveryAddress,
-    paymentMethod: 'COD',
-    instructions: latestOrder.instructions,
-    lastReviewTimestamp: new Date().toISOString(),
-  };
-};
 
 const updateDraftAmounts = (draft: PendingOrderDraft): PendingOrderDraft => {
   const items = draft.items.map((item) => ({
@@ -768,7 +545,7 @@ const updateDraftAmounts = (draft: PendingOrderDraft): PendingOrderDraft => {
   };
 };
 
-const applySimpleQuantityChange = (
+export const applySimpleQuantityChange = (
   draft: PendingOrderDraft | undefined,
   text: string,
 ): PendingOrderDraft | undefined => {
@@ -830,6 +607,57 @@ const applyCustomerDetails = (
   };
 };
 
+export const applyAddressChange = (
+  draft: PendingOrderDraft | undefined,
+  message: WhatsAppInboundMessage,
+): PendingOrderDraft | undefined => {
+  if (!draft || !draft.deliveryAddress || message.kind === 'button') {
+    return undefined;
+  }
+
+  const text = message.text.trim();
+  const lowerText = text.toLowerCase();
+  if (!text || !/(address|flat|house|building|tower|deliver|delivery|pata)/i.test(text)) {
+    return undefined;
+  }
+
+  const explicitAddress = text.match(/(?:address|pata)\s*(?:to|as|:|-)\s*(.+)/i)?.[1]?.trim();
+  if (explicitAddress) {
+    return {
+      ...draft,
+      deliveryAddress: explicitAddress,
+      lastReviewTimestamp: new Date().toISOString(),
+    };
+  }
+
+  const replacement = text.match(/(?:change|update|make|set).{0,40}?(?:flat|house|building|tower|number|no\.?)\s*(?:number|no\.?)?\s*(?:to|as)\s*([a-z0-9-/]+)/i);
+  if (replacement) {
+    const newValue = replacement[1].trim();
+    const address = draft.deliveryAddress;
+    const updatedAddress = address.replace(/\b[A-Z]?\d+[A-Z]?[-/]\d+[A-Z]?\b/i, newValue);
+    return {
+      ...draft,
+      deliveryAddress: updatedAddress === address ? `${newValue}, ${address}` : updatedAddress,
+      lastReviewTimestamp: new Date().toISOString(),
+    };
+  }
+
+  if (lowerText.includes('change') || lowerText.includes('update')) {
+    const possibleAddress = text
+      .replace(/^(please\s+)?(change|update|set|make)\s+(my\s+)?(delivery\s+)?address\s*(to|as|:|-)?\s*/i, '')
+      .trim();
+    if (possibleAddress && possibleAddress !== text) {
+      return {
+        ...draft,
+        deliveryAddress: possibleAddress,
+        lastReviewTimestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  return undefined;
+};
+
 export const buildOrderReviewMessage = (order: OrderRecord | PendingOrderDraft): string => {
   const instructions = order.instructions ? `\nInstructions: ${order.instructions}` : '';
   const customerName = order.customerName || 'Not provided';
@@ -844,9 +672,7 @@ const sendOrderReview = async (
 ): Promise<{ body: string; session: ConversationSession }> => {
   if (!draft.customerName || !draft.deliveryAddress) {
     const body = `Great choice. Please send your name and delivery address before I review the order.\n\nExample:\nName: Rahul\nAddress: Bavdhan, Pune`;
-    await sendButtonMessage(message.from, body, [
-      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-    ]);
+    await sendTextMessage(message.from, body);
     return {
       body,
       session: {
@@ -857,11 +683,7 @@ const sendOrderReview = async (
   }
 
   const body = buildOrderReviewMessage(draft);
-  await sendButtonMessage(message.from, body, [
-    { id: 'confirm_order', title: BUTTON_TITLES.confirm_order },
-    { id: 'change_items', title: BUTTON_TITLES.change_items },
-    { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-  ]);
+  await sendTextMessage(message.from, body);
 
   return {
     body,
@@ -870,23 +692,6 @@ const sendOrderReview = async (
       pendingOrderDraft: draft,
     },
   };
-};
-
-const sendPreviousOrderReview = async (
-  message: WhatsAppInboundMessage,
-  session: ConversationSession,
-  orders: OrderRecord[],
-): Promise<{ body: string; session: ConversationSession }> => {
-  const latestOrder = orders[0];
-  if (!latestOrder) {
-    await sendMenuLink(message.from, message.firstName);
-    return {
-      body: 'No previous order found; sent menu link.',
-      session: { ...session, pendingOrderDraft: undefined },
-    };
-  }
-
-  return sendOrderReview(message, session, buildDraftFromOrder(latestOrder, 'PREVIOUS_ORDER'));
 };
 
 const invokeCreateOrder = async (sourceMessage: WhatsAppInboundMessage, order: OrderRecord | PendingOrderDraft): Promise<OrderRecord> => {
@@ -950,9 +755,7 @@ const confirmPendingOrder = async (
   try {
     const newOrder = await invokeCreateOrder(message, draft);
     const body = `Thanks, your COD order is confirmed. We'll deliver within 1 hour, by ${formatPromisedDelivery(newOrder.promisedDeliveryAt)}.`;
-    await sendButtonMessage(message.from, body, [
-      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-    ]);
+    await sendTextMessage(message.from, body);
     return {
       body,
       session: { ...session, pendingOrderDraft: undefined },
@@ -960,9 +763,7 @@ const confirmPendingOrder = async (
   } catch (error) {
     console.error('Unable to create similar WhatsApp order', error);
     const body = `I couldn't place this order because some details may have changed. Please view today's menu and place a fresh order.`;
-    await sendButtonMessage(message.from, body, [
-      { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-    ]);
+    await sendTextMessage(message.from, body);
     return {
       body,
       session: { ...session, pendingOrderDraft: undefined },
@@ -984,11 +785,16 @@ const sendAiResponse = async (
     customerType,
   );
 
-  await sendButtonMessage(message.from, assistantResponse.body, assistantResponse.buttons);
+  if (!assistantResponse) {
+    await saveConversation(appendUserConversation(session, message.buttonTitle || message.text));
+    return;
+  }
+
+  await sendTextMessage(message.from, assistantResponse);
   await saveConversation(appendConversation(
     session,
     message.buttonTitle || message.text,
-    `${assistantResponse.body} [${assistantResponse.buttons.map((button) => button.title).join(', ')}]`,
+    assistantResponse,
   ));
 };
 
@@ -1005,6 +811,17 @@ const handleCustomer = async (
       { ...session, pendingOrderDraft: undefined },
       message.buttonTitle || message.text,
       `Sent menu link: ${getMenuUrl()}`,
+    ));
+    return;
+  }
+
+  const addressDraft = applyAddressChange(session.pendingOrderDraft, message);
+  if (addressDraft) {
+    const result = await sendOrderReview(message, session, addressDraft);
+    await saveConversation(appendConversation(
+      result.session,
+      message.buttonTitle || message.text,
+      result.body,
     ));
     return;
   }
@@ -1031,79 +848,7 @@ const handleCustomer = async (
     return;
   }
 
-  if (message.buttonId === 'review_previous_order' || message.buttonId === 'review_similar_order') {
-    const result = await sendPreviousOrderReview(message, session, orders);
-    await saveConversation(appendConversation(
-      result.session,
-      message.buttonTitle || message.text,
-      result.body,
-    ));
-    return;
-  }
-
-  if (message.buttonId === 'show_suggestions') {
-    const preferenceSummary = summarizePreferences(orders);
-    const draft = customerType === 'NEW'
-      ? buildDraftFromBestSeller(message, await getMenu())
-      : buildDraftFromFavorite(orders, preferenceSummary);
-
-    if (draft) {
-      const result = await sendOrderReview(message, session, draft);
-      await saveConversation(appendConversation(
-        result.session,
-        message.buttonTitle || message.text,
-        result.body,
-      ));
-      return;
-    }
-
-    if (customerType === 'NEW') {
-      const body = `${getBestSellerName()} is not available right now. Please view today's menu and choose what you like.`;
-      await sendButtonMessage(message.from, body, [
-        { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-      ]);
-      await saveConversation(appendConversation(
-        { ...session, pendingOrderDraft: undefined },
-        message.buttonTitle || message.text,
-        body,
-      ));
-      return;
-    }
-
-    const result = await sendPreviousOrderReview(message, session, orders);
-    await saveConversation(appendConversation(
-      result.session,
-      message.buttonTitle || message.text,
-      result.body,
-    ));
-    return;
-  }
-
-  if (message.buttonId === 'try_best_seller') {
-    const draft = buildDraftFromBestSeller(message, await getMenu());
-    if (!draft) {
-      const body = `${getBestSellerName()} is not available right now. Please view today's menu and choose what you like.`;
-      await sendButtonMessage(message.from, body, [
-        { id: 'view_menu', title: BUTTON_TITLES.view_menu },
-      ]);
-      await saveConversation(appendConversation(
-        { ...session, pendingOrderDraft: undefined },
-        message.buttonTitle || message.text,
-        body,
-      ));
-      return;
-    }
-
-    const result = await sendOrderReview(message, session, draft);
-    await saveConversation(appendConversation(
-      result.session,
-      message.buttonTitle || message.text,
-      result.body,
-    ));
-    return;
-  }
-
-  if (isConfirmIntent(message)) {
+  if (session.pendingOrderDraft && isConfirmIntent(message)) {
     const result = await confirmPendingOrder(message, session);
     await saveConversation(appendConversation(
       result.session,
