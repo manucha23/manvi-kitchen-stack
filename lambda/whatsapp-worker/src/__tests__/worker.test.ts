@@ -12,7 +12,7 @@ describe('WhatsApp worker helpers', () => {
     ])).toBe('2 Biryani, 1 Paneer Tikka');
   });
 
-  it('summarizes preferences from the last five orders', () => {
+  it('does not expose recommendations before five orders', () => {
     const summary = summarizePreferences([
       {
         orderId: 'ORD-5',
@@ -40,13 +40,8 @@ describe('WhatsApp worker helpers', () => {
     ]);
 
     expect(summary.orderCountAnalyzed).toBe(2);
-    expect(summary.favoriteItems[0]).toEqual(expect.objectContaining({
-      itemId: 'biryani',
-      name: 'Biryani',
-      timesOrdered: 2,
-      totalQuantity: 3,
-      usualQuantity: 2,
-    }));
+    expect(summary.recommendationEligible).toBe(false);
+    expect(summary.favoriteItems).toEqual([]);
     expect(summary.repeatCandidate).toEqual(expect.objectContaining({
       orderId: 'ORD-5',
       itemsText: '2 Biryani, 1 Paneer Tikka',
@@ -70,9 +65,32 @@ describe('WhatsApp worker helpers', () => {
     ]);
 
     expect(summary.orderCountAnalyzed).toBe(1);
+    expect(summary.recommendationEligible).toBe(false);
+    expect(summary.favoriteItems).toEqual([]);
+  });
+
+  it('summarizes recommendations once five orders are available', () => {
+    const orders = Array.from({ length: 5 }, (_, index) => ({
+      orderId: `ORD-${index + 1}`,
+      customerName: 'Rahul',
+      customerPhone: '919999999999',
+      deliveryAddress: 'Bavdhan',
+      items: [
+        { itemId: 'biryani', name: 'Biryani', price: 250, quantity: index % 2 ? 1 : 2, amount: index % 2 ? 250 : 500 },
+      ],
+      totalAmount: index % 2 ? 250 : 500,
+      createdAt: `2026-05-${15 - index}T10:00:00.000Z`,
+    }));
+
+    const summary = summarizePreferences(orders);
+
+    expect(summary.recommendationEligible).toBe(true);
     expect(summary.favoriteItems[0]).toEqual(expect.objectContaining({
+      itemId: 'biryani',
       name: 'Biryani',
-      timesOrdered: 1,
+      timesOrdered: 5,
+      totalQuantity: 8,
+      usualQuantity: 2,
     }));
   });
 
@@ -92,9 +110,12 @@ describe('WhatsApp worker helpers', () => {
 
     expect(body).toContain('Please review your order');
     expect(body).toContain('2 Biryani');
+    expect(body).toContain('Amount: Rs 500');
+    expect(body).toContain('Name: Rahul');
     expect(body).toContain('Delivery address: Bavdhan, Pune');
     expect(body).toContain('Phone: 919999999999');
+    expect(body).toContain('Payment: COD');
     expect(body).toContain('Instructions: Less spicy');
-    expect(body).toContain('Should I confirm this order?');
+    expect(body).toContain('Please confirm only if these details are correct.');
   });
 });
