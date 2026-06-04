@@ -30,7 +30,7 @@
       <div class="flex flex-col w-full sm:w-auto">
         <label for="dateRangePicker"
           class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Date Range</label>
-        <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true"
+        <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" dateFormat="dd/mm/yy"
           placeholder="Select Date Range" (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true"
           appendTo="body" inputId="dateRangePicker" styleClass="w-full sm:w-auto" inputStyleClass="rounded-xl w-full" />
       </div>
@@ -126,25 +126,26 @@
       styleClass="p-datatable-lg" [tableStyle]="{ 'min-width': '100rem' }">
 
       <ng-template #header>
-        <tr>
-          <th pSortableColumn="orderId" class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Order ID
-            <p-sortIcon field="orderId" />
-          </th>
-          <th pSortableColumn="customerName" class="whitespace-nowrap text-surface-500 font-semibold">Customer
-            <p-sortIcon field="customerName" />
-          </th>
-          <th pSortableColumn="promisedDeliveryAt" class="whitespace-nowrap text-surface-500 font-semibold">Promise
-            <p-sortIcon field="promisedDeliveryAt" />
-          </th>
-          <th class="text-surface-500 font-semibold">Address</th>
-          <th class="whitespace-nowrap text-surface-500 font-semibold">Total</th>
-          <th pSortableColumn="status" class="whitespace-nowrap text-surface-500 font-semibold">Status <p-sortIcon
-              field="status" /></th>
-          <th class="whitespace-nowrap text-surface-500 font-semibold">Update Status</th>
-          <th pSortableColumn="createdAt" class="whitespace-nowrap rounded-tr-xl text-surface-500 font-semibold">Created
-            <p-sortIcon field="createdAt" />
-          </th>
-        </tr>
+          <tr>
+            <th pSortableColumn="orderId" class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Order ID
+              <p-sortIcon field="orderId" />
+            </th>
+            <th pSortableColumn="customerName" class="whitespace-nowrap text-surface-500 font-semibold">Customer
+              <p-sortIcon field="customerName" />
+            </th>
+            <th pSortableColumn="createdAt" class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Created
+              <p-sortIcon field="createdAt" />
+            </th>
+            <th pSortableColumn="promisedDeliveryAt" class="whitespace-nowrap text-surface-500 font-semibold">Promise
+              <p-sortIcon field="promisedDeliveryAt" />
+            </th>
+            <th class="text-surface-500 font-semibold">Address</th>
+            <th class="whitespace-nowrap text-surface-500 font-semibold">Total</th>
+            <th pSortableColumn="status" class="whitespace-nowrap text-surface-500 font-semibold">Status <p-sortIcon
+                field="status" />
+            </th>
+            <th class="whitespace-nowrap text-surface-500 font-semibold">Update Status</th>
+          </tr>
       </ng-template>
 
       <ng-template #body let-order>
@@ -171,6 +172,9 @@
             {{order.customerName}}
           </td>
           <td class="whitespace-nowrap">
+            <span class="text-sm text-surface-500">{{order.createdAt | date:'dd/MM/yyyy'}}</span>
+          </td>
+          <td class="whitespace-nowrap">
             <div class="flex flex-col">
               <span class="font-medium">{{order.promisedDeliveryAt | date:'mediumDate'}}</span>
               <span class="text-xs text-surface-500">{{order.promisedDeliveryAt | date:'shortTime'}}</span>
@@ -194,9 +198,6 @@
             <p-select [options]="statusOptions" [ngModel]="order.status"
               (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body"
               styleClass="w-40 rounded-xl" />
-          </td>
-          <td class="whitespace-nowrap">
-            <span class="text-sm text-surface-500">{{order.createdAt | date:'short'}}</span>
           </td>
         </tr>
         }
