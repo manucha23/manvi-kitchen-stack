@@ -1,0 +1,18 @@
+<header class="app-header">
+  <div class="header-left">
+    <p-button [icon]="sidebarService.isOpen() ? 'pi pi-times' : 'pi pi-bars'" [rounded]="true" [text]="true"
+      (click)="toggleSidebar()" class="hamburger-btn" aria-label="Toggle navigation menu" />
+    <div class="logo-area">
+      <i class="pi pi-box logo-icon"></i>
+      <span class="app-title">{{title}}</span>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <p-button [icon]="isDarkMode() ? 'pi pi-sun' : 'pi pi-moon'" [rounded]="true" [text]="true" severity="secondary"
+      (click)="toggleDarkMode()" aria-label="Toggle Theme" />
+
+    <p-button icon="pi pi-sign-out" [rounded]="true" [text]="true" severity="danger" (click)="logout()"
+      aria-label="Logout" />
+  </div>
+</header>

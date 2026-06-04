@@ -1,5 +1,5 @@
 import { Component, signal, ChangeDetectionStrategy, OnInit } from '@angular/core';
-import { AuthService } from '../../shared/services/auth.service';
+import { AuthService } from '../../../shared/services/auth.service';
 import { Router } from '@angular/router';
 
 import { FormsModule } from '@angular/forms';

@@ -25,7 +25,6 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { DatePickerModule } from 'primeng/datepicker';
-import { MultiSelectModule } from 'primeng/multiselect';
 import { SkeletonModule } from 'primeng/skeleton';
 import { debounceTime, Subject } from 'rxjs';
 
@@ -51,7 +50,6 @@ enum FilterType {
     InputIconModule,
     InputTextModule,
     DatePickerModule,
-    MultiSelectModule,
     SkeletonModule,
     OrderCreateComponent,
   ],
@@ -72,7 +70,7 @@ export class OrderListComponent implements OnInit {
   // Filter state
   searchText = '';
   rangeDates: Date[] | undefined;
-  selectedStatuses: OrderStatus[] = [];
+  selectedStatus: OrderStatus | undefined = OrderStatus.CONFIRMED;
   private searchSubject = new Subject<FilterType>();
 
   statusOptions = Object.values(OrderStatus).map((status) => ({
@@ -136,16 +134,14 @@ export class OrderListComponent implements OnInit {
       filters.customerPhone = this.searchText;
     }
 
-    if (filterType === FilterType.DATE) {
-      if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
-        filters.fromDate = this.toDayBoundaryISOString(this.rangeDates[0], 'start');
-        filters.toDate = this.toDayBoundaryISOString(this.rangeDates[1], 'end');
-      } else {
-        return;
-      }
+    if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
+      filters.fromDate = this.toDayBoundaryISOString(this.rangeDates[0], 'start');
+      filters.toDate = this.toDayBoundaryISOString(this.rangeDates[1], 'end');
+    } else if (filterType === FilterType.DATE) {
+      return;
     }
-    if (this.selectedStatuses && this.selectedStatuses.length > 0) {
-      filters.orderStatus = this.selectedStatuses;
+    if (this.selectedStatus) {
+      filters.orderStatus = [this.selectedStatus];
     }
     this.orderService.loadOrders(filters);
   }
@@ -162,7 +158,18 @@ export class OrderListComponent implements OnInit {
   }
 
   loadOrders(): void {
-    this.orderService.loadOrders();
+    const filters: IOrderFilters = {};
+    if (this.searchText) {
+      filters.customerPhone = this.searchText;
+    }
+    if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
+      filters.fromDate = this.toDayBoundaryISOString(this.rangeDates[0], 'start');
+      filters.toDate = this.toDayBoundaryISOString(this.rangeDates[1], 'end');
+    }
+    if (this.selectedStatus) {
+      filters.orderStatus = [this.selectedStatus];
+    }
+    this.orderService.loadOrders(filters);
   }
 
   getTotalAmount(items: OrderItem[]): number {

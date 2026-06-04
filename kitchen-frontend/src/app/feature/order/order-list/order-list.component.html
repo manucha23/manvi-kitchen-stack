@@ -1,4 +1,4 @@
-<div class="p-4 md:p-6 lg:p-8 min-h-screen bg-surface-50 dark:bg-surface-950 transition-colors duration-300">
+<div class="min-h-screen bg-surface-50 dark:bg-surface-950 transition-colors duration-300">
   <!-- Header Section -->
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
     <div>
@@ -13,22 +13,35 @@
   <!-- Filters Section -->
   <div
     class="bg-surface-0 dark:bg-surface-900 p-4 md:p-5 rounded-2xl shadow-sm border border-surface-200 dark:border-surface-800 mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between animate-fade-in-up">
-    <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-      <p-iconfield class="w-full sm:w-auto flex-1">
-        <p-inputicon>
-          <i class="pi pi-search text-surface-400"></i>
-        </p-inputicon>
-        <input pInputText type="text" [(ngModel)]="searchText" (input)="onFilterSearchChanges(FILTER_TYPE.SEARCH)"
-          placeholder="Search customer phone..." class="w-full rounded-xl" />
-      </p-iconfield>
+    <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch">
+      <div class="flex flex-col flex-1 w-full sm:w-auto">
+        <label for="searchPhone"
+          class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Search Phone</label>
+        <p-iconfield class="w-full">
+          <p-inputicon>
+            <i class="pi pi-search text-surface-400"></i>
+          </p-inputicon>
+          <input pInputText id="searchPhone" type="text" [(ngModel)]="searchText"
+            (input)="onFilterSearchChanges(FILTER_TYPE.SEARCH)" placeholder="Search customer phone..."
+            class="w-full rounded-xl" />
+        </p-iconfield>
+      </div>
 
-      <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" placeholder="Date Range"
-        (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true" appendTo="body"
-        styleClass="w-full sm:w-auto" inputStyleClass="rounded-xl w-full" />
+      <div class="flex flex-col w-full sm:w-auto">
+        <label for="dateRangePicker"
+          class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Date Range</label>
+        <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" dateFormat="dd/mm/yy"
+          placeholder="Select Date Range" (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true"
+          appendTo="body" inputId="dateRangePicker" styleClass="w-full sm:w-auto" inputStyleClass="rounded-xl w-full" />
+      </div>
 
-      <p-multiselect [options]="statusOptions" [(ngModel)]="selectedStatuses" placeholder="Select Status"
-        (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" display="chip" appendTo="body" [maxSelectedLabels]="2"
-        styleClass="w-full sm:w-56 rounded-xl" />
+      <div class="flex flex-col w-full sm:w-56">
+        <label for="statusFilter"
+          class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
+        <p-select [options]="statusOptions" [(ngModel)]="selectedStatus"
+          (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" appendTo="body" [showClear]="false"
+          inputId="statusFilter" placeholder="Select Status" styleClass="w-full rounded-xl" />
+      </div>
     </div>
   </div>
 
@@ -75,7 +88,8 @@
           <div class="text-surface-500 text-sm flex items-center gap-1.5 mt-1">
             <i class="pi pi-clock text-xs text-surface-400"></i> {{order.promisedDeliveryAt | date:'shortTime'}}
             <span class="text-surface-300">•</span>
-            <span class="font-medium text-surface-600 dark:text-surface-300">{{order.promisedDeliveryAt | date:'MMM d'}}</span>
+            <span class="font-medium text-surface-600 dark:text-surface-300">{{order.promisedDeliveryAt | date:'MMM
+              d'}}</span>
           </div>
         </div>
         <div class="text-right pl-3">
@@ -112,78 +126,80 @@
       styleClass="p-datatable-lg" [tableStyle]="{ 'min-width': '100rem' }">
 
       <ng-template #header>
-        <tr>
-          <th pSortableColumn="orderId" class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Order ID
-            <p-sortIcon field="orderId" />
-          </th>
-          <th pSortableColumn="customerName" class="whitespace-nowrap text-surface-500 font-semibold">Customer
-            <p-sortIcon field="customerName" />
-          </th>
-          <th pSortableColumn="promisedDeliveryAt" class="whitespace-nowrap text-surface-500 font-semibold">Promise
-            <p-sortIcon field="promisedDeliveryAt" /></th>
-          <th class="text-surface-500 font-semibold">Address</th>
-          <th class="whitespace-nowrap text-surface-500 font-semibold">Total</th>
-          <th pSortableColumn="status" class="whitespace-nowrap text-surface-500 font-semibold">Status <p-sortIcon
-              field="status" /></th>
-          <th class="whitespace-nowrap text-surface-500 font-semibold">Update Status</th>
-          <th pSortableColumn="createdAt" class="whitespace-nowrap rounded-tr-xl text-surface-500 font-semibold">Created
-            <p-sortIcon field="createdAt" />
-          </th>
-        </tr>
+          <tr>
+            <th pSortableColumn="orderId" class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Order ID
+              <p-sortIcon field="orderId" />
+            </th>
+            <th pSortableColumn="customerName" class="whitespace-nowrap text-surface-500 font-semibold">Customer
+              <p-sortIcon field="customerName" />
+            </th>
+            <th pSortableColumn="createdAt" class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Created
+              <p-sortIcon field="createdAt" />
+            </th>
+            <th pSortableColumn="promisedDeliveryAt" class="whitespace-nowrap text-surface-500 font-semibold">Promise
+              <p-sortIcon field="promisedDeliveryAt" />
+            </th>
+            <th class="text-surface-500 font-semibold">Address</th>
+            <th class="whitespace-nowrap text-surface-500 font-semibold">Total</th>
+            <th pSortableColumn="status" class="whitespace-nowrap text-surface-500 font-semibold">Status <p-sortIcon
+                field="status" />
+            </th>
+            <th class="whitespace-nowrap text-surface-500 font-semibold">Update Status</th>
+          </tr>
       </ng-template>
 
       <ng-template #body let-order>
         @if (loading()) {
-          <tr>
-            <td><p-skeleton width="70%" /></td>
-            <td><p-skeleton width="80%" /></td>
-            <td><p-skeleton width="75%" /></td>
-            <td><p-skeleton width="90%" /></td>
-            <td><p-skeleton width="50%" /></td>
-            <td><p-skeleton width="60%" /></td>
-            <td><p-skeleton width="80%" /></td>
-            <td><p-skeleton width="70%" /></td>
-          </tr>
+        <tr>
+          <td><p-skeleton width="70%" /></td>
+          <td><p-skeleton width="80%" /></td>
+          <td><p-skeleton width="75%" /></td>
+          <td><p-skeleton width="90%" /></td>
+          <td><p-skeleton width="50%" /></td>
+          <td><p-skeleton width="60%" /></td>
+          <td><p-skeleton width="80%" /></td>
+          <td><p-skeleton width="70%" /></td>
+        </tr>
         } @else {
-          <tr class="group hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
-            <td>
-              <a href="#" (click)="showAuditDetails(order.orderId, $event)"
-                class="font-bold text-primary hover:text-primary-600 transition-colors">
-                {{order.orderId}}
-              </a>
-            </td>
-            <td class="font-medium text-surface-900 dark:text-surface-0">
-              {{order.customerName}}
-            </td>
-            <td class="whitespace-nowrap">
-              <div class="flex flex-col">
-                <span class="font-medium">{{order.promisedDeliveryAt | date:'mediumDate'}}</span>
-                <span class="text-xs text-surface-500">{{order.promisedDeliveryAt | date:'shortTime'}}</span>
-              </div>
-            </td>
-            <td>
-              <div class="text-sm text-surface-600 dark:text-surface-300 line-clamp-2 leading-snug max-w-xs">
-                {{order.deliveryAddress}}
-              </div>
-            </td>
-            <td>
-              <span class="font-bold text-lg text-surface-900 dark:text-surface-0 tracking-tight">
-                ₹{{order.totalAmount | number:'1.2-2'}}
-              </span>
-            </td>
-            <td>
-              <p-tag [value]="order.status | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
-                styleClass="font-bold tracking-wider text-[10px] px-2 py-1" />
-            </td>
-            <td>
-              <p-select [options]="statusOptions" [ngModel]="order.status"
-                (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body"
-                styleClass="w-40 rounded-xl" />
-            </td>
-            <td class="whitespace-nowrap">
-              <span class="text-sm text-surface-500">{{order.createdAt | date:'short'}}</span>
-            </td>
-          </tr>
+        <tr class="group hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+          <td>
+            <a href="#" (click)="showAuditDetails(order.orderId, $event)"
+              class="font-bold text-primary hover:text-primary-600 transition-colors">
+              {{order.orderId}}
+            </a>
+          </td>
+          <td class="font-medium text-surface-900 dark:text-surface-0">
+            {{order.customerName}}
+          </td>
+          <td class="whitespace-nowrap">
+            <span class="text-sm text-surface-500">{{order.createdAt | date:'dd/MM/yyyy'}}</span>
+          </td>
+          <td class="whitespace-nowrap">
+            <div class="flex flex-col">
+              <span class="font-medium">{{order.promisedDeliveryAt | date:'mediumDate'}}</span>
+              <span class="text-xs text-surface-500">{{order.promisedDeliveryAt | date:'shortTime'}}</span>
+            </div>
+          </td>
+          <td>
+            <div class="text-sm text-surface-600 dark:text-surface-300 line-clamp-2 leading-snug max-w-xs">
+              {{order.deliveryAddress}}
+            </div>
+          </td>
+          <td>
+            <span class="font-bold text-lg text-surface-900 dark:text-surface-0 tracking-tight">
+              ₹{{order.totalAmount | number:'1.2-2'}}
+            </span>
+          </td>
+          <td>
+            <p-tag [value]="order.status | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
+              styleClass="font-bold tracking-wider text-[10px] px-2 py-1" />
+          </td>
+          <td>
+            <p-select [options]="statusOptions" [ngModel]="order.status"
+              (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body"
+              styleClass="w-40 rounded-xl" />
+          </td>
+        </tr>
         }
       </ng-template>
 

@@ -4,7 +4,7 @@ import { AuthGuard } from './core/guards/auth.guard';
 export const routes: Routes = [
     {
         path: 'login',
-        loadComponent: () => import('./core/login/login.component').then(m => m.LoginComponent)
+        loadComponent: () => import('./core/components/login/login.component').then(m => m.LoginComponent)
     },
     {
         path: 'orders',

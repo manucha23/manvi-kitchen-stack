@@ -56,3 +56,52 @@ h6 {
 @utility animate-fade-in-up {
   animation: fade-in-up 0.5s ease-out forwards;
 }
+
+/* PrimeNG Drawer Custom Overrides */
+.app-sidebar-drawer {
+  width: 260px !important;
+  background-color: var(--p-content-background) !important;
+  border-right: 1px solid var(--p-content-border-color) !important;
+  transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1) !important;
+
+  .p-drawer-content {
+    padding: 0 !important;
+    background-color: transparent !important;
+    height: 100%;
+  }
+
+  // Adjustments on desktop
+  @media (min-width: 768px) {
+    top: 60px !important;
+    height: calc(100vh - 60px) !important;
+    border-top: none !important;
+    box-shadow: none !important;
+
+    .p-drawer-header {
+      display: none !important; // Hide header and close button on desktop
+    }
+  }
+
+  // Adjustments on mobile/tablet
+  @media (max-width: 767px) {
+    .p-drawer-header {
+      padding: 0.5rem 1rem 0.5rem 0.5rem !important;
+      border-bottom: none !important;
+      position: absolute !important;
+      right: 0;
+      top: 0;
+      z-index: 10;
+
+      .p-drawer-close-button {
+        width: 36px !important;
+        height: 36px !important;
+        color: var(--p-text-muted-color) !important;
+
+        &:hover {
+          background-color: var(--p-content-hover-background) !important;
+          color: var(--p-text-color) !important;
+        }
+      }
+    }
+  }
+}
