@@ -135,11 +135,8 @@ export class OrderListComponent implements OnInit {
     }
 
     if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
-      const from = this.rangeDates[0];
-      const to = this.rangeDates[1];
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      filters.fromDate = `${from.getFullYear()}-${pad(from.getMonth() + 1)}-${pad(from.getDate())}`;
-      filters.toDate = `${to.getFullYear()}-${pad(to.getMonth() + 1)}-${pad(to.getDate())}`;
+      filters.fromDate = this.toDayBoundaryISOString(this.rangeDates[0], 'start');
+      filters.toDate = this.toDayBoundaryISOString(this.rangeDates[1], 'end');
     } else if (filterType === FilterType.DATE) {
       return;
     }
@@ -149,14 +146,25 @@ export class OrderListComponent implements OnInit {
     this.orderService.loadOrders(filters);
   }
 
+  private toDayBoundaryISOString(date: Date, boundary: 'start' | 'end'): string {
+    const boundaryDate = new Date(date);
+    if (boundary === 'start') {
+      boundaryDate.setHours(0, 0, 0, 0);
+    } else {
+      boundaryDate.setHours(23, 59, 59, 999);
+    }
+
+    return boundaryDate.toISOString();
+  }
+
   loadOrders(): void {
     const filters: IOrderFilters = {};
     if (this.searchText) {
       filters.customerPhone = this.searchText;
     }
     if (this.rangeDates && this.rangeDates[0] && this.rangeDates[1]) {
-      filters.fromDate = this.rangeDates[0].toISOString().split('T')[0];
-      filters.toDate = this.rangeDates[1].toISOString().split('T')[0];
+      filters.fromDate = this.toDayBoundaryISOString(this.rangeDates[0], 'start');
+      filters.toDate = this.toDayBoundaryISOString(this.rangeDates[1], 'end');
     }
     if (this.selectedStatus) {
       filters.orderStatus = [this.selectedStatus];

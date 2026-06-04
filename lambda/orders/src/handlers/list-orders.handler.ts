@@ -28,8 +28,17 @@ const encodeNextToken = (key: Record<string, any>): string => {
   return Buffer.from(JSON.stringify(key)).toString('base64');
 };
 
-const validateDateFormat = (date: string): boolean => {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
+const parseTimestampParam = (value: string): string | undefined => {
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  if (isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed.toISOString();
 };
 
 export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -56,11 +65,16 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     if (params.slotDate || params.slot) {
       return createErrorResponse(400, 'slot and slotDate filters are no longer supported');
     }
-    if (fromDate && !validateDateFormat(fromDate)) {
-      return createErrorResponse(400, 'Invalid fromDate format. Use YYYY-MM-DD');
+    const fromTimestamp = fromDate ? parseTimestampParam(fromDate) : undefined;
+    const toTimestamp = toDate ? parseTimestampParam(toDate) : undefined;
+    if (fromDate && !fromTimestamp) {
+      return createErrorResponse(400, 'Invalid fromDate format. Use ISO timestamp');
     }
-    if (toDate && !validateDateFormat(toDate)) {
-      return createErrorResponse(400, 'Invalid toDate format. Use YYYY-MM-DD');
+    if (toDate && !toTimestamp) {
+      return createErrorResponse(400, 'Invalid toDate format. Use ISO timestamp');
+    }
+    if (fromTimestamp && toTimestamp && fromTimestamp > toTimestamp) {
+      return createErrorResponse(400, 'fromDate must be before or equal to toDate');
     }
 
     // Validate order status
@@ -91,16 +105,16 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       expressionAttributeValues[':phone'] = customerPhone;
 
       // Add date range to key condition if provided
-      if (fromDate && toDate) {
+      if (fromTimestamp && toTimestamp) {
         keyConditionExpression += ' AND createdAt BETWEEN :fromDate AND :toDate';
-        expressionAttributeValues[':fromDate'] = fromDate;
-        expressionAttributeValues[':toDate'] = toDate;
-      } else if (fromDate) {
+        expressionAttributeValues[':fromDate'] = fromTimestamp;
+        expressionAttributeValues[':toDate'] = toTimestamp;
+      } else if (fromTimestamp) {
         keyConditionExpression += ' AND createdAt >= :fromDate';
-        expressionAttributeValues[':fromDate'] = fromDate;
-      } else if (toDate) {
+        expressionAttributeValues[':fromDate'] = fromTimestamp;
+      } else if (toTimestamp) {
         keyConditionExpression += ' AND createdAt <= :toDate';
-        expressionAttributeValues[':toDate'] = toDate;
+        expressionAttributeValues[':toDate'] = toTimestamp;
       }
     } else {
       // Strategy 2: Query by status (default)
@@ -111,16 +125,16 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       expressionAttributeNames['#status'] = 'status';
 
       // Add date range to key condition if provided
-      if (fromDate && toDate) {
+      if (fromTimestamp && toTimestamp) {
         keyConditionExpression += ' AND createdAt BETWEEN :fromDate AND :toDate';
-        expressionAttributeValues[':fromDate'] = fromDate;
-        expressionAttributeValues[':toDate'] = toDate;
-      } else if (fromDate) {
+        expressionAttributeValues[':fromDate'] = fromTimestamp;
+        expressionAttributeValues[':toDate'] = toTimestamp;
+      } else if (fromTimestamp) {
         keyConditionExpression += ' AND createdAt >= :fromDate';
-        expressionAttributeValues[':fromDate'] = fromDate;
-      } else if (toDate) {
+        expressionAttributeValues[':fromDate'] = fromTimestamp;
+      } else if (toTimestamp) {
         keyConditionExpression += ' AND createdAt <= :toDate';
-        expressionAttributeValues[':toDate'] = toDate;
+        expressionAttributeValues[':toDate'] = toTimestamp;
       }
     }
 
