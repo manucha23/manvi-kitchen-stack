@@ -13,22 +13,33 @@
   <!-- Filters Section -->
   <div
     class="bg-surface-0 dark:bg-surface-900 p-4 md:p-5 rounded-2xl shadow-sm border border-surface-200 dark:border-surface-800 mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between animate-fade-in-up">
-    <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-      <p-iconfield class="w-full sm:w-auto flex-1">
-        <p-inputicon>
-          <i class="pi pi-search text-surface-400"></i>
-        </p-inputicon>
-        <input pInputText type="text" [(ngModel)]="searchText" (input)="onFilterSearchChanges(FILTER_TYPE.SEARCH)"
-          placeholder="Search customer phone..." class="w-full rounded-xl" />
-      </p-iconfield>
+    <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch">
+      <div class="flex flex-col flex-1 w-full sm:w-auto">
+        <label for="searchPhone" class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Search Phone</label>
+        <p-iconfield class="w-full">
+          <p-inputicon>
+            <i class="pi pi-search text-surface-400"></i>
+          </p-inputicon>
+          <input pInputText id="searchPhone" type="text" [(ngModel)]="searchText" (input)="onFilterSearchChanges(FILTER_TYPE.SEARCH)"
+            placeholder="Search customer phone..." class="w-full rounded-xl" />
+        </p-iconfield>
+      </div>
 
-      <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" placeholder="Date Range"
-        (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true" appendTo="body"
-        styleClass="w-full sm:w-auto" inputStyleClass="rounded-xl w-full" />
+      <div class="flex flex-col w-full sm:w-auto">
+        <label for="dateRangePicker" class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Date Range</label>
+        <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" placeholder="Select Date Range"
+          (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true" appendTo="body"
+          inputId="dateRangePicker"
+          styleClass="w-full sm:w-auto" inputStyleClass="rounded-xl w-full" />
+      </div>
 
-      <p-multiselect [options]="statusOptions" [(ngModel)]="selectedStatuses" placeholder="Select Status"
-        (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" display="chip" appendTo="body" [maxSelectedLabels]="2"
-        styleClass="w-full sm:w-56 rounded-xl" />
+      <div class="flex flex-col w-full sm:w-56">
+        <label for="statusFilter" class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
+        <p-select [options]="statusOptions" [(ngModel)]="selectedStatus"
+          (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" appendTo="body" [showClear]="false"
+          inputId="statusFilter" placeholder="Select Status"
+          styleClass="w-full rounded-xl" />
+      </div>
     </div>
   </div>
 
