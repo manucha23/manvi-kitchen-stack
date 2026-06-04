@@ -70,7 +70,7 @@ export class OrderListComponent implements OnInit {
   // Filter state
   searchText = '';
   rangeDates: Date[] | undefined;
-  selectedStatus: OrderStatus | undefined = OrderStatus.CONFIRMED;
+  selectedStatus: OrderStatus | undefined = OrderStatus.CREATED;
   private searchSubject = new Subject<FilterType>();
 
   statusOptions = Object.values(OrderStatus).map((status) => ({

@@ -9,6 +9,12 @@ export enum OrderStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum OrderCreatedVia {
+  ADMIN = 'ADMIN',
+  CUSTOMER_WEB = 'CUSTOMER_WEB',
+  WHATSAPP = 'WHATSAPP',
+}
+
 export interface OrderItem {
   itemId: string;
   name: string;
@@ -20,6 +26,7 @@ export interface OrderItem {
 export interface Order {
   orderId: string;
   orderedBy: string;
+  createdVia?: OrderCreatedVia;
   customerName: string;
   deliveryAddress: string;
   customerPhone: string;

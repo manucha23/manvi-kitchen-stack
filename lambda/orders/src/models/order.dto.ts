@@ -9,6 +9,7 @@ export interface CreateOrderRequest {
   customerPhone: string;
   items: OrderItemRequest[];
   instructions?: string;
+  createdVia?: 'ADMIN' | 'CUSTOMER_WEB' | 'WHATSAPP';
 }
 
 export interface UpdateOrderRequest {

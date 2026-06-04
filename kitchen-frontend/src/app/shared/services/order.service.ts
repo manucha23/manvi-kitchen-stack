@@ -54,6 +54,23 @@ export class OrderService {
       });
   }
 
+  fetchOrders(filters?: IOrderFilters): Observable<Order[]> {
+    let params: any = {};
+    if (filters) {
+      if (filters.orderedBy) params.orderedBy = filters.orderedBy;
+      if (filters.customerPhone) params.customerPhone = filters.customerPhone;
+      if (filters.fromDate) params.fromDate = filters.fromDate;
+      if (filters.toDate) params.toDate = filters.toDate;
+      if (filters.orderStatus && filters.orderStatus.length > 0) {
+        params.orderStatus = filters.orderStatus.join(',');
+      }
+    }
+
+    return this.http
+      .get<{ items: Order[] }>(this.apiUrl, { params })
+      .pipe(map((response) => response.items));
+  }
+
   // Kept for compatibility if needed, but primarily internal or for specific non-state usages
   getOrders(): Observable<Order[]> {
     return this.http

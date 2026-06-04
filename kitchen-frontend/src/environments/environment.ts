@@ -1,6 +1,7 @@
 export const environment = {
   production: false,
   apiUrl: (window as any).env?.apiUrl || 'https://api.test.cravnest.in',
+  websocketUrl: (window as any).env?.websocketUrl || 'wss://alerts.test.cravnest.in',
   aws: {
     region: (window as any).env?.region || 'ap-south-1',
     userPoolId: (window as any).env?.userPoolId || '',

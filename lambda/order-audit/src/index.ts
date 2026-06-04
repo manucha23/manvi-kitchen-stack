@@ -1,75 +1,90 @@
-import { DynamoDBStreamEvent } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { unmarshall } from '@aws-sdk/util-dynamodb';
+import { SNSEvent } from 'aws-lambda';
+
+interface OrderEvent {
+  type: 'ORDER_CREATED' | 'ORDER_STATUS_CHANGED' | 'ORDER_UPDATED';
+  orderId: string;
+  createdVia?: string;
+  status?: string;
+  oldStatus?: string;
+  newStatus?: string;
+  oldImage?: Record<string, any>;
+  newImage?: Record<string, any>;
+}
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
-export const handler = async (event: DynamoDBStreamEvent) => {
-  console.log('Processing order audit events:', JSON.stringify(event, null, 2));
+const getHistoryTable = (): string => {
+  const tableName = process.env.ORDER_HISTORY_TABLE;
+  if (!tableName) {
+    throw new Error('ORDER_HISTORY_TABLE is required');
+  }
+  return tableName;
+};
 
-  for (const record of event.Records) {
-    const eventName = record.eventName;
-    const newImage = record.dynamodb?.NewImage ? unmarshall(record.dynamodb.NewImage as any) : null;
-    const oldImage = record.dynamodb?.OldImage ? unmarshall(record.dynamodb.OldImage as any) : null;
+const calculateChanges = (
+  oldImage: Record<string, any> = {},
+  newImage: Record<string, any> = {},
+): Record<string, { from: unknown; to: unknown }> => {
+  const trackedFields = ['status', 'items', 'totalAmount', 'instructions'];
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
 
-    // Get orderId from either new or old image
-    const orderId = newImage?.orderId || oldImage?.orderId;
-    if (!orderId) continue;
-
-    const timestamp = new Date().toISOString();
-
-    const historyRecord: any = {
-      orderId,
-      timestamp,
-      eventType: eventName,
-    };
-
-    if (eventName === 'INSERT' && newImage) {
-      // Order created
-      historyRecord.action = 'CREATED';
-      historyRecord.orderSnapshot = newImage;
-      historyRecord.newStatus = newImage.orderStatus;
-    } else if (eventName === 'MODIFY' && newImage && oldImage) {
-      // Order updated
-      historyRecord.action = 'UPDATED';
-      historyRecord.newStatus = newImage.orderStatus;
-      historyRecord.previousStatus = oldImage.orderStatus || null;
-      historyRecord.changes = {};
-
-      // Track what changed
-      if (oldImage.orderStatus !== newImage.orderStatus) {
-        historyRecord.changes.orderStatus = { from: oldImage.orderStatus, to: newImage.orderStatus };
-      }
-      if (JSON.stringify(oldImage.items) !== JSON.stringify(newImage.items)) {
-        historyRecord.changes.items = { from: oldImage.items, to: newImage.items };
-      }
-      if (oldImage.total !== newImage.total) {
-        historyRecord.changes.total = { from: oldImage.total, to: newImage.total };
-      }
-      if (oldImage.instructions !== newImage.instructions) {
-        historyRecord.changes.instructions = { from: oldImage.instructions, to: newImage.instructions };
-      }
-    } else if (eventName === 'REMOVE' && oldImage) {
-      // Order deleted - CRITICAL: Save full snapshot
-      historyRecord.action = 'DELETED';
-      historyRecord.orderSnapshot = oldImage; // Save complete order data
-      historyRecord.deletedStatus = oldImage.orderStatus;
-      historyRecord.deletedBy = 'SYSTEM'; // Could extract from context if available
-    }
-
-    try {
-      await docClient.send(new PutCommand({
-        TableName: process.env.ORDER_HISTORY_TABLE,
-        Item: historyRecord
-      }));
-
-      console.log(`Created audit record for order ${orderId}: ${eventName}`);
-    } catch (error) {
-      console.error(`Error creating audit record for ${orderId}:`, error);
+  for (const field of trackedFields) {
+    if (JSON.stringify(oldImage[field]) !== JSON.stringify(newImage[field])) {
+      changes[field] = { from: oldImage[field], to: newImage[field] };
     }
   }
 
-  return { statusCode: 200, body: 'Processed' };
+  return changes;
+};
+
+const buildHistoryRecord = (event: OrderEvent): Record<string, any> => {
+  const timestamp = new Date().toISOString();
+  const baseRecord = {
+    orderId: event.orderId,
+    timestamp,
+    eventType: event.type,
+    createdVia: event.createdVia,
+  };
+
+  if (event.type === 'ORDER_CREATED') {
+    return {
+      ...baseRecord,
+      action: 'CREATED',
+      newStatus: event.status || event.newImage?.status,
+      orderSnapshot: event.newImage,
+      newImage: event.newImage,
+    };
+  }
+
+  return {
+    ...baseRecord,
+    action: 'UPDATED',
+    previousStatus: event.oldStatus || event.oldImage?.status || null,
+    newStatus: event.newStatus || event.status || event.newImage?.status,
+    oldImage: event.oldImage,
+    newImage: event.newImage,
+    changes: calculateChanges(event.oldImage, event.newImage),
+  };
+};
+
+export const handler = async (event: SNSEvent): Promise<void> => {
+  console.log('Processing order audit events', JSON.stringify({ count: event.Records.length }));
+
+  for (const record of event.Records) {
+    const orderEvent = JSON.parse(record.Sns.Message) as OrderEvent;
+    const historyRecord = buildHistoryRecord(orderEvent);
+
+    await docClient.send(new PutCommand({
+      TableName: getHistoryTable(),
+      Item: historyRecord,
+    }));
+
+    console.log('Created audit record', JSON.stringify({
+      orderId: historyRecord.orderId,
+      eventType: historyRecord.eventType,
+    }));
+  }
 };

@@ -1,7 +1,7 @@
 import { PutCommand, BatchGetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, getNextOrderId, validateCreateOrderRequest } from '../utils';
-import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus } from '../models';
+import { Order, OrderCreatedVia, OrderItem, OrderStatus, PaymentMethod, PaymentStatus } from '../models';
 import { validateOrderingWindow } from '../services';
 
 export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -11,7 +11,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       return validationResult;
     }
 
-    const { customerName, customerPhone, deliveryAddress, paymentMethod, items, instructions } = validationResult;
+    const { customerName, customerPhone, deliveryAddress, paymentMethod, createdVia, items, instructions } = validationResult;
 
     const orderedBy = event.requestContext.authorizer?.claims?.sub || 
                       event.requestContext.authorizer?.claims?.username;
@@ -70,13 +70,16 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
 
     const now = new Date().toISOString();
     const isCodOrder = paymentMethod === PaymentMethod.COD;
-    const status = isCodOrder ? OrderStatus.CONFIRMED : OrderStatus.PENDING_PAYMENT;
+    const status = createdVia === OrderCreatedVia.ADMIN
+      ? OrderStatus.CONFIRMED
+      : OrderStatus.CREATED;
     const paymentStatus = isCodOrder ? PaymentStatus.NOT_REQUIRED : PaymentStatus.PENDING;
 
     // Create order object
     const order: Order = {
       orderId,
       orderedBy,
+      createdVia,
       customerName,
       customerPhone,
       deliveryAddress,
