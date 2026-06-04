@@ -372,18 +372,18 @@ paths:
           example: CONFIRMED
         - name: fromDate
           in: query
-          description: Start date for date range filter (YYYY-MM-DD)
+          description: Start timestamp for the createdAt range filter. Must be an ISO timestamp; date-only values are not supported. For a full-day query, send the start-of-day timestamp, for example 2026-05-28T00:00:00.000Z.
           schema:
             type: string
-            format: date
-          example: "2026-05-10"
+            format: date-time
+          example: "2026-05-28T00:00:00.000Z"
         - name: toDate
           in: query
-          description: End date for date range filter (YYYY-MM-DD)
+          description: End timestamp for the createdAt range filter. Must be an ISO timestamp; date-only values are not supported. For a full-day query, send the end-of-day timestamp, for example 2026-05-28T23:59:59.999Z.
           schema:
             type: string
-            format: date
-          example: "2026-05-31"
+            format: date-time
+          example: "2026-05-28T23:59:59.999Z"
         - name: customerPhone
           in: query
           description: Filter by customer phone number
