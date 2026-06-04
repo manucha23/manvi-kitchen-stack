@@ -37,6 +37,7 @@ interface ActiveOrderAlert {
 export class OrderAlertService {
   private socket?: WebSocket;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
   private buzzerTimer?: ReturnType<typeof setInterval>;
   private audioContext?: AudioContext;
   private shouldReconnect = false;
@@ -66,10 +67,14 @@ export class OrderAlertService {
     this.socket = new WebSocket(`${environment.websocketUrl}${separator}token=${encodeURIComponent(token)}`);
 
     this.socket.onopen = () => {
+      this.startHeartbeat();
       this.recoverCreatedAlerts();
     };
     this.socket.onmessage = (event) => this.handleMessage(event);
-    this.socket.onclose = () => this.scheduleReconnect();
+    this.socket.onclose = () => {
+      this.stopHeartbeat();
+      this.scheduleReconnect();
+    };
     this.socket.onerror = () => this.socket?.close();
   }
 
@@ -79,6 +84,7 @@ export class OrderAlertService {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    this.stopHeartbeat();
     this.socket?.close();
     this.socket = undefined;
     this._activeAlerts.set([]);
@@ -95,6 +101,25 @@ export class OrderAlertService {
       this.reconnectTimer = undefined;
       this.connect();
     }, 3000);
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        this.socket.send(JSON.stringify({
+          action: 'heartbeat',
+          sentAt: new Date().toISOString(),
+        }));
+      }
+    }, 5 * 60 * 1000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
+    }
   }
 
   private handleMessage(event: MessageEvent): void {
