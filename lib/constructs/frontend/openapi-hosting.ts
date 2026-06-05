@@ -11,6 +11,7 @@ export interface OpenApiHostingProps {
   environment: string;
   certificate?: acm.ICertificate;
   domainName?: string;
+  geoRestriction?: cloudfront.GeoRestriction;
 }
 
 export class OpenApiHosting extends Construct {
@@ -52,7 +53,8 @@ export class OpenApiHosting extends Construct {
           ttl: cdk.Duration.minutes(30),
         },
       ],
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      geoRestriction: props.geoRestriction,
     };
 
     // Add custom domain and certificate if provided

@@ -11,6 +11,7 @@ export interface ImageStorageProps {
   environment: string;
   hostedZone?: route53.IHostedZone;
   certificate?: acm.ICertificate;
+  geoRestriction?: cloudfront.GeoRestriction;
 }
 
 export class ImageStorage extends Construct {
@@ -45,7 +46,8 @@ export class ImageStorage extends Construct {
         compress: true,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      geoRestriction: props.geoRestriction,
     };
 
     // Add custom domain and certificate if provided

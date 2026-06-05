@@ -13,6 +13,9 @@ class LandingPageStack extends cdk.Stack {
     super(scope, id, props);
 
     const { environment } = props;
+    const testIndiaGeoRestriction = environment === 'test'
+      ? cloudfront.GeoRestriction.allowlist('IN')
+      : undefined;
 
     // Hosted Zone
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
@@ -91,7 +94,7 @@ class LandingPageStack extends cdk.Stack {
       },
       domainNames: ['cravnest.in'],
       certificate: cloudfrontCertificate,
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
     });
 
     new route53.ARecord(this, 'CravnestDns', {
@@ -128,7 +131,8 @@ class LandingPageStack extends cdk.Stack {
       },
       domainNames: ['test.cravnest.in'],
       certificate: cloudfrontCertificate,
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      geoRestriction: testIndiaGeoRestriction,
     });
 
     new route53.ARecord(this, 'TestDns', {

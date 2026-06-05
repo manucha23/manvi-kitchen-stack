@@ -19,6 +19,7 @@ import { Route53HostedZone } from './constructs/dns/route53-hosted-zone';
 import { AcmCertificates } from './constructs/certificates/acm-certificates';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 
 interface ManviKitchenStackProps extends cdk.StackProps {
   environment: string;
@@ -29,6 +30,9 @@ export class ManviKitchenStackStack extends cdk.Stack {
     super(scope, id, props);
 
     const { environment } = props;
+    const testIndiaGeoRestriction = environment === 'test'
+      ? cloudfront.GeoRestriction.allowlist('IN')
+      : undefined;
 
     // Create constructs
     const orderDatabase = new OrderDatabase(this, 'Database');
@@ -68,6 +72,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       environment,
       hostedZone: hostedZone.hostedZone,
       certificate: certificates.cloudfrontCertificate,
+      geoRestriction: testIndiaGeoRestriction,
     });
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
       itemTable: itemDatabase.table,
@@ -100,11 +105,13 @@ export class ManviKitchenStackStack extends cdk.Stack {
       environment,
       certificate: certificates.cloudfrontCertificate,
       domainName: 'admin.test.cravnest.in',
+      geoRestriction: testIndiaGeoRestriction,
     });
     const docs = new OpenApiHosting(this, 'OpenApiDocs', { 
       environment,
       certificate: certificates.cloudfrontCertificate,
       domainName: 'api-doc.test.cravnest.in',
+      geoRestriction: testIndiaGeoRestriction,
     });
     const api = new OrderApi(this, 'Api', {
       orderFunction: lambdas.orderFunction,

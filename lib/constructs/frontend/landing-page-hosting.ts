@@ -65,7 +65,7 @@ export class LandingPageHosting extends Construct {
           ttl: cdk.Duration.minutes(30),
         },
       ],
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
     };
 
     // Add custom domain and certificate if provided
