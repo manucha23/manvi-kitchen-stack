@@ -5,6 +5,7 @@ import {
   getOrder, 
   createOrder, 
   updateOrder, 
+  bulkUpdateOrders,
   deleteOrder, 
   getOrderHistory 
 } from './handlers';
@@ -19,6 +20,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         return createErrorResponse(400, 'Order ID is required');
       }
       return getOrderHistory(orderId);
+    }
+
+    if (path.endsWith('/orders/bulk') && httpMethod === 'PATCH') {
+      return bulkUpdateOrders(event);
     }
 
     switch (httpMethod) {

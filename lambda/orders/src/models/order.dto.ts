@@ -12,6 +12,7 @@ export interface CreateOrderRequest {
 }
 
 export interface UpdateOrderRequest {
+  version: number;
   orderStatus?: string;
   feedbackProvided?: boolean;
   incrementFeedbackRequest?: boolean;

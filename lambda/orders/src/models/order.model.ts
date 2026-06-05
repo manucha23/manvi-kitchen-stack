@@ -42,4 +42,5 @@ export interface Order {
   instructions?: string;
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
+  version: number;
 }

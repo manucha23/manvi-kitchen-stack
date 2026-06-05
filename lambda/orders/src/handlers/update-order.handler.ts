@@ -1,4 +1,4 @@
-import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse, validateUpdateOrderRequest } from '../utils';
 import { OrderStatus } from '../models';
@@ -7,22 +7,16 @@ const VALID_STATUSES = Object.values(OrderStatus);
 
 export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
+    if (!/^[A-Z0-9]{6}$/.test(orderId)) {
+      return createErrorResponse(400, 'Invalid orderId format');
+    }
+
     const validationResult = validateUpdateOrderRequest(event.body);
     if ('statusCode' in validationResult) {
       return validationResult;
     }
 
     const body = validationResult;
-    
-    // Get existing order
-    const existingOrder = await docClient.send(new GetCommand({
-      TableName: process.env.ORDER_TABLE,
-      Key: { orderId }
-    }));
-
-    if (!existingOrder.Item) {
-      return createErrorResponse(404, 'Order not found');
-    }
 
     const updateExpression: string[] = [];
     const expressionAttributeValues: any = {};
@@ -49,12 +43,18 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
     }
 
     updateExpression.push('updatedAt = :updatedAt');
+    updateExpression.push('#version = :nextVersion');
+    expressionAttributeNames['#version'] = 'version';
     expressionAttributeValues[':updatedAt'] = new Date().toISOString();
+    expressionAttributeValues[':version'] = body.version;
+    expressionAttributeValues[':nextVersion'] = body.version + 1;
+    expressionAttributeValues[':initialVersion'] = 1;
 
     const result = await docClient.send(new UpdateCommand({
       TableName: process.env.ORDER_TABLE,
       Key: { orderId },
       UpdateExpression: `SET ${updateExpression.join(', ')}`,
+      ConditionExpression: 'attribute_exists(orderId) AND ((attribute_exists(#version) AND #version = :version) OR (attribute_not_exists(#version) AND :version = :initialVersion))',
       ExpressionAttributeValues: expressionAttributeValues,
       ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
       ReturnValues: 'ALL_NEW'
@@ -62,6 +62,9 @@ export const updateOrder = async (orderId: string, event: APIGatewayProxyEvent):
 
     return createSuccessResponse(200, result.Attributes);
   } catch (error) {
+    if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
+      return createErrorResponse(409, 'Order not found or version mismatch. Refresh order and retry.');
+    }
     console.error('Error updating order:', error);
     return createErrorResponse(500, 'Failed to update order');
   }

@@ -72,6 +72,11 @@ components:
     UpdateOrderRequest:
       type: object
       properties:
+        version:
+          type: integer
+          minimum: 1
+          description: Version last seen by the caller. Used for optimistic concurrency.
+          example: 3
         status:
           type: string
           description: Order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
@@ -81,6 +86,75 @@ components:
           type: string
           description: Special instructions for the order
           example: "Please add extra chutney."
+      required:
+        - version
+    BulkUpdateOrderItem:
+      type: object
+      properties:
+        orderId:
+          type: string
+          pattern: '^[A-Z0-9]{6}$'
+          example: "ABC123"
+        version:
+          type: integer
+          minimum: 1
+          description: Version last seen by the caller for this order.
+          example: 3
+      required:
+        - orderId
+        - version
+    BulkOrderUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          description: New order status
+          enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          example: "INKITCHEN"
+    BulkUpdateOrdersRequest:
+      type: object
+      properties:
+        orders:
+          type: array
+          description: Unique order IDs and expected versions to update. Maximum 100.
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BulkUpdateOrderItem'
+        update:
+          $ref: '#/components/schemas/BulkOrderUpdate'
+      required:
+        - orders
+        - update
+    BulkUpdateOrdersResponse:
+      type: object
+      properties:
+        updated:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        failed:
+          type: array
+          items:
+            type: object
+            properties:
+              orderId:
+                type: string
+              message:
+                type: string
+            required:
+              - orderId
+              - message
+        updatedCount:
+          type: integer
+        failedCount:
+          type: integer
+      required:
+        - updated
+        - failed
+        - updatedCount
+        - failedCount
     CreateItemRequest:
       type: object
       properties:
@@ -223,6 +297,10 @@ components:
           type: string
           format: date-time
           description: Order last update timestamp
+        version:
+          type: integer
+          minimum: 1
+          description: Order version used for optimistic concurrency
       required:
         - orderId
         - orderedBy
@@ -237,6 +315,7 @@ components:
         - totalAmount
         - createdAt
         - updatedAt
+        - version
     OrderListResponse:
       type: object
       properties:
@@ -458,6 +537,48 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
         - Cognito: []
+  /orders/bulk:
+    x-amazon-apigateway-cors:
+      allowOrigins: ['*']
+      allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS']
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    patch:
+      tags: [Orders]
+      summary: Bulk update orders
+      operationId: bulkUpdateOrders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkUpdateOrdersRequest'
+      responses:
+        '200':
+          description: All selected orders updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkUpdateOrdersResponse'
+        '207':
+          description: Some selected orders failed to update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkUpdateOrdersResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - Cognito: []
   /orders/{orderId}:
     x-amazon-apigateway-cors:
       allowOrigins: ['*']
@@ -519,6 +640,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Order not found or version mismatch
           content:
             application/json:
               schema:
