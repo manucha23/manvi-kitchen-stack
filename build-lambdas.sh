@@ -74,4 +74,20 @@ run_tests_if_exist "order-audit"
 npm run build
 cd ../..
 
+# Build order-event-router Lambda
+echo "Building order-event-router Lambda..."
+cd lambda/order-event-router
+npm ci
+run_tests_if_exist "order-event-router"
+npm run build
+cd ../..
+
+# Build order-notifications Lambda
+echo "Building order-notifications Lambda..."
+cd lambda/order-notifications
+npm ci
+run_tests_if_exist "order-notifications"
+npm run build
+cd ../..
+
 echo "Lambda functions built successfully!"

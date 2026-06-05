@@ -706,6 +706,7 @@ const invokeCreateOrder = async (sourceMessage: WhatsAppInboundMessage, order: O
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       paymentMethod: order.paymentMethod || 'COD',
+      createdVia: 'WHATSAPP',
       items: order.items.map((item) => ({ id: item.itemId, quantity: item.quantity })),
       instructions: order.instructions,
     }),

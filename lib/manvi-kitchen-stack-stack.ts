@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { OrderDatabase } from './constructs/database/order-database';
+import { OrderAlertConnectionsDatabase } from './constructs/database/order-alert-connections-database';
 import { ItemDatabase } from './constructs/database/item-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { OrderLimitsConfigDatabase } from './constructs/database/order-limits-config-database';
@@ -11,10 +12,14 @@ import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
+import { OrderEventRouterLambda } from './constructs/compute/order-event-router-lambda';
+import { OrderNotificationLambda } from './constructs/compute/order-notification-lambda';
 import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
+import { OrderAlertWebSocketApi } from './constructs/api/order-alert-websocket-api';
+import { OrderEventsTopic } from './constructs/messaging/order-events-topic';
 import { Route53HostedZone } from './constructs/dns/route53-hosted-zone';
 import { AcmCertificates } from './constructs/certificates/acm-certificates';
 import * as route53 from 'aws-cdk-lib/aws-route53';
@@ -36,8 +41,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
 
     // Create constructs
     const orderDatabase = new OrderDatabase(this, 'Database');
+    const orderAlertConnections = new OrderAlertConnectionsDatabase(this, 'OrderAlertConnections');
     const itemDatabase = new ItemDatabase(this, 'ItemDatabase');
     const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
+    const orderEvents = new OrderEventsTopic(this, 'OrderEvents');
     const orderLimitsConfig = new OrderLimitsConfigDatabase(this, 'OrderLimitsConfig');
     const whatsappConversations = new WhatsAppConversationDatabase(this, 'WhatsAppConversations', {
       environment,
@@ -82,9 +89,19 @@ export class ManviKitchenStackStack extends cdk.Stack {
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
-    const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
+    new OrderEventRouterLambda(this, 'OrderEventRouter', {
       orderTable: orderDatabase.table,
+      orderEventsTopic: orderEvents.topic,
+    });
+
+    const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
       orderHistoryTable: orderHistory.table,
+      orderEventsTopic: orderEvents.topic,
+    });
+
+    const orderNotifications = new OrderNotificationLambda(this, 'OrderNotifications', {
+      connectionTable: orderAlertConnections.table,
+      orderEventsTopic: orderEvents.topic,
     });
     
     const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
@@ -126,6 +143,15 @@ export class ManviKitchenStackStack extends cdk.Stack {
       domainName: 'api.test.cravnest.in',
     });
 
+    const orderAlertsApi = new OrderAlertWebSocketApi(this, 'OrderAlertsApi', {
+      environment,
+      handler: orderNotifications.function,
+      hostedZone: hostedZone.hostedZone,
+      certificate: certificates.apiCertificate,
+      domainName: 'alerts.test.cravnest.in',
+    });
+    orderNotifications.function.addEnvironment('WEBSOCKET_MANAGEMENT_ENDPOINT', orderAlertsApi.managementEndpoint);
+
     // DNS Records
 
     // Frontend DNS record
@@ -150,6 +176,18 @@ export class ManviKitchenStackStack extends cdk.Stack {
         target: route53.RecordTarget.fromAlias(new targets.ApiGatewayDomain(api.domain)),
       });
     }
+
+    new cdk.CfnOutput(this, 'OrderAlertsWebSocketUrl', {
+      value: orderAlertsApi.rawWebSocketUrl,
+      description: 'Order Alerts raw WebSocket URL',
+      exportName: `${environment}-order-alerts-websocket-url`,
+    });
+
+    new cdk.CfnOutput(this, 'OrderAlertsCustomWebSocketUrl', {
+      value: orderAlertsApi.customWebSocketUrl,
+      description: 'Order Alerts custom WebSocket URL',
+      exportName: `${environment}-order-alerts-custom-websocket-url`,
+    });
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

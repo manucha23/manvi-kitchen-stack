@@ -160,6 +160,7 @@ export class OrderCreateComponent implements OnInit {
       deliveryAddress: formValue.deliveryAddress,
       customerPhone: formValue.customerPhone,
       paymentMethod: 'COD',
+      createdVia: 'ADMIN',
       instructions: formValue.instructions,
       items: formValue.items.map((item: any) => ({
         id: item.selectedItem.itemId,

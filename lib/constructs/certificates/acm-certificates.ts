@@ -17,7 +17,7 @@ export class AcmCertificates extends Construct {
     // Certificate for API Gateway (in stack region - ap-south-1)
     this.apiCertificate = new acm.Certificate(this, 'ApiCertificate', {
       domainName: 'api.test.cravnest.in',
-      subjectAlternativeNames: ['api.cravnest.in'], // For flexibility
+      subjectAlternativeNames: ['api.cravnest.in', 'alerts.test.cravnest.in'], // For flexibility
       validation: acm.CertificateValidation.fromDns(props.hostedZone),
     });
 

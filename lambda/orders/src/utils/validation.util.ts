@@ -1,12 +1,13 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { createErrorResponse } from './response.util';
-import { PaymentMethod } from '../models';
+import { OrderCreatedVia, PaymentMethod } from '../models';
 
 export interface ValidatedOrderRequest {
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
   paymentMethod: PaymentMethod;
+  createdVia: OrderCreatedVia;
   items: Array<{ id: string; quantity: number }>;
   instructions?: string;
 }
@@ -32,7 +33,15 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { customerName, customerPhone, deliveryAddress, paymentMethod = PaymentMethod.COD, items, instructions } = parsed;
+  const {
+    customerName,
+    customerPhone,
+    deliveryAddress,
+    paymentMethod = PaymentMethod.COD,
+    createdVia = OrderCreatedVia.CUSTOMER_WEB,
+    items,
+    instructions
+  } = parsed;
 
   if (customerName !== undefined && typeof customerName !== 'string') {
     return createErrorResponse(400, 'customerName must be a string');
@@ -49,6 +58,9 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
   if (paymentMethod !== undefined && typeof paymentMethod !== 'string') {
     return createErrorResponse(400, 'paymentMethod must be a string');
   }
+  if (createdVia !== undefined && typeof createdVia !== 'string') {
+    return createErrorResponse(400, 'createdVia must be a string');
+  }
   if (instructions !== undefined && typeof instructions !== 'string') {
     return createErrorResponse(400, 'instructions must be a string');
   }
@@ -59,6 +71,9 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
 
   if (!Object.values(PaymentMethod).includes(paymentMethod as PaymentMethod)) {
     return createErrorResponse(400, `Invalid paymentMethod. Must be one of: ${Object.values(PaymentMethod).join(', ')}`);
+  }
+  if (!Object.values(OrderCreatedVia).includes(createdVia as OrderCreatedVia)) {
+    return createErrorResponse(400, `Invalid createdVia. Must be one of: ${Object.values(OrderCreatedVia).join(', ')}`);
   }
 
   for (let i = 0; i < items.length; i++) {
@@ -74,7 +89,15 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     }
   }
 
-  return { customerName, customerPhone, deliveryAddress, paymentMethod: paymentMethod as PaymentMethod, items, instructions };
+  return {
+    customerName,
+    customerPhone,
+    deliveryAddress,
+    paymentMethod: paymentMethod as PaymentMethod,
+    createdVia: createdVia as OrderCreatedVia,
+    items,
+    instructions
+  };
 };
 
 export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdateOrderRequest | APIGatewayProxyResult => {
