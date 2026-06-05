@@ -84,6 +84,9 @@ export class OrderApi extends Construct {
     const orderLimits = orders.addResource('order-limits');
     orderLimits.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
 
+    const bulk = orders.addResource('bulk');
+    bulk.addMethod('PATCH', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+
     const order = orders.addResource('{orderId}');
     order.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
     order.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);

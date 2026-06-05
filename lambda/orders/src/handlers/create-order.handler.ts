@@ -88,7 +88,8 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       totalAmount,
       instructions,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      version: 1
     };
 
     await docClient.send(new PutCommand({

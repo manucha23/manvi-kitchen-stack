@@ -7,6 +7,10 @@ jest.mock('../utils', () => ({
   docClient: {
     send: jest.fn(),
   },
+  withOrderVersion: (order: any) => ({
+    ...order,
+    version: order.version || 1,
+  }),
   createErrorResponse: (statusCode: number, message: string) => ({
     statusCode,
     body: JSON.stringify({ error: message }),

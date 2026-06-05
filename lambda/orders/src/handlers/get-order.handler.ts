@@ -1,6 +1,6 @@
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyResult } from 'aws-lambda';
-import { docClient, createSuccessResponse, createErrorResponse } from '../utils';
+import { docClient, createSuccessResponse, createErrorResponse, withOrderVersion } from '../utils';
 import { Order } from '../models';
 
 export const getOrder = async (orderId: string): Promise<APIGatewayProxyResult> => {
@@ -19,7 +19,7 @@ export const getOrder = async (orderId: string): Promise<APIGatewayProxyResult> 
       return createErrorResponse(404, 'Order not found');
     }
 
-    const order = result.Item as Order;
+    const order = withOrderVersion(result.Item as Order);
     return createSuccessResponse(200, order);
   } catch (error) {
     console.error('Error getting order:', {

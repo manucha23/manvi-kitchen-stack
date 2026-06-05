@@ -1,6 +1,6 @@
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { docClient, createSuccessResponse, createErrorResponse } from '../utils';
+import { docClient, createSuccessResponse, createErrorResponse, withOrderVersion } from '../utils';
 import { Order, OrderStatus } from '../models';
 
 interface QueryParams {
@@ -168,7 +168,7 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       ScanIndexForward: scanIndexForward
     }));
 
-    const orders = (result.Items || []) as Order[];
+    const orders = ((result.Items || []) as Order[]).map(withOrderVersion);
 
     // Build response
     const response: any = {

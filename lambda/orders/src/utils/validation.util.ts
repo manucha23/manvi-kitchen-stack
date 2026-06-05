@@ -12,8 +12,23 @@ export interface ValidatedOrderRequest {
 }
 
 export interface ValidatedUpdateOrderRequest {
+  version: number;
   status?: string;
   instructions?: string;
+}
+
+export interface BulkOrderVersion {
+  orderId: string;
+  version: number;
+}
+
+export interface BulkOrderUpdate {
+  status?: string;
+}
+
+export interface ValidatedBulkUpdateOrdersRequest {
+  orders: BulkOrderVersion[];
+  update: BulkOrderUpdate;
 }
 
 export const validateCreateOrderRequest = (body: string | null): ValidatedOrderRequest | APIGatewayProxyResult => {
@@ -93,8 +108,14 @@ export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdate
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { status, instructions } = parsed;
+  const { status, instructions, version } = parsed;
 
+  if (version === undefined) {
+    return createErrorResponse(400, 'version is required');
+  }
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    return createErrorResponse(400, 'version must be a positive integer');
+  }
   if (status !== undefined && typeof status !== 'string') {
     return createErrorResponse(400, 'status must be a string');
   }
@@ -102,5 +123,64 @@ export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdate
     return createErrorResponse(400, 'instructions must be a string');
   }
 
-  return { status, instructions };
+  return { status, instructions, version };
+};
+
+export const validateBulkUpdateOrdersRequest = (body: string | null): ValidatedBulkUpdateOrdersRequest | APIGatewayProxyResult => {
+  if (!body) {
+    return createErrorResponse(400, 'Request body is required');
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return createErrorResponse(400, 'Invalid JSON format');
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return createErrorResponse(400, 'Request body must be an object');
+  }
+
+  const { orders, update } = parsed;
+
+  if (!Array.isArray(orders)) {
+    return createErrorResponse(400, 'orders must be an array');
+  }
+  if (orders.length === 0) {
+    return createErrorResponse(400, 'orders must contain at least one order');
+  }
+  if (orders.length > 100) {
+    return createErrorResponse(400, 'orders cannot contain more than 100 orders');
+  }
+  for (let i = 0; i < orders.length; i++) {
+    const order = orders[i];
+    if (typeof order !== 'object' || order === null || Array.isArray(order)) {
+      return createErrorResponse(400, `orders[${i}] must be an object`);
+    }
+    if (typeof order.orderId !== 'string') {
+      return createErrorResponse(400, `orders[${i}].orderId must be a string`);
+    }
+    if (!/^[A-Z0-9]{6}$/.test(order.orderId)) {
+      return createErrorResponse(400, `orders[${i}].orderId has invalid orderId format`);
+    }
+    if (typeof order.version !== 'number' || !Number.isInteger(order.version) || order.version < 1) {
+      return createErrorResponse(400, `orders[${i}].version must be a positive integer`);
+    }
+  }
+
+  const uniqueOrderIds = new Set(orders.map((order) => order.orderId));
+  if (uniqueOrderIds.size !== orders.length) {
+    return createErrorResponse(400, 'orders must not contain duplicate orderIds');
+  }
+
+  if (typeof update !== 'object' || update === null || Array.isArray(update)) {
+    return createErrorResponse(400, 'update must be an object');
+  }
+
+  if (update.status !== undefined && typeof update.status !== 'string') {
+    return createErrorResponse(400, 'update.status must be a string');
+  }
+
+  return { orders, update: { status: update.status } };
 };
