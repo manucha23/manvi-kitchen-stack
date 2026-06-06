@@ -9,6 +9,9 @@ import { createWhatsAppWebhookHandlerLambda } from './whatsapp-webhook-handler-l
 export interface WhatsAppWebhookLambdaProps {
   environment: string;
   conversationTable: dynamodb.ITable;
+  customerProfileTable: dynamodb.ITable;
+  cartTable: dynamodb.ITable;
+  cartEventTable: dynamodb.ITable;
   orderTable: dynamodb.ITable;
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
@@ -46,6 +49,9 @@ export class WhatsAppWebhookLambda extends Construct {
       nodeRuntime: nodeJs24Runtime,
       parameterPrefix,
       conversationTable: props.conversationTable,
+      customerProfileTable: props.customerProfileTable,
+      cartTable: props.cartTable,
+      cartEventTable: props.cartEventTable,
       orderTable: props.orderTable,
       itemTable: props.itemTable,
       orderLimitsConfigTable: props.orderLimitsConfigTable,

@@ -12,6 +12,9 @@ export interface WhatsAppInboundWorkerLambdaProps {
   nodeRuntime: lambda.Runtime;
   parameterPrefix: string;
   conversationTable: dynamodb.ITable;
+  customerProfileTable: dynamodb.ITable;
+  cartTable: dynamodb.ITable;
+  cartEventTable: dynamodb.ITable;
   orderTable: dynamodb.ITable;
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
@@ -34,6 +37,9 @@ export const createWhatsAppInboundWorkerLambda = (
       WHATSAPP_PHONE_NUMBER_ID_PARAM: `${props.parameterPrefix}/phone-number-id`,
       WHATSAPP_GRAPH_API_VERSION: 'v25.0',
       WHATSAPP_CONVERSATION_TABLE: props.conversationTable.tableName,
+      CUSTOMER_PROFILE_TABLE: props.customerProfileTable.tableName,
+      CART_TABLE: props.cartTable.tableName,
+      CART_EVENT_TABLE: props.cartEventTable.tableName,
       ORDER_TABLE: props.orderTable.tableName,
       ITEM_TABLE: props.itemTable.tableName,
       ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
@@ -57,6 +63,9 @@ export const createWhatsAppInboundWorkerLambda = (
 
   props.inboundQueue.grantConsumeMessages(workerFunction);
   props.conversationTable.grantReadWriteData(workerFunction);
+  props.customerProfileTable.grantReadWriteData(workerFunction);
+  props.cartTable.grantReadWriteData(workerFunction);
+  props.cartEventTable.grantReadWriteData(workerFunction);
   props.orderTable.grantReadData(workerFunction);
   props.itemTable.grantReadData(workerFunction);
   props.orderLimitsConfigTable.grantReadData(workerFunction);

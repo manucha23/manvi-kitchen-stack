@@ -91,8 +91,39 @@ describe('WhatsApp payload extraction', () => {
       from: '919999999999',
       firstName: 'Rahul',
       text: 'View menu',
+      actionId: 'view_menu',
+      actionTitle: 'View menu',
       buttonId: 'view_menu',
       buttonTitle: 'View menu',
+      receivedAt: '2026-05-15T10:40:00.000Z',
+    }]);
+  });
+
+  it('extracts WhatsApp interactive list replies', () => {
+    const payload = structuredClone(textPayload);
+    payload.entry[0].changes[0].value.messages[0] = {
+      from: '919999999999',
+      id: 'wamid.list123',
+      timestamp: '1778841600',
+      type: 'interactive',
+      interactive: {
+        type: 'list_reply',
+        list_reply: {
+          id: 'item_chicken_biryani_full',
+          title: 'Chicken Biryani Full',
+          description: 'Rs 300',
+        },
+      },
+    };
+
+    expect(extractInboundTextMessages(payload)).toEqual([{
+      kind: 'list',
+      messageId: 'wamid.list123',
+      from: '919999999999',
+      firstName: 'Rahul',
+      text: 'Chicken Biryani Full',
+      actionId: 'item_chicken_biryani_full',
+      actionTitle: 'Chicken Biryani Full',
       receivedAt: '2026-05-15T10:40:00.000Z',
     }]);
   });

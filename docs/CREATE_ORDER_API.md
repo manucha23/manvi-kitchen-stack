@@ -51,7 +51,7 @@ Clients do not send slot, slot date, item name, price, amount, order total, or d
   "customerName": "Manvi",
   "customerPhone": "+917042622062",
   "deliveryAddress": "Kumar Picasso, Hadapsar, Pune - 411028",
-  "status": "CONFIRMED",
+  "status": "CREATED",
   "paymentMethod": "COD",
   "paymentStatus": "NOT_REQUIRED",
   "promisedDeliveryAt": "2026-05-12T07:00:00.000Z",
@@ -70,6 +70,8 @@ Clients do not send slot, slot date, item name, price, amount, order total, or d
   "updatedAt": "2026-05-12T06:00:00.000Z"
 }
 ```
+
+COD orders are created in `CREATED` status, which the admin UI displays as "Order Placed". Admin confirmation moves the order to `CONFIRMED`.
 
 ## Error Examples
 

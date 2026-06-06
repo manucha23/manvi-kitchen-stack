@@ -79,8 +79,8 @@ components:
           example: 3
         status:
           type: string
-          description: Order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
-          enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          description: Order status (CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
+          enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
           example: "CONFIRMED"
         instructions:
           type: string
@@ -109,7 +109,7 @@ components:
         status:
           type: string
           description: New order status
-          enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
           example: "INKITCHEN"
     BulkUpdateOrdersRequest:
       type: object
@@ -267,7 +267,7 @@ components:
         status:
           type: string
           description: Order status
-          enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+          enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
         paymentMethod:
           type: string
           enum: [COD, ONLINE]
@@ -444,10 +444,10 @@ paths:
       parameters:
         - name: orderStatus
           in: query
-          description: Filter by order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
+          description: Filter by order status (CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
           schema:
             type: string
-            enum: [PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+            enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
           example: CONFIRMED
         - name: fromDate
           in: query

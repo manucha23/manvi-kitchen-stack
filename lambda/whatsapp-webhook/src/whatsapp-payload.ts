@@ -1,4 +1,4 @@
-export type WhatsAppInboundMessageKind = 'text' | 'button';
+export type WhatsAppInboundMessageKind = 'text' | 'button' | 'list' | 'flow';
 
 export interface WhatsAppInboundTextMessage {
   kind: WhatsAppInboundMessageKind;
@@ -6,6 +6,8 @@ export interface WhatsAppInboundTextMessage {
   from: string;
   firstName: string;
   text: string;
+  actionId?: string;
+  actionTitle?: string;
   buttonId?: string;
   buttonTitle?: string;
   receivedAt: string;
@@ -31,6 +33,16 @@ interface WhatsAppMessage {
     button_reply?: {
       id?: unknown;
       title?: unknown;
+    };
+    list_reply?: {
+      id?: unknown;
+      title?: unknown;
+      description?: unknown;
+    };
+    nfm_reply?: {
+      response_json?: unknown;
+      body?: unknown;
+      name?: unknown;
     };
   };
   button?: {
@@ -86,23 +98,45 @@ const extractFromValue = (value: Record<string, unknown>): WhatsAppInboundTextMe
     const interactiveButtonTitle = message.type === 'interactive' && message.interactive?.type === 'button_reply'
       ? asString(message.interactive.button_reply?.title)
       : undefined;
+    const interactiveListId = message.type === 'interactive' && message.interactive?.type === 'list_reply'
+      ? asString(message.interactive.list_reply?.id)
+      : undefined;
+    const interactiveListTitle = message.type === 'interactive' && message.interactive?.type === 'list_reply'
+      ? asString(message.interactive.list_reply?.title)
+      : undefined;
+    const interactiveFlowId = message.type === 'interactive' && message.interactive?.type === 'nfm_reply'
+      ? asString(message.interactive.nfm_reply?.name) || 'flow_reply'
+      : undefined;
+    const interactiveFlowTitle = message.type === 'interactive' && message.interactive?.type === 'nfm_reply'
+      ? asString(message.interactive.nfm_reply?.body) || asString(message.interactive.nfm_reply?.response_json)
+      : undefined;
     const templateButtonId = message.type === 'button' ? asString(message.button?.payload) : undefined;
     const templateButtonTitle = message.type === 'button' ? asString(message.button?.text) : undefined;
-    const buttonId = interactiveButtonId || templateButtonId;
-    const buttonTitle = interactiveButtonTitle || templateButtonTitle;
+    const actionId = interactiveButtonId || interactiveListId || interactiveFlowId || templateButtonId;
+    const actionTitle = interactiveButtonTitle || interactiveListTitle || interactiveFlowTitle || templateButtonTitle;
 
-    if (!messageId || !from || (!text && !buttonId)) {
+    if (!messageId || !from || (!text && !actionId)) {
       continue;
     }
 
+    const kind: WhatsAppInboundMessageKind = text
+      ? 'text'
+      : interactiveListId
+        ? 'list'
+        : interactiveFlowId
+          ? 'flow'
+          : 'button';
+
     extractedMessages.push({
-      kind: buttonId ? 'button' : 'text',
+      kind,
       messageId,
       from,
       firstName: deriveFirstName(getContactName(contacts, from)),
-      text: (text || buttonTitle || buttonId) as string,
-      buttonId,
-      buttonTitle,
+      text: (text || actionTitle || actionId) as string,
+      ...(actionId ? { actionId } : {}),
+      ...(actionTitle ? { actionTitle } : {}),
+      ...(kind === 'button' && actionId ? { buttonId: actionId } : {}),
+      ...(kind === 'button' && actionTitle ? { buttonTitle: actionTitle } : {}),
       receivedAt: toReceivedAt(message.timestamp),
     });
   }
