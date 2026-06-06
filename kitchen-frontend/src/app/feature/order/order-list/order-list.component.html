@@ -39,7 +39,7 @@
         <label for="statusFilter"
           class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
         <p-select [options]="statusOptions" [(ngModel)]="selectedStatus"
-          (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" appendTo="body" [showClear]="true"
+          (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" appendTo="body" [showClear]="false"
           inputId="statusFilter" placeholder="Select Status" styleClass="w-full rounded-xl" />
       </div>
     </div>
