@@ -70,7 +70,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
 
     const now = new Date().toISOString();
     const isCodOrder = paymentMethod === PaymentMethod.COD;
-    const status = isCodOrder ? OrderStatus.CONFIRMED : OrderStatus.PENDING_PAYMENT;
+    const status = isCodOrder ? OrderStatus.CREATED : OrderStatus.PENDING_PAYMENT;
     const paymentStatus = isCodOrder ? PaymentStatus.NOT_REQUIRED : PaymentStatus.PENDING;
 
     // Create order object

@@ -19,7 +19,7 @@ This document describes all DynamoDB tables used in the Manvi Kitchen Stack, inc
 - **Use Case**: Query customer order history sorted by recency
 
 #### status-createdAt-index
-- **Partition Key**: `status` (String) - Order status (PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
+- **Partition Key**: `status` (String) - Order status (CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
 - **Sort Key**: `createdAt` (String) - ISO timestamp of order creation
 - **Use Case**: Query orders by status sorted by creation time (most recent first)
 
@@ -170,6 +170,89 @@ None
 - **Stored Availability**: `availableCount` is stored for fast UI sold-out checks
 - **TTL Cleanup**: Old count records expire after the slot date
 - **Atomic Updates**: Reservation updates `currentCount` and `availableCount` together with conditional expressions
+
+---
+
+## 6. CustomerProfileTable
+
+**Purpose**: Stores channel-neutral customer profile data for WhatsApp first and future website ordering.
+
+### Primary Key
+- **Partition Key**: `phoneNumber` (String) - Normalized customer phone number
+
+### Attributes
+- `customerId` (String) - Phone-first customer identifier
+- `firstName` (String) - Customer first name when known
+- `savedAddress` (Map) - Default delivery address and delivery area
+- `marketingOptIn` (Boolean) - WhatsApp marketing consent flag
+- `marketingOptInSource` (String) - Consent source
+- `marketingOptInAt` (String) - ISO timestamp of consent
+- `lastOrderId` (String) - Most recent converted order
+- `createdAt` (String) - Profile creation timestamp
+- `updatedAt` (String) - Last profile update timestamp
+
+---
+
+## 7. CartTable
+
+**Purpose**: Stores active, abandoned, and converted carts across ordering channels.
+
+### Primary Key
+- **Partition Key**: `cartId` (String) - Unique cart identifier
+
+### Global Secondary Indexes
+
+#### phoneNumber-status-updatedAt-index
+- **Partition Key**: `phoneNumber` (String)
+- **Sort Key**: `updatedAt` (String)
+- **Use Case**: Resume the latest active WhatsApp/website cart for a customer
+
+#### status-updatedAt-index
+- **Partition Key**: `status` (String)
+- **Sort Key**: `updatedAt` (String)
+- **Use Case**: Daily abandoned-cart maintenance
+
+### Attributes
+- `customerId` (String) - Customer profile identifier
+- `phoneNumber` (String) - Normalized phone number
+- `channel` (String) - `WHATSAPP` or `WEBSITE`
+- `status` (String) - `ACTIVE`, `CHECKOUT_STARTED`, `ABANDONED`, `CONVERTED`, or `CANCELLED`
+- `items` (List) - Cart items
+- `totalAmount` (Number) - Cart subtotal
+- `specialRequest` (String) - Customer request attached to the order
+- `deliveryAddress` (Map) - Delivery address and delivery area
+- `orderId` (String) - Converted order id
+- `lastInteractionAt` (String) - Last customer action timestamp
+- `checkoutStartedAt` (String) - Checkout start timestamp
+- `abandonedAt` (String) - Abandoned timestamp
+- `convertedAt` (String) - Conversion timestamp
+- `expiresAt` (Number) - TTL epoch seconds, currently 90 days
+
+---
+
+## 8. CartEventTable
+
+**Purpose**: Stores cart funnel events for analytics and abandoned-cart tracking.
+
+### Primary Key
+- **Partition Key**: `cartId` (String)
+- **Sort Key**: `eventId` (String)
+
+### Global Secondary Indexes
+
+#### eventType-createdAt-index
+- **Partition Key**: `eventType` (String)
+- **Sort Key**: `createdAt` (String)
+- **Use Case**: Query funnel events by type and time
+
+### Attributes
+- `eventType` (String) - e.g. `CART_CREATED`, `ITEM_ADDED`, `CHECKOUT_STARTED`, `CART_ABANDONED`, `ORDER_CREATED`
+- `customerId` (String) - Customer profile identifier
+- `phoneNumber` (String) - Normalized phone number
+- `channel` (String) - `WHATSAPP` or `WEBSITE`
+- `metadata` (Map) - Optional event details
+- `createdAt` (String) - Event timestamp
+- `expiresAt` (Number) - TTL epoch seconds, currently 90 days
 
 ---
 

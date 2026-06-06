@@ -28,6 +28,7 @@
     "node_modules",
     "cdk.out",
     "kitchen-frontend",
-    "lambda"
+    "lambda",
+    "packages"
   ]
 }

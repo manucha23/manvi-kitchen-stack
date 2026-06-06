@@ -5,6 +5,9 @@ import { ItemDatabase } from './constructs/database/item-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { OrderLimitsConfigDatabase } from './constructs/database/order-limits-config-database';
 import { WhatsAppConversationDatabase } from './constructs/database/whatsapp-conversation-database';
+import { CustomerProfileDatabase } from './constructs/database/customer-profile-database';
+import { CartDatabase } from './constructs/database/cart-database';
+import { CartEventDatabase } from './constructs/database/cart-event-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
@@ -12,6 +15,7 @@ import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
 import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lambda';
+import { createCartMaintenanceLambda } from './constructs/compute/cart-maintenance-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
@@ -20,6 +24,7 @@ import { AcmCertificates } from './constructs/certificates/acm-certificates';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 
 interface ManviKitchenStackProps extends cdk.StackProps {
   environment: string;
@@ -40,6 +45,15 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const orderHistory = new OrderHistoryDatabase(this, 'OrderHistory');
     const orderLimitsConfig = new OrderLimitsConfigDatabase(this, 'OrderLimitsConfig');
     const whatsappConversations = new WhatsAppConversationDatabase(this, 'WhatsAppConversations', {
+      environment,
+    });
+    const customerProfiles = new CustomerProfileDatabase(this, 'CustomerProfiles', {
+      environment,
+    });
+    const carts = new CartDatabase(this, 'Carts', {
+      environment,
+    });
+    const cartEvents = new CartEventDatabase(this, 'CartEvents', {
       environment,
     });
     const auth = new CognitoAuth(this, 'Auth', { environment });
@@ -92,9 +106,25 @@ export class ManviKitchenStackStack extends cdk.Stack {
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
 
+    const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
+      supportsInlineCode: true,
+    });
+
+    createCartMaintenanceLambda(this, {
+      customerProfileTable: customerProfiles.table,
+      cartTable: carts.table,
+      cartEventTable: cartEvents.table,
+      itemTable: itemDatabase.table,
+      orderLimitsConfigTable: orderLimitsConfig.table,
+      nodeRuntime: nodeJs24Runtime,
+    });
+
     const whatsappWebhook = new WhatsAppWebhookLambda(this, 'WhatsAppWebhook', {
       environment,
       conversationTable: whatsappConversations.table,
+      customerProfileTable: customerProfiles.table,
+      cartTable: carts.table,
+      cartEventTable: cartEvents.table,
       orderTable: orderDatabase.table,
       itemTable: itemDatabase.table,
       orderLimitsConfigTable: orderLimitsConfig.table,

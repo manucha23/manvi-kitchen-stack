@@ -81,7 +81,7 @@
           <div class="flex items-center gap-2 mb-1.5">
             <a href="#" (click)="showAuditDetails(order.orderId, $event)"
               class="text-lg font-bold text-primary hover:text-primary-600 transition-colors cursor-pointer">{{order.orderId}}</a>
-            <p-tag [value]="order.status | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
+            <p-tag [value]="getStatusLabel(order.status) | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
               styleClass="text-[10px] px-2 py-0.5 font-bold tracking-wider" />
           </div>
           <div class="text-surface-900 dark:text-surface-0 font-semibold">{{order.customerName}}</div>
@@ -191,7 +191,7 @@
             </span>
           </td>
           <td>
-            <p-tag [value]="order.status | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
+            <p-tag [value]="getStatusLabel(order.status) | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
               styleClass="font-bold tracking-wider text-[10px] px-2 py-1" />
           </td>
           <td>

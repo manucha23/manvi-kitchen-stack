@@ -18,6 +18,26 @@ run_tests_if_exist() {
   fi
 }
 
+vendor_ordering_core_dependency() {
+  local target="node_modules/@manvi-kitchen/ordering-core"
+
+  if [ -d "../../packages/ordering-core/dist" ]; then
+    echo "Vendoring ordering-core dependency..."
+    rm -rf "$target"
+    mkdir -p "$target"
+    cp ../../packages/ordering-core/package.json "$target/package.json"
+    cp -R ../../packages/ordering-core/dist "$target/dist"
+  fi
+}
+
+# Build shared ordering core package
+echo "Building ordering-core package..."
+cd packages/ordering-core
+npm ci
+run_tests_if_exist "ordering-core"
+npm run build
+cd ../..
+
 # Build orders Lambda
 echo "Building orders Lambda..."
 cd lambda/orders
@@ -62,7 +82,17 @@ cd ../..
 echo "Building WhatsApp worker Lambda..."
 cd lambda/whatsapp-worker
 npm ci
+vendor_ordering_core_dependency
 run_tests_if_exist "whatsapp-worker"
+npm run build
+cd ../..
+
+# Build cart-maintenance Lambda
+echo "Building cart-maintenance Lambda..."
+cd lambda/cart-maintenance
+npm ci
+vendor_ordering_core_dependency
+run_tests_if_exist "cart-maintenance"
 npm run build
 cd ../..
 

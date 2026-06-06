@@ -1,6 +1,7 @@
 import {
   applyAddressChange,
   applySimpleQuantityChange,
+  buildStartButtons,
   buildOrderReviewMessage,
   calculateExpiresAt,
   formatOrderItems,
@@ -10,6 +11,28 @@ import {
 describe('WhatsApp worker helpers', () => {
   it('sets the conversation TTL one hour ahead', () => {
     expect(calculateExpiresAt(new Date('2026-05-15T10:00:00.000Z'))).toBe(1778842800);
+  });
+
+  it('does not show repeat order for a new customer start', () => {
+    expect(buildStartButtons(false, true).map((button) => button.title)).toEqual([
+      'Order Now',
+      'Ask Question',
+    ]);
+  });
+
+  it('shows repeat order for a returning customer start', () => {
+    expect(buildStartButtons(true, true).map((button) => button.title)).toEqual([
+      'Order Now',
+      'Repeat Order',
+      'Ask Question',
+    ]);
+  });
+
+  it('does not show ordering actions when the kitchen is closed', () => {
+    expect(buildStartButtons(true, false).map((button) => button.title)).toEqual([
+      'Ask Question',
+      'View Menu',
+    ]);
   });
 
   it('formats order items for personalized repeat prompts', () => {

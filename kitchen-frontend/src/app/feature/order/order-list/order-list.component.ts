@@ -74,9 +74,13 @@ export class OrderListComponent implements OnInit {
   private searchSubject = new Subject<FilterType>();
 
   statusOptions = Object.values(OrderStatus).map((status) => ({
-    label: status,
+    label: this.getStatusLabel(status),
     value: status,
   }));
+
+  getStatusLabel(status: string): string {
+    return status === OrderStatus.CREATED ? 'Order Placed' : status;
+  }
 
   getStatusSeverity(
     status: string,

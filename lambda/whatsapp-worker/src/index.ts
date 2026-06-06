@@ -9,8 +9,14 @@ import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSEvent } from 'aws-lambda';
+import {
+  Cart,
+  MenuItem as CoreMenuItem,
+  OrderingCore,
+  normalizePhoneNumber,
+} from '@manvi-kitchen/ordering-core';
 
-type WhatsAppInboundMessageKind = 'text' | 'button';
+type WhatsAppInboundMessageKind = 'text' | 'button' | 'list' | 'flow';
 
 interface WhatsAppInboundMessage {
   kind?: WhatsAppInboundMessageKind;
@@ -18,6 +24,8 @@ interface WhatsAppInboundMessage {
   from: string;
   firstName: string;
   text: string;
+  actionId?: string;
+  actionTitle?: string;
   buttonId?: string;
   buttonTitle?: string;
   receivedAt: string;
@@ -33,12 +41,25 @@ interface ConversationSession {
   phoneNumber: string;
   firstName: string;
   mode?: 'AI' | 'STATIC';
+  state?: WhatsAppConversationState;
+  pendingItemId?: string;
   messages: ConversationMessage[];
   pendingOrderDraft?: PendingOrderDraft;
   createdAt: string;
   updatedAt: string;
   expiresAt: number;
 }
+
+type WhatsAppConversationState =
+  | 'IDLE'
+  | 'MAIN_MENU'
+  | 'WAITING_FOR_QUANTITY'
+  | 'CART_ACTIVE'
+  | 'SPECIAL_REQUEST'
+  | 'ADDRESS_CONFIRMATION'
+  | 'WAITING_FOR_ADDRESS'
+  | 'PAYMENT_SELECTION'
+  | 'HANDOFF_REQUIRED';
 
 interface OrderItem {
   itemId: string;
@@ -161,6 +182,14 @@ const getModelId = (): string => process.env.BEDROCK_MODEL_ID || DEFAULT_MODEL_I
 
 const getMenuUrl = (): string => process.env.WHATSAPP_MENU_URL || DEFAULT_MENU_URL;
 
+const getOrderingCore = (): OrderingCore => new OrderingCore({
+  customerTableName: getRequiredEnv('CUSTOMER_PROFILE_TABLE'),
+  cartTableName: getRequiredEnv('CART_TABLE'),
+  cartEventTableName: getRequiredEnv('CART_EVENT_TABLE'),
+  itemTableName: getRequiredEnv('ITEM_TABLE'),
+  orderLimitsConfigTableName: getRequiredEnv('ORDER_LIMITS_CONFIG_TABLE'),
+});
+
 const normalizeFirstName = (firstName?: string): string => {
   const trimmed = (firstName || '').trim();
   return trimmed || 'there';
@@ -191,6 +220,8 @@ const loadConversation = async (message: WhatsAppInboundMessage): Promise<Conver
       phoneNumber: message.from,
       firstName: normalizeFirstName(result.Item.firstName || message.firstName),
       mode: result.Item.mode === 'STATIC' ? 'STATIC' : 'AI',
+      state: result.Item.state || 'IDLE',
+      pendingItemId: result.Item.pendingItemId,
       messages: Array.isArray(result.Item.messages) ? result.Item.messages : [],
       pendingOrderDraft: result.Item.pendingOrderDraft as PendingOrderDraft | undefined,
       createdAt: result.Item.createdAt || now.toISOString(),
@@ -203,6 +234,8 @@ const loadConversation = async (message: WhatsAppInboundMessage): Promise<Conver
     phoneNumber: message.from,
     firstName: normalizeFirstName(message.firstName),
     mode: 'AI',
+    state: 'IDLE',
+    pendingItemId: undefined,
     messages: [],
     pendingOrderDraft: undefined,
     createdAt: now.toISOString(),
@@ -445,7 +478,7 @@ Recent conversation:
 ${JSON.stringify(session.messages.slice(-6))}
 
 Customer message:
-${message.buttonTitle || message.text}
+${message.actionTitle || message.buttonTitle || message.text}
 
 Current India time:
 ${getIstTimestamp()}
@@ -518,6 +551,80 @@ const sendTextMessage = async (to: string, body: string): Promise<void> => {
     text: {
       preview_url: true,
       body,
+    },
+  });
+};
+
+export interface ReplyButton {
+  id: string;
+  title: string;
+}
+
+export const buildStartButtons = (returningCustomer: boolean, kitchenOpen: boolean): ReplyButton[] => {
+  if (!kitchenOpen) {
+    return [
+      { id: 'ask_question', title: 'Ask Question' },
+      { id: 'view_menu_link', title: 'View Menu' },
+    ];
+  }
+
+  return returningCustomer
+    ? [
+      { id: 'order_now', title: 'Order Now' },
+      { id: 'repeat_order', title: 'Repeat Order' },
+      { id: 'ask_question', title: 'Ask Question' },
+    ]
+    : [
+      { id: 'order_now', title: 'Order Now' },
+      { id: 'ask_question', title: 'Ask Question' },
+    ];
+};
+
+const sendReplyButtonsMessage = async (
+  to: string,
+  body: string,
+  buttons: ReplyButton[],
+): Promise<void> => {
+  await sendWhatsAppPayload(to, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: body },
+      action: {
+        buttons: buttons.slice(0, 3).map((button) => ({
+          type: 'reply',
+          reply: {
+            id: button.id,
+            title: button.title,
+          },
+        })),
+      },
+    },
+  });
+};
+
+const sendListMessage = async (
+  to: string,
+  body: string,
+  buttonText: string,
+  sections: Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }>,
+): Promise<void> => {
+  await sendWhatsAppPayload(to, {
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: body },
+      action: {
+        button: buttonText,
+        sections: sections.map((section) => ({
+          title: section.title.slice(0, 24),
+          rows: section.rows.slice(0, 10).map((row) => ({
+            id: row.id.slice(0, 200),
+            title: row.title.slice(0, 24),
+            ...(row.description ? { description: row.description.slice(0, 72) } : {}),
+          })),
+        })),
+      },
     },
   });
 };
@@ -771,6 +878,324 @@ const confirmPendingOrder = async (
   }
 };
 
+const getActionValue = (message: WhatsAppInboundMessage): string =>
+  (message.actionId || message.buttonId || message.text || '').trim();
+
+const getActionText = (message: WhatsAppInboundMessage): string =>
+  (message.actionTitle || message.buttonTitle || message.text || '').trim();
+
+const isAction = (message: WhatsAppInboundMessage, ...ids: string[]): boolean => {
+  const value = getActionValue(message).toLowerCase();
+  const text = getActionText(message).toLowerCase();
+  return ids.some((id) => value === id.toLowerCase() || text === id.toLowerCase());
+};
+
+const formatCartLines = (cart: Cart): string =>
+  cart.items.map((item, index) => `${index + 1}. ${item.name} x ${item.quantity} - Rs ${item.amount}`).join('\n');
+
+const buildCartSummary = (cart: Cart): string =>
+  cart.items.length
+    ? `Your cart:\n${formatCartLines(cart)}\nSubtotal: Rs ${cart.totalAmount}\nRaita, salad and dessert included complimentary.`
+    : 'Your cart is empty.';
+
+const groupMenuSections = (menu: CoreMenuItem[]): Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }> => {
+  const byCategory = new Map<string, CoreMenuItem[]>();
+  for (const item of menu) {
+    const category = item.category || 'Menu';
+    byCategory.set(category, [...(byCategory.get(category) || []), item]);
+  }
+
+  return Array.from(byCategory.entries()).slice(0, 10).map(([title, items]) => ({
+    title,
+    rows: items.slice(0, 10).map((item) => ({
+      id: `menu:item:${item.itemId}`,
+      title: item.name,
+      description: `Rs ${item.price}`,
+    })),
+  }));
+};
+
+const sendStartMessage = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  returningCustomer: boolean,
+  kitchenOpen: boolean,
+): Promise<{ body: string; session: ConversationSession }> => {
+  if (!kitchenOpen) {
+    const body = `Hi ${normalizeFirstName(session.firstName)}. We're currently closed. You can still ask us anything, and we'll help when orders open again.`;
+    await sendReplyButtonsMessage(message.from, body, buildStartButtons(returningCustomer, false));
+    return {
+      body,
+      session: { ...session, state: 'IDLE', pendingItemId: undefined },
+    };
+  }
+
+  const body = `Hi ${normalizeFirstName(session.firstName)}. Welcome to Manvi's Kitchen. Fresh food is available now. Delivery usually takes around 60 mins.`;
+  await sendReplyButtonsMessage(message.from, body, buildStartButtons(returningCustomer, true));
+  return {
+    body,
+    session: { ...session, state: 'MAIN_MENU', pendingItemId: undefined },
+  };
+};
+
+const sendMenuList = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const menu = await core.getAvailableMenu();
+  if (!menu.length) {
+    const body = `We're not accepting orders right now. Please try again later.`;
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'IDLE', pendingItemId: undefined } };
+  }
+
+  const body = `Choose an item to add to your cart.\nRaita, salad and dessert are complimentary.`;
+  await sendListMessage(message.from, body, 'Today\'s Menu', groupMenuSections(menu));
+  return { body, session: { ...session, state: 'MAIN_MENU', pendingItemId: undefined } };
+};
+
+const sendQuantityPrompt = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  menuItem: CoreMenuItem,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const body = `${menuItem.name}\nRs ${menuItem.price}\nIncludes raita, salad and dessert.\nDelivery in around 60 mins.\n\nHow many would you like?`;
+  await sendReplyButtonsMessage(message.from, body, [
+    { id: 'qty:1', title: 'Add 1' },
+    { id: 'qty:2', title: 'Add 2' },
+    { id: 'qty:other', title: 'Other Qty' },
+  ]);
+  return {
+    body,
+    session: { ...session, state: 'WAITING_FOR_QUANTITY', pendingItemId: menuItem.itemId },
+  };
+};
+
+const sendCartActions = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  cart: Cart,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const body = `${buildCartSummary(cart)}\n\nWhat would you like to do next?`;
+  await sendReplyButtonsMessage(message.from, body, [
+    { id: 'add_more', title: 'Add More' },
+    { id: 'checkout', title: 'Checkout' },
+    { id: 'view_cart', title: 'View Cart' },
+  ]);
+  return { body, session: { ...session, state: 'CART_ACTIVE', pendingItemId: undefined } };
+};
+
+const parseQuantity = (message: WhatsAppInboundMessage): number | undefined => {
+  if (isAction(message, 'qty:1', 'add 1')) {
+    return 1;
+  }
+  if (isAction(message, 'qty:2', 'add 2')) {
+    return 2;
+  }
+  const match = getActionText(message).match(/\d+/);
+  if (!match) {
+    return undefined;
+  }
+  const quantity = Number(match[0]);
+  return Number.isInteger(quantity) && quantity > 0 ? quantity : undefined;
+};
+
+const handleQuantity = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  if (isAction(message, 'qty:other', 'other qty')) {
+    const body = 'Please type the quantity. Example: 3';
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'WAITING_FOR_QUANTITY' } };
+  }
+
+  const quantity = parseQuantity(message);
+  if (!quantity || !session.pendingItemId) {
+    const body = 'Please choose Add 1, Add 2, or type a quantity like 3.';
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'WAITING_FOR_QUANTITY' } };
+  }
+
+  const menuItem = (await core.getAvailableMenu()).find((item) => item.itemId === session.pendingItemId);
+  if (!menuItem) {
+    const body = 'That item is not available anymore. Please choose from today\'s menu.';
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'MAIN_MENU', pendingItemId: undefined } };
+  }
+
+  const cart = await core.getOrCreateCart(message.from, 'WHATSAPP', session.firstName);
+  const updatedCart = await core.addItemToCart(cart, menuItem, quantity);
+  return sendCartActions(message, session, updatedCart);
+};
+
+const handleCheckout = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+  if (!cart || !cart.items.length) {
+    const body = 'Your cart is empty. Please choose an item first.';
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'MAIN_MENU' } };
+  }
+
+  await core.startCheckout(cart);
+  const body = `Any special request?\nExample: Less spicy, no onion, call before delivery.\nYou can type your request or skip.`;
+  await sendReplyButtonsMessage(message.from, body, [
+    { id: 'special:skip', title: 'Skip' },
+  ]);
+  return { body, session: { ...session, state: 'SPECIAL_REQUEST' } };
+};
+
+const handleSpecialRequest = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+  if (!cart) {
+    return sendMenuList(message, session, core);
+  }
+
+  const specialRequest = isAction(message, 'special:skip', 'skip') ? undefined : message.text;
+  const updatedCart = await core.saveSpecialRequest(cart, specialRequest);
+  const customer = await core.getOrCreateCustomer(message.from, session.firstName);
+  if (customer.savedAddress?.text && customer.savedAddress.deliveryArea === 'TOWNSHIP') {
+    const body = `Deliver to this address?\n${customer.savedAddress.text}\nDelivery: Free inside township`;
+    await sendReplyButtonsMessage(message.from, body, [
+      { id: 'address:use_saved', title: 'Use This' },
+      { id: 'address:change', title: 'Change' },
+    ]);
+    return { body, session: { ...session, state: 'ADDRESS_CONFIRMATION' } };
+  }
+
+  const body = `Please share your delivery address.\nFor faster delivery, include tower/building, flat number, and society/landmark.`;
+  await sendTextMessage(message.from, body);
+  return { body, session: { ...session, state: 'WAITING_FOR_ADDRESS' } };
+};
+
+const sendPaymentSelection = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  cart: Cart,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const body = `Order summary:\n${formatCartLines(cart)}\nSubtotal: Rs ${cart.totalAmount}\nDelivery: Free inside township\nPayment: Cash on Delivery\nEstimated delivery: around 60 mins\n\nPlace this order?`;
+  await sendReplyButtonsMessage(message.from, body, [
+    { id: 'place_order', title: 'Place Order' },
+    { id: 'add_more', title: 'Add More' },
+    { id: 'cancel_order', title: 'Cancel' },
+  ]);
+  return { body, session: { ...session, state: 'PAYMENT_SELECTION' } };
+};
+
+const handleAddress = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+  if (!cart) {
+    return sendMenuList(message, session, core);
+  }
+
+  if (isAction(message, 'address:change', 'change')) {
+    const body = 'Please share your delivery address.';
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'WAITING_FOR_ADDRESS' } };
+  }
+
+  const customer = await core.getOrCreateCustomer(message.from, session.firstName);
+  const updatedCart = isAction(message, 'address:use_saved', 'use this') && customer.savedAddress?.text
+    ? await core.saveDeliveryAddress(cart, customer.savedAddress.text)
+    : await core.saveDeliveryAddress(cart, message.text);
+
+  const deliveryAddress = updatedCart.deliveryAddress || cart.deliveryAddress;
+  if (!deliveryAddress?.text || deliveryAddress.deliveryArea !== 'TOWNSHIP') {
+    await core.recordCartEvent(updatedCart, 'HANDOFF_REQUIRED', {
+      reason: 'OUTSIDE_TOWNSHIP_DELIVERY',
+      address: deliveryAddress?.text || message.text,
+    });
+    const body = `Sorry, we currently accept WhatsApp orders only for township delivery. I've shared this with our kitchen team in case they can help manually.`;
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'HANDOFF_REQUIRED' } };
+  }
+
+  return sendPaymentSelection(message, session, updatedCart);
+};
+
+const placeCodOrder = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+  if (!cart) {
+    return sendMenuList(message, session, core);
+  }
+
+  try {
+    const customer = await core.getOrCreateCustomer(message.from, session.firstName);
+    const payload = core.buildCodOrderPayload(cart, customer.firstName || session.firstName || 'Customer');
+    const order = await invokeCreateOrder(message, {
+      orderId: '',
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      deliveryAddress: payload.deliveryAddress,
+      items: cart.items,
+      totalAmount: cart.totalAmount,
+      instructions: payload.instructions,
+      paymentMethod: 'COD',
+      createdAt: new Date().toISOString(),
+    });
+    await core.convertCart(cart, order.orderId);
+    const body = `Your order has been placed.\nOrder ID: ${order.orderId}\nPayment mode: Cash on Delivery\nEstimated delivery: around 60 mins.\nOur kitchen will confirm it shortly.`;
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'IDLE', pendingItemId: undefined } };
+  } catch (error) {
+    console.error('Unable to place WhatsApp COD order', error);
+    const body = `I couldn't place this order right now. I've shared this with our kitchen team. Someone will check and respond shortly.`;
+    await core.recordCartEvent(cart, 'HANDOFF_REQUIRED', {
+      reason: 'ORDER_CREATION_FAILED',
+    });
+    await sendTextMessage(message.from, body);
+    return { body, session: { ...session, state: 'HANDOFF_REQUIRED' } };
+  }
+};
+
+const handleRepeatOrder = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+  orders: OrderRecord[],
+): Promise<{ body: string; session: ConversationSession }> => {
+  const latestOrder = orders[0];
+  if (!latestOrder) {
+    return sendMenuList(message, session, core);
+  }
+
+  const menu = await core.getAvailableMenu();
+  let cart = await core.getOrCreateCart(message.from, 'WHATSAPP', session.firstName);
+  for (const orderItem of latestOrder.items) {
+    const menuItem = menu.find((item) => item.itemId === orderItem.itemId);
+    if (menuItem) {
+      cart = await core.addItemToCart(cart, menuItem, orderItem.quantity);
+    }
+  }
+
+  if (latestOrder.instructions) {
+    cart = await core.saveSpecialRequest(cart, latestOrder.instructions);
+  }
+  if (latestOrder.deliveryAddress) {
+    cart = await core.saveDeliveryAddress(cart, latestOrder.deliveryAddress);
+  }
+
+  return sendPaymentSelection(message, session, cart);
+};
+
 const sendAiResponse = async (
   message: WhatsAppInboundMessage,
   session: ConversationSession,
@@ -786,14 +1211,28 @@ const sendAiResponse = async (
   );
 
   if (!assistantResponse) {
-    await saveConversation(appendUserConversation(session, message.buttonTitle || message.text));
+    const core = getOrderingCore();
+    const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+    if (cart) {
+      await core.recordCartEvent(cart, 'HANDOFF_REQUIRED', {
+        reason: 'AI_EMPTY_RESPONSE',
+        message: getActionText(message),
+      });
+    }
+    const body = `I've shared this with our kitchen team. Someone will check and respond shortly.`;
+    await sendTextMessage(message.from, body);
+    await saveConversation(appendConversation(
+      { ...session, state: 'HANDOFF_REQUIRED' },
+      getActionText(message),
+      body,
+    ));
     return;
   }
 
   await sendTextMessage(message.from, assistantResponse);
   await saveConversation(appendConversation(
     session,
-    message.buttonTitle || message.text,
+    getActionText(message),
     assistantResponse,
   ));
 };
@@ -804,55 +1243,147 @@ const handleCustomer = async (
   orders: OrderRecord[],
 ): Promise<void> => {
   const customerType: 'NEW' | 'RETURNING' = orders.length ? 'RETURNING' : 'NEW';
+  const core = getOrderingCore();
+  const kitchenOpen = await core.isKitchenOpen();
+  const actionValue = getActionValue(message);
 
-  if (isMenuExitIntent(message)) {
-    await sendMenuLink(message.from, session.firstName);
-    await saveConversation(appendConversation(
-      { ...session, pendingOrderDraft: undefined },
-      message.buttonTitle || message.text,
-      `Sent menu link: ${getMenuUrl()}`,
-    ));
-    return;
-  }
-
-  const addressDraft = applyAddressChange(session.pendingOrderDraft, message);
-  if (addressDraft) {
-    const result = await sendOrderReview(message, session, addressDraft);
+  if (isAction(message, 'view_menu_link', 'menu', 'view menu')) {
+    const result = await sendMenuList(message, session, core);
     await saveConversation(appendConversation(
       result.session,
-      message.buttonTitle || message.text,
+      getActionText(message),
       result.body,
     ));
     return;
   }
 
-  const detailsDraft = applyCustomerDetails(session.pendingOrderDraft, message);
-  if (detailsDraft) {
-    const result = await sendOrderReview(message, session, detailsDraft);
+  if (!kitchenOpen && !isAction(message, 'ask_question')) {
+    const result = await sendStartMessage(message, session, customerType === 'RETURNING', false);
     await saveConversation(appendConversation(
       result.session,
-      message.buttonTitle || message.text,
+      getActionText(message),
       result.body,
     ));
     return;
   }
 
-  const quantityDraft = applySimpleQuantityChange(session.pendingOrderDraft, message.text);
-  if (quantityDraft) {
-    const result = await sendOrderReview(message, session, quantityDraft);
+  if (isAction(message, 'order_now', 'add_more')) {
+    const result = await sendMenuList(message, session, core);
     await saveConversation(appendConversation(
       result.session,
-      message.buttonTitle || message.text,
+      getActionText(message),
       result.body,
     ));
     return;
   }
 
-  if (session.pendingOrderDraft && isConfirmIntent(message)) {
-    const result = await confirmPendingOrder(message, session);
+  if (isAction(message, 'repeat_order')) {
+    const result = await handleRepeatOrder(message, session, core, orders);
     await saveConversation(appendConversation(
       result.session,
-      message.buttonTitle || message.text,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (actionValue.startsWith('menu:item:')) {
+    const itemId = actionValue.slice('menu:item:'.length);
+    const menuItem = (await core.getAvailableMenu()).find((item) => item.itemId === itemId);
+    if (menuItem) {
+      const result = await sendQuantityPrompt(message, session, menuItem);
+      await saveConversation(appendConversation(
+        result.session,
+        getActionText(message),
+        result.body,
+      ));
+      return;
+    }
+  }
+
+  if (session.state === 'WAITING_FOR_QUANTITY' || actionValue.startsWith('qty:')) {
+    const result = await handleQuantity(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (isAction(message, 'view_cart')) {
+    const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+    const result = cart
+      ? await sendCartActions(message, session, cart)
+      : await sendMenuList(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (isAction(message, 'checkout')) {
+    const result = await handleCheckout(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (session.state === 'SPECIAL_REQUEST' || actionValue.startsWith('special:')) {
+    const result = await handleSpecialRequest(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (session.state === 'ADDRESS_CONFIRMATION' || session.state === 'WAITING_FOR_ADDRESS' || actionValue.startsWith('address:')) {
+    const result = await handleAddress(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (isAction(message, 'place_order')) {
+    const result = await placeCodOrder(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (isAction(message, 'cancel_order', 'cancel')) {
+    const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+    if (cart) {
+      await core.cancelCart(cart);
+    }
+    const body = 'No problem, your cart has been cancelled.';
+    await sendTextMessage(message.from, body);
+    await saveConversation(appendConversation(
+      { ...session, state: 'IDLE', pendingItemId: undefined },
+      getActionText(message),
+      body,
+    ));
+    return;
+  }
+
+  if (session.messages.length === 0 || isAction(message, 'hi', 'hello', 'start')) {
+    const result = await sendStartMessage(message, session, customerType === 'RETURNING', kitchenOpen);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
       result.body,
     ));
     return;
