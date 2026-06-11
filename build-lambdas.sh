@@ -96,12 +96,4 @@ run_tests_if_exist "cart-maintenance"
 npm run build
 cd ../..
 
-# Build order-audit Lambda
-echo "Building order-audit Lambda..."
-cd lambda/order-audit
-npm ci
-run_tests_if_exist "order-audit"
-npm run build
-cd ../..
-
 echo "Lambda functions built successfully!"
