@@ -54,14 +54,6 @@ run_tests_if_exist "items"
 npm run build
 cd ../..
 
-# Build image-processor Lambda
-echo "Building image-processor Lambda..."
-cd lambda/image-processor
-npm ci
-run_tests_if_exist "image-processor"
-npm run build
-cd ../..
-
 # Build ttl-cleanup Lambda
 echo "Building ttl-cleanup Lambda..."
 cd lambda/ttl-cleanup
