@@ -1,14 +1,10 @@
-import { PutMetricDataCommand, CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { S3Event } from 'aws-lambda';
 import sharp, { Sharp } from 'sharp';
 
 const s3Client = new S3Client({});
-const cloudWatchClient = new CloudWatchClient({});
 
 const MAX_DIMENSION_PX = Number(process.env.MAX_DIMENSION_PX || 2048);
-const METRIC_NAMESPACE = 'ManviKitchen/ImageProcessing';
-const FAILURE_METRIC = 'ImageProcessingFailures';
 
 type SupportedExtension = 'jpg' | 'png' | 'webp' | 'avif';
 
@@ -97,26 +93,6 @@ const getRequiredEnv = (name: string): string => {
 
 const decodeS3Key = (key: string): string => decodeURIComponent(key.replace(/\+/g, ' '));
 
-const emitFailureMetric = async (reason: string, key: string): Promise<void> => {
-  console.warn('Image processing failed', JSON.stringify({ key, reason }));
-  await cloudWatchClient.send(new PutMetricDataCommand({
-    Namespace: METRIC_NAMESPACE,
-    MetricData: [
-      {
-        MetricName: FAILURE_METRIC,
-        Value: 1,
-        Unit: 'Count',
-        Dimensions: [
-          {
-            Name: 'Environment',
-            Value: process.env.ENVIRONMENT || 'unknown',
-          },
-        ],
-      },
-    ],
-  }));
-};
-
 const processObject = async (bucket: string, key: string): Promise<void> => {
   const pendingImage = extractPendingImageObject(key);
   if (!pendingImage) {
@@ -152,7 +128,7 @@ export const handler = async (event: S3Event): Promise<void> => {
       await processObject(bucket, key);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown image processing error';
-      await emitFailureMetric(reason, key);
+      console.warn('Image processing failed', JSON.stringify({ key, reason }));
     }
   }
 };

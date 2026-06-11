@@ -65,4 +65,4 @@ curl -I "$IMAGE_URL"
 Expected results:
 
 - Valid image under 2 MiB and 2048 px maximum dimension: eventually returns `200`.
-- Invalid, spoofed, unsupported, or oversized image: remains `404`; processor emits `ImageProcessingFailures` metric.
+- Invalid, spoofed, unsupported, or oversized image: remains `404`; processor writes an error log entry.

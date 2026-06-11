@@ -1,7 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
@@ -39,33 +37,6 @@ export const createImageProcessorLambda = (
 
   props.pendingImageBucket.grantRead(processorFunction);
   props.imageBucket.grantPut(processorFunction);
-
-  processorFunction.addToRolePolicy(new iam.PolicyStatement({
-    actions: ['cloudwatch:PutMetricData'],
-    resources: ['*'],
-    conditions: {
-      StringEquals: {
-        'cloudwatch:namespace': 'ManviKitchen/ImageProcessing',
-      },
-    },
-  }));
-
-  new cloudwatch.Alarm(scope, 'ImageProcessingFailuresAlarm', {
-    alarmName: `manvi-kitchen-image-processing-failures-${props.environment}`,
-    metric: new cloudwatch.Metric({
-      namespace: 'ManviKitchen/ImageProcessing',
-      metricName: 'ImageProcessingFailures',
-      dimensionsMap: {
-        Environment: props.environment,
-      },
-      statistic: 'Sum',
-      period: cdk.Duration.minutes(5),
-    }),
-    threshold: 1,
-    evaluationPeriods: 1,
-    datapointsToAlarm: 1,
-    comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-  });
 
   return processorFunction;
 };
