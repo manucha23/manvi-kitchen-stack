@@ -1,7 +1,9 @@
 import * as cdk from 'aws-cdk-lib';
 import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as path from 'path';
 import { Construct } from 'constructs';
 
 export interface ImageProcessorLambdaProps {
@@ -15,12 +17,20 @@ export const createImageProcessorLambda = (
   scope: Construct,
   props: ImageProcessorLambdaProps,
 ): lambda.Function => {
-  const processorFunction = new lambda.Function(scope, 'ImageProcessor', {
+  const processorFunction = new lambdaNodejs.NodejsFunction(scope, 'ImageProcessor', {
     runtime: props.nodeRuntime,
-    handler: 'dist/index.handler',
-    code: lambda.Code.fromAsset('lambda/image-processor', {
-      exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
-    }),
+    entry: path.join(__dirname, '../../../lambda/image-processor/src/index.ts'),
+    handler: 'handler',
+    depsLockFilePath: path.join(__dirname, '../../../lambda/image-processor/package-lock.json'),
+    projectRoot: path.join(__dirname, '../../../lambda/image-processor'),
+    bundling: {
+      esbuildVersion: '0.28.0',
+      forceDockerBundling: true,
+      minify: true,
+      nodeModules: ['sharp'],
+      sourceMap: true,
+      target: 'node24',
+    },
     environment: {
       ENVIRONMENT: props.environment,
       OUTPUT_BUCKET: props.imageBucket.bucketName,
