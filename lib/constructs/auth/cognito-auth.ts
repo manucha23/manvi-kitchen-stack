@@ -9,6 +9,7 @@ export interface CognitoAuthProps {
 export class CognitoAuth extends Construct {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
+  public readonly adminGroup: cognito.CfnUserPoolGroup;
 
   constructor(scope: Construct, id: string, props: CognitoAuthProps) {
     super(scope, id);
@@ -53,6 +54,12 @@ export class CognitoAuth extends Construct {
       refreshTokenValidity: cdk.Duration.days(30),
       accessTokenValidity: cdk.Duration.hours(1),
       idTokenValidity: cdk.Duration.hours(1),
+    });
+
+    this.adminGroup = new cognito.CfnUserPoolGroup(this, 'AdminGroup', {
+      userPoolId: this.userPool.userPoolId,
+      groupName: 'Admin',
+      description: 'Administrators allowed to manage kitchen menu assets and operations',
     });
   }
 }

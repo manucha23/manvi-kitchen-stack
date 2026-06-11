@@ -9,6 +9,7 @@ import { Construct } from 'constructs';
 
 export interface ImageStorageProps {
   environment: string;
+  allowedOrigins?: string[];
   hostedZone?: route53.IHostedZone;
   certificate?: acm.ICertificate;
   geoRestriction?: cloudfront.GeoRestriction;
@@ -16,10 +17,29 @@ export interface ImageStorageProps {
 
 export class ImageStorage extends Construct {
   public readonly bucket: s3.Bucket;
+  public readonly pendingBucket: s3.Bucket;
   public readonly distribution: cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: ImageStorageProps) {
     super(scope, id);
+
+    const allowedOrigins = props.allowedOrigins?.length ? props.allowedOrigins : ['*'];
+
+    this.pendingBucket = new s3.Bucket(this, 'PendingImageUploadBucket', {
+      bucketName: `manvi-kitchen-pending-images-${props.environment}-${cdk.Aws.ACCOUNT_ID}`,
+      publicReadAccess: false,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.POST],
+          allowedOrigins,
+          allowedHeaders: ['Content-Type', 'x-amz-*'],
+          maxAge: 300,
+        },
+      ],
+    });
 
     this.bucket = new s3.Bucket(this, 'ImageBucket', {
       bucketName: `manvi-kitchen-images-${props.environment}-${cdk.Aws.ACCOUNT_ID}`,
@@ -29,9 +49,9 @@ export class ImageStorage extends Construct {
       autoDeleteObjects: true,
       cors: [
         {
-          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT, s3.HttpMethods.POST],
-          allowedOrigins: ['*'],
-          allowedHeaders: ['*'],
+          allowedMethods: [s3.HttpMethods.GET],
+          allowedOrigins,
+          allowedHeaders: ['Content-Type'],
           maxAge: 3000,
         },
       ],

@@ -201,30 +201,49 @@ components:
     GenerateUploadUrlRequest:
       type: object
       properties:
-        fileName:
-          type: string
-          example: "dish-image.jpg"
         contentType:
           type: string
+          enum: [image/jpeg, image/png, image/webp, image/avif]
           example: "image/jpeg"
       required:
-        - fileName
         - contentType
     GenerateUploadUrlResponse:
       type: object
       properties:
-        uploadUrl:
+        url:
           type: string
           format: uri
+          description: S3 presigned POST URL for pending original upload
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          description: Form fields that must be submitted with multipart upload
+        imageId:
+          type: string
+          description: Server-generated image identifier
+        pendingKey:
+          type: string
+          description: Private pending upload object key
         imageUrl:
           type: string
           format: uri
-        key:
-          type: string
+          description: Final processed WebP URL to store on the item
+        maxUploadBytes:
+          type: integer
+          example: 2097152
+        allowedContentTypes:
+          type: array
+          items:
+            type: string
       required:
-        - uploadUrl
+        - url
+        - fields
+        - imageId
+        - pendingKey
         - imageUrl
-        - key
+        - maxUploadBytes
+        - allowedContentTypes
     OrderItem:
       type: object
       properties:
@@ -500,6 +519,12 @@ paths:
                 $ref: '#/components/schemas/OrderListResponse'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Admin access required
           content:
             application/json:
               schema:
