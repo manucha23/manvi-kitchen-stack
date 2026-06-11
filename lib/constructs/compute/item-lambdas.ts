@@ -8,8 +8,10 @@ import { Construct } from 'constructs';
 export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
   imageBucket: s3.Bucket;
+  pendingImageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
   imageDomain: string;
+  adminGroupName: string;
   allowedOrigins?: string;
 }
 
@@ -28,13 +30,15 @@ export class ItemLambdas extends Construct {
       environment: { 
         ITEM_TABLE: props.itemTable.tableName,
         IMAGE_BUCKET: props.imageBucket.bucketName,
+        PENDING_IMAGE_BUCKET: props.pendingImageBucket.bucketName,
         IMAGE_DOMAIN: props.imageDomain,
+        ADMIN_GROUP_NAME: props.adminGroupName,
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
     });
 
     props.itemTable.grantReadWriteData(this.itemFunction);
-    props.imageBucket.grantReadWrite(this.itemFunction);
+    props.pendingImageBucket.grantPut(this.itemFunction);
   }
 }

@@ -1,22 +1,21 @@
 {
-  "name": "items",
+  "name": "@manvi-kitchen/image-processor",
   "version": "1.0.0",
+  "private": true,
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "test": "jest"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-cloudwatch": "^3.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
-    "@aws-sdk/s3-presigned-post": "^3.0.0",
-    "uuid": "^9.0.0"
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.0",
     "@types/jest": "^29.5.0",
-    "@types/uuid": "^9.0.0",
+    "@types/node": "^24.0.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.0"

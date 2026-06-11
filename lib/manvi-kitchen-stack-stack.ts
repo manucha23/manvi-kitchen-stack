@@ -16,6 +16,7 @@ import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
 import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lambda';
 import { createCartMaintenanceLambda } from './constructs/compute/cart-maintenance-lambda';
+import { createImageProcessorLambda } from './constructs/compute/image-processor-lambda';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
@@ -82,18 +83,36 @@ export class ManviKitchenStackStack extends cdk.Stack {
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
     
+    const adminFrontendDomain = 'admin.test.cravnest.in';
+    const adminFrontendOrigin = `https://${adminFrontendDomain}`;
+
+    const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
+      supportsInlineCode: true,
+    });
+
     const imageStorage = new ImageStorage(this, 'ImageStorage', { 
       environment,
+      allowedOrigins: [adminFrontendOrigin],
       hostedZone: hostedZone.hostedZone,
       certificate: certificates.cloudfrontCertificate,
       geoRestriction: testIndiaGeoRestriction,
     });
+
+    createImageProcessorLambda(this, {
+      environment,
+      pendingImageBucket: imageStorage.pendingBucket,
+      imageBucket: imageStorage.bucket,
+      nodeRuntime: nodeJs24Runtime,
+    });
+
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
       itemTable: itemDatabase.table,
       imageBucket: imageStorage.bucket,
+      pendingImageBucket: imageStorage.pendingBucket,
       imageDistribution: imageStorage.distribution,
       imageDomain: `images.${environment === 'prod' ? 'cravnest.in' : `${environment}.cravnest.in`}`,
-      allowedOrigins: 'https://admin.test.cravnest.in',
+      adminGroupName: auth.adminGroup.groupName!,
+      allowedOrigins: adminFrontendOrigin,
     });
     
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
@@ -104,10 +123,6 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
       orderLimitsConfigTable: orderLimitsConfig.table,
       allowedOrigins: 'https://admin.test.cravnest.in',
-    });
-
-    const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
-      supportsInlineCode: true,
     });
 
     createCartMaintenanceLambda(this, {
@@ -134,7 +149,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const frontend = new FrontendHosting(this, 'Frontend', { 
       environment,
       certificate: certificates.cloudfrontCertificate,
-      domainName: 'admin.test.cravnest.in',
+      domainName: adminFrontendDomain,
       geoRestriction: testIndiaGeoRestriction,
     });
     const docs = new OpenApiHosting(this, 'OpenApiDocs', { 
@@ -151,7 +166,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       userPool: auth.userPool,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,
-      frontendDomainName: 'admin.test.cravnest.in',
+      frontendDomainName: adminFrontendDomain,
       certificate: certificates.apiCertificate,
       domainName: 'api.test.cravnest.in',
     });
@@ -161,7 +176,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     // Frontend DNS record
     new route53.ARecord(this, 'FrontendDNS', {
       zone: hostedZone.hostedZone,
-      recordName: 'admin.test.cravnest.in',
+      recordName: adminFrontendDomain,
       target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(frontend.distribution)),
     });
 
@@ -201,7 +216,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'FrontendCustomUrl', {
-      value: `https://admin.test.cravnest.in`,
+      value: adminFrontendOrigin,
       description: 'Frontend Custom Domain URL',
       exportName: `${environment}-frontend-custom-url`,
     });
