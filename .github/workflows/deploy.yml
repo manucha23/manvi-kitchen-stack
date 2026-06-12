@@ -134,10 +134,57 @@ jobs:
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
 
+      - name: Inspect synthesized Lambda assets
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const template = JSON.parse(fs.readFileSync('cdk.out/ManviKitchenStack-test.template.json', 'utf8'));
+          const resources = template.Resources;
+
+          for (const [logicalId, resource] of Object.entries(resources)) {
+            if (resource.Type !== 'AWS::Lambda::Function') {
+              continue;
+            }
+
+            const assetPath = resource.Metadata?.['aws:asset:path'];
+            const s3Key = resource.Properties?.Code?.S3Key;
+            if (!assetPath || !s3Key) {
+              continue;
+            }
+
+            const fullPath = path.join('cdk.out', assetPath);
+            const sizeBytes = fs.existsSync(fullPath)
+              ? Number(require('child_process').execFileSync('du', ['-sk', fullPath]).toString().trim().split(/\s+/)[0]) * 1024
+              : null;
+
+            console.log(JSON.stringify({
+              logicalId,
+              handler: resource.Properties.Handler,
+              runtime: resource.Properties.Runtime,
+              s3Key,
+              assetPath,
+              localSizeMb: sizeBytes === null ? null : Math.round((sizeBytes / 1024 / 1024) * 100) / 100,
+            }));
+          }
+          NODE
+
+      - name: Check Order Audit asset in bootstrap bucket
+        run: |
+          ORDER_AUDIT_KEY=$(node -e "const t=require('./cdk.out/ManviKitchenStack-test.template.json'); console.log(t.Resources.OrderAuditOrderAuditHandler2148F8EE.Properties.Code.S3Key)")
+          echo "Order Audit S3 key: ${ORDER_AUDIT_KEY}"
+          aws s3api head-object \
+            --bucket cdk-hnb659fds-assets-${{ secrets.AWS_ACCOUNT_ID }}-${{ secrets.AWS_REGION }} \
+            --key "${ORDER_AUDIT_KEY}" \
+            || true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
       - name: Deploy CDK stack
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
+          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }} --verbose
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
