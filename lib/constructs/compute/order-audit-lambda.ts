@@ -23,6 +23,7 @@ export class OrderAuditLambda extends Construct {
       handler: 'handler',
       bundling: {
         minify: true,
+        sourceMap: true,
         target: 'node22',
       },
       environment: {
