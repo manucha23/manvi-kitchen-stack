@@ -28,7 +28,6 @@ export const createImageProcessorLambda = (
       forceDockerBundling: true,
       minify: true,
       nodeModules: ['sharp'],
-      sourceMap: true,
       target: 'node24',
     },
     environment: {
