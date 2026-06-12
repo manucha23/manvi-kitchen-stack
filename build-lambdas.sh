@@ -54,6 +54,14 @@ run_tests_if_exist "items"
 npm run build
 cd ../..
 
+# Build image-processor Lambda
+echo "Building image-processor Lambda..."
+cd lambda/image-processor
+npm ci
+run_tests_if_exist "image-processor"
+npm run build
+cd ../..
+
 # Build ttl-cleanup Lambda
 echo "Building ttl-cleanup Lambda..."
 cd lambda/ttl-cleanup
@@ -93,6 +101,14 @@ cd lambda/cart-maintenance
 npm ci
 vendor_ordering_core_dependency
 run_tests_if_exist "cart-maintenance"
+npm run build
+cd ../..
+
+# Build order-audit Lambda
+echo "Building order-audit Lambda..."
+cd lambda/order-audit
+npm ci
+run_tests_if_exist "order-audit"
 npm run build
 cd ../..
 
