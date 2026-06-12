@@ -53,6 +53,7 @@ jobs:
   build-and-test:
     needs: [determine-environment]
     runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
     strategy:
       matrix:
         node-version: ['24.x']
