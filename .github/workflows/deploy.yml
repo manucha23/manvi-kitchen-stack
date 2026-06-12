@@ -78,12 +78,7 @@ jobs:
         run: ./build-lambdas.sh
 
       - name: CDK synth
-        run: |
-          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
-          export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk synth -c environment=${{ needs.determine-environment.outputs.environment }}
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx cdk synth
 
       - name: Upload CDK artifacts
         if: needs.determine-environment.outputs.should-upload-artifacts == 'true'
