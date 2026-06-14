@@ -1,6 +1,6 @@
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { docClient, createSuccessResponse, createErrorResponse, validateBulkUpdateOrdersRequest } from '../utils';
+import { docClient, createSuccessResponse, createErrorResponse, validateBulkUpdateOrdersRequest, getCallerContext } from '../utils';
 import { OrderStatus } from '../models';
 
 const VALID_STATUSES = Object.values(OrderStatus);
@@ -29,6 +29,11 @@ const getUpdateFailureMessage = (error: unknown): string => {
 
 export const bulkUpdateOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
+    const caller = getCallerContext(event);
+    if (!caller.isAdminRoute || !caller.isAdmin) {
+      return createErrorResponse(403, 'Admin access is required for bulk order updates');
+    }
+
     const validationResult = validateBulkUpdateOrdersRequest(event.body);
     if ('statusCode' in validationResult) {
       return validationResult;

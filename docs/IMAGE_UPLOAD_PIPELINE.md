@@ -4,7 +4,7 @@ Menu item images are uploaded as originals to a private pending bucket, then val
 
 ## Upload Flow
 
-1. Admin UI calls `POST /items/upload-url` with an allowed content type:
+1. Admin UI calls `POST /admin/items/upload-url` with an allowed content type:
 
    ```json
    {
@@ -42,7 +42,7 @@ If validation or conversion fails, no fallback image is written. The final `imag
 
 ## Curl Upload Validation
 
-Use the exact fields returned by `POST /items/upload-url`:
+Use the exact fields returned by `POST /admin/items/upload-url`:
 
 ```bash
 curl -X POST "$POST_URL" \

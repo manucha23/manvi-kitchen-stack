@@ -81,6 +81,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       orderHistoryTable: orderHistory.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
       allowedOrigins: 'https://admin.test.cravnest.in',
+      adminGroupName: auth.adminGroup.groupName!,
     });
     
     const adminFrontendDomain = 'admin.test.cravnest.in';
@@ -122,6 +123,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     
     const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
       orderLimitsConfigTable: orderLimitsConfig.table,
+      adminGroupName: auth.adminGroup.groupName!,
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
 
@@ -163,7 +165,8 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemFunction: itemLambdas.itemFunction,
       adminFunction: adminLambdas.adminFunction,
       whatsappWebhookFunction: whatsappWebhook.webhookFunction,
-      userPool: auth.userPool,
+      adminUserPool: auth.adminUserPool,
+      customerUserPool: auth.customerUserPool,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,
       frontendDomainName: adminFrontendDomain,
@@ -257,16 +260,28 @@ export class ManviKitchenStackStack extends cdk.Stack {
       exportName: `${environment}-openapi-docs-distribution-id`,
     });
 
-    new cdk.CfnOutput(this, 'UserPoolId', {
-      value: auth.userPool.userPoolId,
-      description: 'Cognito User Pool ID',
-      exportName: `${environment}-user-pool-id`,
+    new cdk.CfnOutput(this, 'AdminUserPoolId', {
+      value: auth.adminUserPool.userPoolId,
+      description: 'Admin Cognito User Pool ID',
+      exportName: `${environment}-admin-user-pool-id`,
     });
 
-    new cdk.CfnOutput(this, 'UserPoolClientId', {
-      value: auth.userPoolClient.userPoolClientId,
-      description: 'Cognito App Client ID',
-      exportName: `${environment}-user-pool-client-id`,
+    new cdk.CfnOutput(this, 'AdminUserPoolClientId', {
+      value: auth.adminUserPoolClient.userPoolClientId,
+      description: 'Admin Cognito App Client ID',
+      exportName: `${environment}-admin-user-pool-client-id`,
+    });
+
+    new cdk.CfnOutput(this, 'CustomerUserPoolId', {
+      value: auth.customerUserPool.userPoolId,
+      description: 'Customer Cognito User Pool ID',
+      exportName: `${environment}-customer-user-pool-id`,
+    });
+
+    new cdk.CfnOutput(this, 'CustomerUserPoolClientId', {
+      value: auth.customerUserPoolClient.userPoolClientId,
+      description: 'Customer Cognito App Client ID',
+      exportName: `${environment}-customer-user-pool-client-id`,
     });
 
     new cdk.CfnOutput(this, 'Region', {

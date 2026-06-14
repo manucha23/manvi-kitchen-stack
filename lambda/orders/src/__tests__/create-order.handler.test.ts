@@ -17,6 +17,14 @@ jest.mock('../utils', () => {
       statusCode,
       body: JSON.stringify(data),
     }),
+    getCallerContext: (event: any) => ({
+      principalId: event?.requestContext?.authorizer?.claims?.sub || 'admin-sub',
+      groups: event?.requestContext?.authorizer?.claims?.['cognito:groups'] ? [event.requestContext.authorizer.claims['cognito:groups']] : ['Admin'],
+      isAdmin: (event?.requestContext?.authorizer?.claims?.['cognito:groups'] || 'Admin') === 'Admin',
+      isCustomer: !event?.path?.startsWith('/admin/orders'),
+      isAdminRoute: event?.path?.startsWith('/admin/orders') || !event?.path,
+      isCustomerRoute: event?.path?.startsWith('/orders'),
+    }),
     getNextOrderId: () => 'ABC123',
     validateCreateOrderRequest: validation.validateCreateOrderRequest,
   };

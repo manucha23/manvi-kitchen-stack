@@ -307,3 +307,10 @@ If queries become slow:
 - ⚡⚡⚡ = Very fast (key conditions only)
 - ⚡⚡ = Moderate (includes filter expressions)
 - ⚡ = Slow (multiple filter expressions)
+
+
+## Admin vs customer filtering
+
+Customer `GET /orders` requests are always scoped to the caller's Cognito `sub` through `orderedBy-createdAt-index`. The API ignores customer-supplied `orderedBy` and `customerPhone` filters to prevent cross-customer data access; customers may use safe filters such as status and date range within their own orders.
+
+Admin `GET /admin/orders` requests keep operational filters including `customerPhone`, `orderedBy`, `orderStatus`, and date range. Admin requests require the admin Cognito pool plus the configured admin group.

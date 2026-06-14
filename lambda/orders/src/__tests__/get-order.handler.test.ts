@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient } from '../utils';
 import { getOrder } from '../handlers/get-order.handler';
 
@@ -18,6 +18,14 @@ jest.mock('../utils', () => {
       statusCode,
       body: JSON.stringify(data),
       headers: {},
+    }),
+    getCallerContext: (event: any) => ({
+      principalId: event?.requestContext?.authorizer?.claims?.sub || 'admin-sub',
+      groups: ['Admin'],
+      isAdmin: true,
+      isCustomer: false,
+      isAdminRoute: true,
+      isCustomerRoute: false,
     }),
     withOrderVersion: orderVersion.withOrderVersion,
   };
@@ -39,7 +47,7 @@ describe('getOrder', () => {
       },
     });
 
-    const response = await getOrder('ABC123');
+    const response = await getOrder('ABC123', { path: '/admin/orders/ABC123', requestContext: { authorizer: { claims: { sub: 'admin-sub', 'cognito:groups': 'Admin' } } } } as unknown as APIGatewayProxyEvent);
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
