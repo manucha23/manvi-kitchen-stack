@@ -126,17 +126,17 @@ Primary items:
 - `POST /orders` — place order
 - `GET /orders` — list orders
 - `GET /orders/{orderId}` — get order details
-- `PUT /orders/{orderId}` — update order status
-- `DELETE /orders/{orderId}` — delete order
+- `PUT /orders/{orderId}` — customer-safe update/cancel for own order
+- `DELETE /orders/{orderId}` — customer cancellation/deletion for own order
 
 ### Items
 
-- `POST /items` — create item
 - `GET /items` — list items
 - `GET /items/{itemId}` — get item details
-- `PUT /items/{itemId}` — update item
-- `DELETE /items/{itemId}` — delete item
-- `POST /items/upload-url` — generate image upload URL
+- `POST /admin/items` — create item
+- `PUT /admin/items/{itemId}` — update item
+- `DELETE /admin/items/{itemId}` — delete item
+- `POST /admin/items/upload-url` — generate image upload URL
 
 ### Admin
 
@@ -297,3 +297,16 @@ Private project for Manvi's Kitchen
 #?  ?─t #?  ?──???──────── `unt in `It
 
 #?  ?──???──────── `uhen
+
+
+## Cognito pool and route isolation
+
+The stack now synthesizes separate Cognito user pools for administrators and customers. Admin users remain in the admin pool and must belong to the configured `Admin` group for admin-only Lambda operations. Customer users belong to the customer pool; customer order routes never trust caller-supplied ownership fields and scope order history to the authenticated Cognito `sub`.
+
+Order routes are split by audience:
+
+- Customer: `POST /orders`, `GET /orders`, `GET /orders/{orderId}`, `PUT /orders/{orderId}`, `DELETE /orders/{orderId}`.
+- Admin: `GET /admin/orders`, `GET /admin/orders/{orderId}`, `PUT /admin/orders/{orderId}`, `DELETE /admin/orders/{orderId}`, `PATCH /admin/orders/bulk`, `GET /admin/orders/{orderId}/history`.
+- Admin configuration: `GET /admin/order-limits`, `PUT /admin/order-limits`, `PUT /admin/killswitch`. The stale `PUT /orders/order-limits` route is removed.
+
+Item reads are customer/default routes (`GET /items`, `GET /items/{itemId}`), while item writes and image upload URL creation are admin routes (`POST /admin/items`, `PUT /admin/items/{itemId}`, `DELETE /admin/items/{itemId}`, `POST /admin/items/upload-url`).

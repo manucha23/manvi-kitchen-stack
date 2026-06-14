@@ -1,19 +1,23 @@
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { APIGatewayProxyResult } from 'aws-lambda';
-import { docClient, createSuccessResponse, createErrorResponse } from '../utils';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { docClient, createSuccessResponse, createErrorResponse, getCallerContext } from '../utils';
 
-export const getOrderHistory = async (orderId: string): Promise<APIGatewayProxyResult> => {
+export const getOrderHistory = async (orderId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    // Validate orderId format (6 alphanumeric characters)
     if (!/^[A-Z0-9]{6}$/.test(orderId)) {
       return createErrorResponse(400, 'Invalid orderId format');
+    }
+
+    const caller = getCallerContext(event);
+    if (!caller.isAdminRoute || !caller.isAdmin) {
+      return createErrorResponse(403, 'Admin access is required to view order history');
     }
 
     const result = await docClient.send(new QueryCommand({
       TableName: process.env.ORDER_HISTORY_TABLE,
       KeyConditionExpression: 'orderId = :orderId',
       ExpressionAttributeValues: { ':orderId': orderId },
-      ScanIndexForward: false // Latest first
+      ScanIndexForward: false
     }));
 
     return createSuccessResponse(200, {

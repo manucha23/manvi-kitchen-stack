@@ -20,7 +20,7 @@ export class AuthService {
     try {
       const command = new InitiateAuthCommand({
         AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
-        ClientId: environment.aws.userPoolClientId,
+        ClientId: environment.aws.adminUserPoolClientId,
         AuthParameters: {
           USERNAME: username,
           PASSWORD: password

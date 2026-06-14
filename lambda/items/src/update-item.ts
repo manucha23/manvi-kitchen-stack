@@ -1,9 +1,14 @@
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createSuccessResponse, createErrorResponse } from './utils';
+import { isAdminRequest } from './auth';
 
 export const updateItem = async (itemId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
+    if (!isAdminRequest(event)) {
+      return createErrorResponse(403, 'Admin access is required to update items');
+    }
+
     const body = JSON.parse(event.body || '{}');
     
     const updateExpression = [];

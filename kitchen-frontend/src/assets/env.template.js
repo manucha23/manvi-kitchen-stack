@@ -1,6 +1,7 @@
 window.env = {
   apiUrl: '${API_URL}',
+  adminApiUrl: '${ADMIN_API_URL}',
   region: '${REGION}',
-  userPoolId: '${USER_POOL_ID}',
-  userPoolClientId: '${USER_POOL_CLIENT_ID}'
+  adminUserPoolId: '${ADMIN_USER_POOL_ID}',
+  adminUserPoolClientId: '${ADMIN_USER_POOL_CLIENT_ID}'
 };

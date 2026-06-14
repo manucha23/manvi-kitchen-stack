@@ -10,7 +10,8 @@ export interface OrderApiProps {
   itemFunction: lambda.Function;
   adminFunction: lambda.Function;
   whatsappWebhookFunction: lambda.Function;
-  userPool: cognito.UserPool;
+  adminUserPool: cognito.UserPool;
+  customerUserPool: cognito.UserPool;
   environment: string;
   cloudfrontDomainName: string;
   frontendDomainName?: string;
@@ -57,7 +58,7 @@ export class OrderApi extends Construct {
       },
       defaultCorsPreflightOptions: {
         allowOrigins: getCorsOrigins(props.cloudfrontDomainName, props.frontendDomainName),
-        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
           'Authorization',
@@ -68,55 +69,75 @@ export class OrderApi extends Construct {
       },
     });
 
-    const authorizer = new apigw.CognitoUserPoolsAuthorizer(this, 'Authorizer', {
-      cognitoUserPools: [props.userPool]
+    const adminAuthorizer = new apigw.CognitoUserPoolsAuthorizer(this, 'AdminAuthorizer', {
+      cognitoUserPools: [props.adminUserPool]
     });
 
-    const authOptions: apigw.MethodOptions = {
-      authorizer,
+    const customerAuthorizer = new apigw.CognitoUserPoolsAuthorizer(this, 'CustomerAuthorizer', {
+      cognitoUserPools: [props.customerUserPool]
+    });
+
+    const adminAuthOptions: apigw.MethodOptions = {
+      authorizer: adminAuthorizer,
       authorizationType: apigw.AuthorizationType.COGNITO,
     };
 
+    const customerAuthOptions: apigw.MethodOptions = {
+      authorizer: customerAuthorizer,
+      authorizationType: apigw.AuthorizationType.COGNITO,
+    };
+
+    const orderIntegration = new apigw.LambdaIntegration(props.orderFunction);
+    const itemIntegration = new apigw.LambdaIntegration(props.itemFunction);
+
     const orders = this.api.root.addResource('orders');
-    orders.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
-    orders.addMethod('POST', new apigw.LambdaIntegration(props.orderFunction), authOptions);
-
-    const orderLimits = orders.addResource('order-limits');
-    orderLimits.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
-
-    const bulk = orders.addResource('bulk');
-    bulk.addMethod('PATCH', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+    orders.addMethod('GET', orderIntegration, customerAuthOptions);
+    orders.addMethod('POST', orderIntegration, customerAuthOptions);
 
     const order = orders.addResource('{orderId}');
-    order.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
-    order.addMethod('PUT', new apigw.LambdaIntegration(props.orderFunction), authOptions);
-    order.addMethod('DELETE', new apigw.LambdaIntegration(props.orderFunction), authOptions);
-
-    const orderHistory = order.addResource('history');
-    orderHistory.addMethod('GET', new apigw.LambdaIntegration(props.orderFunction), authOptions);
+    order.addMethod('GET', orderIntegration, customerAuthOptions);
+    order.addMethod('PUT', orderIntegration, customerAuthOptions);
+    order.addMethod('DELETE', orderIntegration, customerAuthOptions);
 
     const items = this.api.root.addResource('items');
-    items.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
-    items.addMethod('POST', new apigw.LambdaIntegration(props.itemFunction), authOptions);
-
-    const itemsUpload = items.addResource('upload-url');
-    itemsUpload.addMethod('POST', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+    items.addMethod('GET', itemIntegration);
 
     const item = items.addResource('{itemId}');
-    item.addMethod('GET', new apigw.LambdaIntegration(props.itemFunction), authOptions);
-    item.addMethod('PUT', new apigw.LambdaIntegration(props.itemFunction), authOptions);
-    item.addMethod('DELETE', new apigw.LambdaIntegration(props.itemFunction), authOptions);
+    item.addMethod('GET', itemIntegration);
 
-    // Admin endpoints (require authentication)
     const admin = this.api.root.addResource('admin');
+
+    const adminOrders = admin.addResource('orders');
+    adminOrders.addMethod('GET', orderIntegration, adminAuthOptions);
+
+    const adminOrdersBulk = adminOrders.addResource('bulk');
+    adminOrdersBulk.addMethod('PATCH', orderIntegration, adminAuthOptions);
+
+    const adminOrder = adminOrders.addResource('{orderId}');
+    adminOrder.addMethod('GET', orderIntegration, adminAuthOptions);
+    adminOrder.addMethod('PUT', orderIntegration, adminAuthOptions);
+    adminOrder.addMethod('DELETE', orderIntegration, adminAuthOptions);
+
+    const adminOrderHistory = adminOrder.addResource('history');
+    adminOrderHistory.addMethod('GET', orderIntegration, adminAuthOptions);
+
+    const adminItems = admin.addResource('items');
+    adminItems.addMethod('POST', itemIntegration, adminAuthOptions);
+
+    const adminItemsUpload = adminItems.addResource('upload-url');
+    adminItemsUpload.addMethod('POST', itemIntegration, adminAuthOptions);
+
+    const adminItem = adminItems.addResource('{itemId}');
+    adminItem.addMethod('PUT', itemIntegration, adminAuthOptions);
+    adminItem.addMethod('DELETE', itemIntegration, adminAuthOptions);
+
     const adminOrderLimits = admin.addResource('order-limits');
-    adminOrderLimits.addMethod('GET', new apigw.LambdaIntegration(props.adminFunction), authOptions);
-    adminOrderLimits.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), authOptions);
+    adminOrderLimits.addMethod('GET', new apigw.LambdaIntegration(props.adminFunction), adminAuthOptions);
+    adminOrderLimits.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), adminAuthOptions);
 
     const adminKillswitch = admin.addResource('killswitch');
-    adminKillswitch.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), authOptions);
+    adminKillswitch.addMethod('PUT', new apigw.LambdaIntegration(props.adminFunction), adminAuthOptions);
 
-    // WhatsApp webhook endpoints (public callback secured by Meta verification/signature checks)
     const webhooks = this.api.root.addResource('webhooks');
     const whatsappWebhook = webhooks.addResource('whatsapp');
     whatsappWebhook.addMethod('GET', new apigw.LambdaIntegration(props.whatsappWebhookFunction));
@@ -125,7 +146,6 @@ export class OrderApi extends Construct {
     const whatsappFlowsWebhook = whatsappWebhook.addResource('flows');
     whatsappFlowsWebhook.addMethod('POST', new apigw.LambdaIntegration(props.whatsappWebhookFunction));
 
-    // Create custom domain if certificate and domain name are provided
     if (props.certificate && props.domainName) {
       this.domain = new apigw.DomainName(this, 'ApiDomain', {
         domainName: props.domainName,
