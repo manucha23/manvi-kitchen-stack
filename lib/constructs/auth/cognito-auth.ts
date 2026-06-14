@@ -7,14 +7,16 @@ export interface CognitoAuthProps {
 }
 
 export class CognitoAuth extends Construct {
-  public readonly userPool: cognito.UserPool;
-  public readonly userPoolClient: cognito.UserPoolClient;
+  public readonly adminUserPool: cognito.UserPool;
+  public readonly adminUserPoolClient: cognito.UserPoolClient;
   public readonly adminGroup: cognito.CfnUserPoolGroup;
+  public readonly customerUserPool: cognito.UserPool;
+  public readonly customerUserPoolClient: cognito.UserPoolClient;
 
   constructor(scope: Construct, id: string, props: CognitoAuthProps) {
     super(scope, id);
 
-    this.userPool = new cognito.UserPool(this, 'AdminUserPool', {
+    this.adminUserPool = new cognito.UserPool(this, 'AdminUserPool', {
       userPoolName: `manvi-kitchen-admin-${props.environment}`,
       selfSignUpEnabled: false,
       signInAliases: {
@@ -44,7 +46,7 @@ export class CognitoAuth extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    this.userPoolClient = this.userPool.addClient('AdminAppClient', {
+    this.adminUserPoolClient = this.adminUserPool.addClient('AdminAppClient', {
       authFlows: {
         adminUserPassword: true,
         userPassword: true,
@@ -57,9 +59,47 @@ export class CognitoAuth extends Construct {
     });
 
     this.adminGroup = new cognito.CfnUserPoolGroup(this, 'AdminGroup', {
-      userPoolId: this.userPool.userPoolId,
+      userPoolId: this.adminUserPool.userPoolId,
       groupName: 'Admin',
       description: 'Administrators allowed to manage kitchen menu assets and operations',
+    });
+
+    this.customerUserPool = new cognito.UserPool(this, 'CustomerUserPool', {
+      userPoolName: `manvi-kitchen-customer-${props.environment}`,
+      selfSignUpEnabled: true,
+      signInAliases: {
+        email: true,
+        phone: true,
+      },
+      autoVerify: {
+        email: true,
+        phone: true,
+      },
+      standardAttributes: {
+        email: { required: false, mutable: true },
+        phoneNumber: { required: false, mutable: true },
+        givenName: { required: false, mutable: true },
+      },
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireDigits: true,
+        requireUppercase: true,
+        requireSymbols: false,
+      },
+      accountRecovery: cognito.AccountRecovery.EMAIL_AND_PHONE_WITHOUT_MFA,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    this.customerUserPoolClient = this.customerUserPool.addClient('CustomerAppClient', {
+      authFlows: {
+        userPassword: true,
+        userSrp: true,
+      },
+      generateSecret: false,
+      refreshTokenValidity: cdk.Duration.days(30),
+      accessTokenValidity: cdk.Duration.hours(1),
+      idTokenValidity: cdk.Duration.hours(1),
     });
   }
 }

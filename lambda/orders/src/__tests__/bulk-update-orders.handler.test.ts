@@ -18,6 +18,14 @@ jest.mock('../utils', () => {
       statusCode,
       body: JSON.stringify(data),
     }),
+    getCallerContext: (event: any) => ({
+      principalId: event?.requestContext?.authorizer?.claims?.sub || 'admin-sub',
+      groups: event?.requestContext?.authorizer?.claims?.['cognito:groups'] ? [event.requestContext.authorizer.claims['cognito:groups']] : ['Admin'],
+      isAdmin: (event?.requestContext?.authorizer?.claims?.['cognito:groups'] || 'Admin') === 'Admin',
+      isCustomer: !event?.path?.startsWith('/admin/orders'),
+      isAdminRoute: event?.path?.startsWith('/admin/orders') || !event?.path,
+      isCustomerRoute: event?.path?.startsWith('/orders'),
+    }),
     validateBulkUpdateOrdersRequest: validation.validateBulkUpdateOrdersRequest,
   };
 });
@@ -27,7 +35,9 @@ const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => un
 
 const createEvent = (body: unknown): APIGatewayProxyEvent => ({
   body: JSON.stringify(body),
-} as APIGatewayProxyEvent);
+  path: '/admin/orders/bulk',
+  requestContext: { authorizer: { claims: { sub: 'admin-sub', 'cognito:groups': 'Admin' } } },
+} as unknown as APIGatewayProxyEvent);
 
 describe('bulkUpdateOrders', () => {
   beforeEach(() => {

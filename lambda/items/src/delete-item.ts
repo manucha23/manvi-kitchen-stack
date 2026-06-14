@@ -1,9 +1,14 @@
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb';
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { docClient, createErrorResponse } from './utils';
+import { isAdminRequest } from './auth';
 
-export const deleteItem = async (itemId: string): Promise<APIGatewayProxyResult> => {
+export const deleteItem = async (itemId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
+    if (!isAdminRequest(event)) {
+      return createErrorResponse(403, 'Admin access is required to delete items');
+    }
+
     await docClient.send(new DeleteCommand({
       TableName: process.env.ITEM_TABLE,
       Key: { itemId }

@@ -1,34 +1,43 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { createErrorResponse } from './utils';
-import { 
-  listOrders, 
-  getOrder, 
-  createOrder, 
-  updateOrder, 
+import { createErrorResponse, getCallerContext, isAuthorizedForRoute } from './utils';
+import {
+  listOrders,
+  getOrder,
+  createOrder,
+  updateOrder,
   bulkUpdateOrders,
-  deleteOrder, 
-  getOrderHistory 
+  deleteOrder,
+  getOrderHistory
 } from './handlers';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
     const { httpMethod, pathParameters, path } = event;
     const orderId = pathParameters?.orderId;
+    const caller = getCallerContext(event);
+
+    if (!caller.principalId) {
+      return createErrorResponse(401, 'User not authenticated');
+    }
+
+    if (!isAuthorizedForRoute(caller)) {
+      return createErrorResponse(403, 'Not authorized for this order route');
+    }
 
     if (path.includes('/history') && httpMethod === 'GET') {
       if (!orderId) {
         return createErrorResponse(400, 'Order ID is required');
       }
-      return getOrderHistory(orderId);
+      return getOrderHistory(orderId, event);
     }
 
-    if (path.endsWith('/orders/bulk') && httpMethod === 'PATCH') {
+    if (path.endsWith('/admin/orders/bulk') && httpMethod === 'PATCH') {
       return bulkUpdateOrders(event);
     }
 
     switch (httpMethod) {
       case 'GET':
-        return orderId ? getOrder(orderId) : listOrders(event);
+        return orderId ? getOrder(orderId, event) : listOrders(event);
       case 'POST':
         return createOrder(event);
       case 'PUT':
@@ -40,7 +49,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         if (!orderId) {
           return createErrorResponse(400, 'Order ID is required');
         }
-        return deleteOrder(orderId);
+        return deleteOrder(orderId, event);
       default:
         return createErrorResponse(405, 'Method Not Allowed');
     }

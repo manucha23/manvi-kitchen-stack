@@ -10,7 +10,7 @@ import { NotificationService } from './notification.service';
   providedIn: 'root',
 })
 export class OrderService {
-  private apiUrl = `${environment.apiUrl}/orders`;
+  private apiUrl = `${environment.adminApiUrl}/admin/orders`;
 
   // State signals
   private _orders = signal<Order[]>([]);
@@ -61,19 +61,17 @@ export class OrderService {
       .pipe(map((response) => response.items));
   }
 
-  getOrderAudit(orderId: string): Observable<Order[]> {
+  getOrderAudit(orderId: string): Observable<any[]> {
     return this.http
-      .get<{ items: Order[] }>(`${this.apiUrl}/${orderId}?trace=true`)
-      .pipe(map((response) => response.items));
+      .get<{ history: any[] }>(`${this.apiUrl}/${orderId}/history`)
+      .pipe(map((response) => response.history));
   }
 
   updateOrderStatus(orderId: string, status: string): Observable<any> {
     const currentOrder = this._orders().find((o) => o.orderId === orderId);
     const body = {
       status,
-      feedbackProvided: currentOrder?.feedbackProvided ?? false,
-      incrementFeedbackRequest: true,
-      instructions: currentOrder?.instructions,
+      version: currentOrder?.version,
     };
     return this.http.put(`${this.apiUrl}/${orderId}`, body).pipe(
       tap(() => {

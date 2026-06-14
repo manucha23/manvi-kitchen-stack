@@ -13,7 +13,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const itemId = pathParameters?.itemId;
 
     // Handle image upload URL generation
-    if (path === '/items/upload-url' && httpMethod === 'POST') {
+    if (path === '/admin/items/upload-url' && httpMethod === 'POST') {
       return generateUploadUrl(event);
     }
 
@@ -25,7 +25,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       case 'PUT':
         return updateItem(itemId!, event);
       case 'DELETE':
-        return deleteItem(itemId!);
+        return deleteItem(itemId!, event);
       default:
         return createErrorResponse(405, 'Method Not Allowed');
     }
