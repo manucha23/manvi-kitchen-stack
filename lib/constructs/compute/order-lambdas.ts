@@ -9,6 +9,7 @@ export interface OrderLambdasProps {
   orderHistoryTable: dynamodb.Table;
   orderLimitsConfigTable: dynamodb.Table;
   allowedOrigins?: string;
+  adminGroupName: string;
 }
 
 export class OrderLambdas extends Construct {
@@ -29,6 +30,7 @@ export class OrderLambdas extends Construct {
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
         ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
+        ADMIN_GROUP_NAME: props.adminGroupName,
       },
       timeout: cdk.Duration.seconds(30),
     });

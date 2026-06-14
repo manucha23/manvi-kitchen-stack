@@ -19,13 +19,23 @@ jest.mock('../utils', () => ({
     statusCode,
     body: JSON.stringify(data),
   }),
+  getCallerContext: (event: any) => ({
+    principalId: event?.requestContext?.authorizer?.claims?.sub || 'admin-sub',
+    groups: ['Admin'],
+    isAdmin: true,
+    isCustomer: false,
+    isAdminRoute: event?.path?.startsWith('/admin/orders'),
+    isCustomerRoute: event?.path?.startsWith('/orders'),
+  }),
 }));
 
 const sendMock = docClient.send as jest.Mock;
 
 const createEvent = (queryStringParameters: Record<string, string>): APIGatewayProxyEvent => ({
   queryStringParameters,
-} as APIGatewayProxyEvent);
+  path: '/admin/orders',
+  requestContext: { authorizer: { claims: { sub: 'admin-sub', 'cognito:groups': 'Admin' } } },
+} as unknown as APIGatewayProxyEvent);
 
 describe('listOrders', () => {
   beforeEach(() => {

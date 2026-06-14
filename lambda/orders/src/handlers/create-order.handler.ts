@@ -1,6 +1,6 @@
 import { PutCommand, BatchGetCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { docClient, createSuccessResponse, createErrorResponse, getNextOrderId, validateCreateOrderRequest } from '../utils';
+import { docClient, createSuccessResponse, createErrorResponse, getNextOrderId, validateCreateOrderRequest, getCallerContext } from '../utils';
 import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus } from '../models';
 import { validateOrderingWindow } from '../services';
 
@@ -11,14 +11,16 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       return validationResult;
     }
 
-    const { customerName, customerPhone, deliveryAddress, paymentMethod, items, instructions } = validationResult;
-
-    const orderedBy = event.requestContext.authorizer?.claims?.sub || 
-                      event.requestContext.authorizer?.claims?.username;
-    
-    if (!orderedBy) {
+    const caller = getCallerContext(event);
+    if (!caller.principalId) {
       return createErrorResponse(401, 'User not authenticated');
     }
+    if (caller.isAdminRoute && !caller.isAdmin) {
+      return createErrorResponse(403, 'Admin access is required');
+    }
+
+    const { customerName, customerPhone, deliveryAddress, paymentMethod, items, instructions } = validationResult;
+    const orderedBy = caller.isCustomerRoute ? caller.principalId : caller.principalId;
 
     // Generate orderId
     const orderId = getNextOrderId();

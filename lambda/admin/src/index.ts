@@ -2,11 +2,20 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { setOrderLimits } from './handlers';
 import { setKillswitch } from './killswitch-handler';
 import { getOrderLimits } from './get-limits-handler';
+import { isAdminRequest } from './auth';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Admin request:', { method: event.httpMethod, path: event.path });
 
   try {
+    if (!isAdminRequest(event)) {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Admin access is required' })
+      };
+    }
+
     // GET /admin/order-limits
     if (event.httpMethod === 'GET' && event.path === '/admin/order-limits') {
       return await getOrderLimits(event);

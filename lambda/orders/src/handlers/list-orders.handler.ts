@@ -1,6 +1,6 @@
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { docClient, createSuccessResponse, createErrorResponse, withOrderVersion } from '../utils';
+import { docClient, createSuccessResponse, createErrorResponse, withOrderVersion, getCallerContext } from '../utils';
 import { Order, OrderStatus } from '../models';
 
 interface QueryParams {
@@ -91,14 +91,34 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
       }
     }
 
-    // Determine query strategy based on parameters
+    const caller = getCallerContext(event);
+    if (caller.isAdminRoute && !caller.isAdmin) {
+      return createErrorResponse(403, 'Admin access is required');
+    }
+
+    // Determine query strategy based on route and parameters
     let indexName: string;
     let keyConditionExpression: string;
     const expressionAttributeValues: Record<string, any> = {};
     const expressionAttributeNames: Record<string, string> = {};
 
-    // Priority: customerPhone > orderStatus
-    if (customerPhone) {
+    if (caller.isCustomerRoute) {
+      indexName = 'orderedBy-createdAt-index';
+      keyConditionExpression = 'orderedBy = :callerSub';
+      expressionAttributeValues[':callerSub'] = caller.principalId;
+
+      if (fromTimestamp && toTimestamp) {
+        keyConditionExpression += ' AND createdAt BETWEEN :fromDate AND :toDate';
+        expressionAttributeValues[':fromDate'] = fromTimestamp;
+        expressionAttributeValues[':toDate'] = toTimestamp;
+      } else if (fromTimestamp) {
+        keyConditionExpression += ' AND createdAt >= :fromDate';
+        expressionAttributeValues[':fromDate'] = fromTimestamp;
+      } else if (toTimestamp) {
+        keyConditionExpression += ' AND createdAt <= :toDate';
+        expressionAttributeValues[':toDate'] = toTimestamp;
+      }
+    } else if (customerPhone) {
       // Strategy 1: Query by customer phone
       indexName = 'customerPhone-createdAt-index';
       keyConditionExpression = 'customerPhone = :phone';
@@ -140,13 +160,19 @@ export const listOrders = async (event: APIGatewayProxyEvent): Promise<APIGatewa
 
     // Build filter expression for secondary filters
     let filterExpression = '';
-    if (orderedBy) {
+    if (!caller.isCustomerRoute && orderedBy) {
       filterExpression = 'orderedBy = :orderedBy';
       expressionAttributeValues[':orderedBy'] = orderedBy;
     }
 
+    if (caller.isCustomerRoute && orderStatus) {
+      filterExpression = '#status = :statusFilter';
+      expressionAttributeValues[':statusFilter'] = orderStatus;
+      expressionAttributeNames['#status'] = 'status';
+    }
+
     // Add status filter when querying by customerPhone since status is not in key
-    if (customerPhone && orderStatus) {
+    if (!caller.isCustomerRoute && customerPhone && orderStatus) {
       filterExpression += filterExpression ? ' AND #status = :statusFilter' : '#status = :statusFilter';
       expressionAttributeValues[':statusFilter'] = orderStatus;
       expressionAttributeNames['#status'] = 'status';

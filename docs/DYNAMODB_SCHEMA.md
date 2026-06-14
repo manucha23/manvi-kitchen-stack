@@ -375,3 +375,8 @@ Current configuration uses `RemovalPolicy.DESTROY` for development environments.
 - Implement Point-in-Time Recovery (PITR)
 - Enable automated backups
 - Set up TTL for OrderHistoryTable to auto-delete old records
+
+
+## Customer order history access pattern
+
+Orders now include an `orderedBy-createdAt-index` global secondary index. The partition key is `orderedBy` (the authenticated customer Cognito `sub`) and the sort key is `createdAt`. Customer list requests query this index and ignore spoofed `orderedBy` or `customerPhone` filters. Existing `status-createdAt-index` remains for admin dashboards and `customerPhone-createdAt-index` remains an admin-only operational search path.

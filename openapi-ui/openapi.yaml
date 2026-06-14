@@ -1,1041 +1,281 @@
 openapi: 3.0.3
 info:
   title: Manvi Kitchen API
-  description: API contract for the Manvi Kitchen backend, including orders, items, and admin operations.
-  version: 1.0.0
+  description: |
+    API contract for Manvi Kitchen. Customer routes use the customer Cognito pool and always scope order ownership to the authenticated Cognito `sub`. Admin routes use the admin Cognito pool and require membership in the configured admin group.
+  version: 1.1.0
 servers:
   - url: https://api.test.cravnest.in
     description: Replace with your deployed API Gateway endpoint.
-security:
-  - Cognito: []
 components:
   securitySchemes:
-    Cognito:
+    AdminCognito:
       type: apiKey
       name: Authorization
       in: header
-      description: Bearer token from Cognito User Pool
+      description: Bearer token from the admin Cognito user pool.
+    CustomerCognito:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: Bearer token from the customer Cognito user pool.
   schemas:
     ErrorResponse:
       type: object
       properties:
-        message:
+        error:
           type: string
-      required:
-        - message
     OrderItemRequest:
       type: object
+      required: [id, quantity]
       properties:
         id:
           type: string
-          description: Item unique identifier
-          example: b7eac195-538f-4830-9c76-b483603dd89b
         quantity:
           type: integer
           minimum: 1
-          description: Quantity ordered
-          example: 1
-      required:
-        - id
-        - quantity
     CreateOrderRequest:
       type: object
+      required: [customerName, customerPhone, deliveryAddress, items]
       properties:
-        items:
-          type: array
-          description: Array of items in the order
-          items:
-            $ref: '#/components/schemas/OrderItemRequest'
-        paymentMethod:
-          type: string
-          description: Payment method.
-          enum: [COD, ONLINE]
-          default: COD
-          example: COD
         customerName:
           type: string
-          description: Customer name
-          example: "Manvi"
         customerPhone:
           type: string
-          description: Customer phone number
-          example: "+917042622062"
         deliveryAddress:
           type: string
-          description: Delivery address
-          example: "Kumar Picasso, Hadapsar, Pune -411028"
-      required:
-        - items
-        - customerName
-        - customerPhone
-        - deliveryAddress
-    UpdateOrderRequest:
-      type: object
-      properties:
-        version:
-          type: integer
-          minimum: 1
-          description: Version last seen by the caller. Used for optimistic concurrency.
-          example: 3
-        status:
+        paymentMethod:
           type: string
-          description: Order status (CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
-          enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
-          example: "CONFIRMED"
+          enum: [COD, ONLINE]
+          default: COD
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemRequest'
         instructions:
           type: string
-          description: Special instructions for the order
-          example: "Please add extra chutney."
-      required:
-        - version
-    BulkUpdateOrderItem:
+      description: Customer-created orders ignore any caller-supplied `orderedBy`; the backend uses the authenticated customer `sub`.
+    UpdateOrderRequest:
       type: object
+      required: [version]
       properties:
-        orderId:
-          type: string
-          pattern: '^[A-Z0-9]{6}$'
-          example: "ABC123"
         version:
           type: integer
           minimum: 1
-          description: Version last seen by the caller for this order.
-          example: 3
-      required:
-        - orderId
-        - version
-    BulkOrderUpdate:
-      type: object
-      properties:
         status:
           type: string
-          description: New order status
           enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
-          example: "INKITCHEN"
+        instructions:
+          type: string
     BulkUpdateOrdersRequest:
       type: object
+      required: [orders, update]
       properties:
         orders:
           type: array
-          description: Unique order IDs and expected versions to update. Maximum 100.
           minItems: 1
           maxItems: 100
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/BulkUpdateOrderItem'
-        update:
-          $ref: '#/components/schemas/BulkOrderUpdate'
-      required:
-        - orders
-        - update
-    BulkUpdateOrdersResponse:
-      type: object
-      properties:
-        updated:
-          type: array
-          items:
-            $ref: '#/components/schemas/Order'
-        failed:
-          type: array
           items:
             type: object
+            required: [orderId, version]
             properties:
               orderId:
                 type: string
-              message:
-                type: string
-            required:
-              - orderId
-              - message
-        updatedCount:
-          type: integer
-        failedCount:
-          type: integer
-      required:
-        - updated
-        - failed
-        - updatedCount
-        - failedCount
-    CreateItemRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Item name
-          example: "Tandoori Paneer Tikka"
-        description:
-          type: string
-          description: Item description
-          example: "Soft from inside chared from outside"
-        price:
-          type: number
-          format: float
-          description: Item price
-          example: 200
-        imageUrl:
-          type: string
-          format: uri
-          description: Image URL returned from generate-upload-url endpoint
-          example: "https://images.test.cravnest.in/items/2c28d16d-5513-4378-bce9-304b22245c6c.png"
-      required:
-        - name
-        - description
-        - price
-        - imageUrl
-    UpdateItemRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-          format: float
-        category:
-          type: string
-        imageUrl:
-          type: string
-          format: uri
-        available:
-          type: boolean
-    GenerateUploadUrlRequest:
-      type: object
-      properties:
-        contentType:
-          type: string
-          enum: [image/jpeg, image/png, image/webp, image/avif]
-          example: "image/jpeg"
-      required:
-        - contentType
-    GenerateUploadUrlResponse:
-      type: object
-      properties:
-        url:
-          type: string
-          format: uri
-          description: S3 presigned POST URL for pending original upload
-        fields:
+              version:
+                type: integer
+                minimum: 1
+        update:
           type: object
-          additionalProperties:
-            type: string
-          description: Form fields that must be submitted with multipart upload
-        imageId:
-          type: string
-          description: Server-generated image identifier
-        pendingKey:
-          type: string
-          description: Private pending upload object key
-        imageUrl:
-          type: string
-          format: uri
-          description: Final processed WebP URL to store on the item
-        maxUploadBytes:
-          type: integer
-          example: 2097152
-        allowedContentTypes:
-          type: array
-          items:
-            type: string
-      required:
-        - url
-        - fields
-        - imageId
-        - pendingKey
-        - imageUrl
-        - maxUploadBytes
-        - allowedContentTypes
-    OrderItem:
-      type: object
-      properties:
-        itemId:
-          type: string
-        name:
-          type: string
-        price:
-          type: number
-          format: float
-        quantity:
-          type: integer
-        amount:
-          type: number
-          format: float
-      required:
-        - itemId
-        - name
-        - price
-        - quantity
-        - amount
+          properties:
+            status:
+              type: string
     Order:
       type: object
       properties:
-        orderId:
-          type: string
-          description: Unique order identifier
-        orderedBy:
-          type: string
-          description: User ID who placed the order
-        customerName:
-          type: string
-          description: Customer name
-        customerPhone:
-          type: string
-          description: Customer phone number
-        deliveryAddress:
-          type: string
-          description: Delivery address
-        status:
-          type: string
-          description: Order status
-          enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
-        paymentMethod:
-          type: string
-          enum: [COD, ONLINE]
-        paymentStatus:
-          type: string
-          enum: [NOT_REQUIRED, PENDING]
-        promisedDeliveryAt:
-          type: string
-          format: date-time
-          description: Promised delivery timestamp
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderItem'
-        totalAmount:
-          type: number
-          format: float
-          description: Total order amount
-        instructions:
-          type: string
-          description: Special instructions for the order
-        createdAt:
-          type: string
-          format: date-time
-          description: Order creation timestamp
-        updatedAt:
-          type: string
-          format: date-time
-          description: Order last update timestamp
-        version:
-          type: integer
-          minimum: 1
-          description: Order version used for optimistic concurrency
-      required:
-        - orderId
-        - orderedBy
-        - customerName
-        - customerPhone
-        - deliveryAddress
-        - status
-        - paymentMethod
-        - paymentStatus
-        - promisedDeliveryAt
-        - items
-        - totalAmount
-        - createdAt
-        - updatedAt
-        - version
-    OrderListResponse:
+        orderId: { type: string }
+        orderedBy: { type: string, description: Cognito sub of the owning customer }
+        customerName: { type: string }
+        customerPhone: { type: string }
+        status: { type: string }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+    CreateItemRequest:
       type: object
       properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Order'
-        count:
-          type: integer
-        nextToken:
-          type: string
-          nullable: true
-          description: Token for fetching next page of results
-      required:
-        - items
-        - count
-    OrderHistoryResponse:
-      type: object
-      properties:
-        orderId:
-          type: string
-        history:
-          type: array
-          items:
-            type: object
-      required:
-        - orderId
-        - history
-    Item:
-      type: object
-      properties:
-        itemId:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-          format: float
-        category:
-          type: string
-        imageUrl:
-          type: string
-          format: uri
-        available:
-          type: boolean
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-      required:
-        - itemId
-        - name
-        - description
-        - price
-        - category
-        - available
-        - createdAt
-        - updatedAt
-    ItemListResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Item'
-      required:
-        - items
-    OrderLimitConfig:
-      type: object
-      properties:
-        itemId:
-          type: string
-        updatedAt:
-          type: string
-          format: date-time
-        isAcceptingOrders:
-          type: boolean
-        globalKillswitch:
-          type: boolean
-        openTime:
-          type: string
-          example: "11:00"
-        closeTime:
-          type: string
-          example: "21:00"
-        deliveryPromiseMinutes:
-          type: integer
-          example: 60
-    OrderLimitConfigListResponse:
-      type: object
-      properties:
-        message:
-          type: string
-        configs:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderLimitConfig'
-        count:
-          type: integer
-      required:
-        - message
-        - configs
-        - count
-tags:
-  - name: Orders
-    description: Order placement and management
-  - name: Items
-    description: Menu item management
-  - name: Admin
-    description: Admin controls for ordering window and killswitch
-
+        name: { type: string }
+        description: { type: string }
+        price: { type: number }
+        category: { type: string }
+        imageUrl: { type: string }
+        available: { type: boolean }
 paths:
   /orders:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    post:
+      summary: Customer creates an order
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201': { description: Created }
     get:
-      tags: [Orders]
-      summary: List orders
-      operationId: listOrders
+      summary: Customer lists their own orders
+      description: Ignores arbitrary `orderedBy` and `customerPhone`; results are scoped to the caller's Cognito `sub`. Safe filters include status and date range.
+      security: [{ CustomerCognito: [] }]
       parameters:
-        - name: orderStatus
-          in: query
-          description: Filter by order status (CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED)
-          schema:
-            type: string
-            enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
-          example: CONFIRMED
-        - name: fromDate
-          in: query
-          description: Start timestamp for the createdAt range filter. Must be an ISO timestamp; date-only values are not supported. For a full-day query, send the start-of-day timestamp, for example 2026-05-28T00:00:00.000Z.
-          schema:
-            type: string
-            format: date-time
-          example: "2026-05-28T00:00:00.000Z"
-        - name: toDate
-          in: query
-          description: End timestamp for the createdAt range filter. Must be an ISO timestamp; date-only values are not supported. For a full-day query, send the end-of-day timestamp, for example 2026-05-28T23:59:59.999Z.
-          schema:
-            type: string
-            format: date-time
-          example: "2026-05-28T23:59:59.999Z"
-        - name: customerPhone
-          in: query
-          description: Filter by customer phone number
-          schema:
-            type: string
-          example: "+919454935942"
-        - name: limit
-          in: query
-          description: Maximum number of results (default 10, max 100)
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 10
-          example: 2
-        - name: nextToken
-          in: query
-          description: Pagination token from previous response
-          schema:
-            type: string
-          example: "eyJjcmVhdGVkQXQiOiIyMDI2LTA1LTEwVDEzOjAwOjA5LjMwMVoiLCJzdGF0dXMiOiJDUkVBVEVEIiwib3JkZXJJZCI6IldHRlBLQSJ9"
-        - name: sortOrder
-          in: query
-          description: Sort order for results (asc or desc)
-          schema:
-            type: string
-            enum: [asc, desc]
-          example: asc
+        - { name: orderStatus, in: query, schema: { type: string } }
+        - { name: fromDate, in: query, schema: { type: string, format: date-time } }
+        - { name: toDate, in: query, schema: { type: string, format: date-time } }
       responses:
-        '200':
-          description: Successful order list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderListResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: Admin access required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
-    post:
-      tags: [Orders]
-      summary: Create a new order
-      operationId: createOrder
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateOrderRequest'
-      responses:
-        '201':
-          description: Order created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
-  /orders/bulk:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
-    patch:
-      tags: [Orders]
-      summary: Bulk update orders
-      operationId: bulkUpdateOrders
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BulkUpdateOrdersRequest'
-      responses:
-        '200':
-          description: All selected orders updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BulkUpdateOrdersResponse'
-        '207':
-          description: Some selected orders failed to update
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BulkUpdateOrdersResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Own order list }
   /orders/{orderId}:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     parameters:
-      - name: orderId
-        in: path
-        required: true
-        schema:
-          type: string
+      - { name: orderId, in: path, required: true, schema: { type: string } }
     get:
-      tags: [Orders]
-      summary: Get a single order by ID
-      operationId: getOrder
+      summary: Customer gets their own order
+      security: [{ CustomerCognito: [] }]
       responses:
-        '200':
-          description: Order found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Order }
+        '404': { description: Not found or not owned by caller }
     put:
-      tags: [Orders]
-      summary: Update an order
-      operationId: updateOrder
+      summary: Customer updates/cancels their own order
+      description: Customer updates are constrained to customer-safe changes and require ownership plus optimistic concurrency version.
+      security: [{ CustomerCognito: [] }]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateOrderRequest'
+            schema: { $ref: '#/components/schemas/UpdateOrderRequest' }
       responses:
-        '200':
-          description: Updated order response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Order not found or version mismatch
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Updated }
     delete:
-      tags: [Orders]
-      summary: Delete an order
-      operationId: deleteOrder
+      summary: Customer cancels/deletes their own order when status allows
+      security: [{ CustomerCognito: [] }]
       responses:
-        '204':
-          description: Order deleted
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
-  /orders/{orderId}/history:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
-    parameters:
-      - name: orderId
-        in: path
+        '204': { description: Deleted }
+  /admin/orders:
+    post:
+      summary: Admin creates an order
+      description: Allows an authenticated admin to create an order through the admin pool. The order Lambda still verifies admin-group membership before accepting the request.
+      security: [{ AdminCognito: [] }]
+      requestBody:
         required: true
-        schema:
-          type: string
-    get:
-      tags: [Orders]
-      summary: Get order history
-      operationId: getOrderHistory
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
       responses:
-        '200':
-          description: Order history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderHistoryResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '201': { description: Created }
+    get:
+      summary: Admin lists operational orders
+      security: [{ AdminCognito: [] }]
+      parameters:
+        - { name: customerPhone, in: query, schema: { type: string } }
+        - { name: orderedBy, in: query, schema: { type: string } }
+        - { name: orderStatus, in: query, schema: { type: string } }
+        - { name: fromDate, in: query, schema: { type: string, format: date-time } }
+        - { name: toDate, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Order list }
+  /admin/orders/bulk:
+    patch:
+      summary: Admin bulk-updates orders
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkUpdateOrdersRequest' }
+      responses:
+        '200': { description: Bulk update result }
+  /admin/orders/{orderId}:
+    parameters:
+      - { name: orderId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Admin gets an order
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Order }
+    put:
+      summary: Admin updates order status/instructions
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOrderRequest' }
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Admin deletes/cancels an order when status allows
+      security: [{ AdminCognito: [] }]
+      responses:
+        '204': { description: Deleted }
+  /admin/orders/{orderId}/history:
+    get:
+      summary: Admin gets order history
+      security: [{ AdminCognito: [] }]
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: History }
   /items:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     get:
-      tags: [Items]
-      summary: List items
-      operationId: listItems
+      summary: Lists menu items
       responses:
-        '200':
-          description: Item list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ItemListResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
-    post:
-      tags: [Items]
-      summary: Create an item
-      operationId: createItem
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateItemRequest'
-      responses:
-        '201':
-          description: Item created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Item'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
-  /items/upload-url:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
-    post:
-      tags: [Items]
-      summary: Generate a pre-signed upload URL for item images
-      operationId: generateUploadUrl
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenerateUploadUrlRequest'
-      responses:
-        '200':
-          description: Upload URL generated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenerateUploadUrlResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Items }
   /items/{itemId}:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
+    get:
+      summary: Gets a menu item
+      parameters:
+        - { name: itemId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Item }
+  /admin/items:
+    post:
+      summary: Admin creates a menu item
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateItemRequest' }
+      responses:
+        '201': { description: Created }
+  /admin/items/{itemId}:
     parameters:
-      - name: itemId
-        in: path
-        required: true
-        schema:
-          type: string
-    get:
-      tags: [Items]
-      summary: Get item details
-      operationId: getItem
-      responses:
-        '200':
-          description: Item found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Item'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Item not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+      - { name: itemId, in: path, required: true, schema: { type: string } }
     put:
-      tags: [Items]
-      summary: Update an item
-      operationId: updateItem
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateItemRequest'
+      summary: Admin updates a menu item
+      security: [{ AdminCognito: [] }]
       responses:
-        '200':
-          description: Item updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Item'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Updated }
     delete:
-      tags: [Items]
-      summary: Delete an item
-      operationId: deleteItem
+      summary: Admin deletes a menu item
+      security: [{ AdminCognito: [] }]
       responses:
-        '204':
-          description: Item deleted
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '204': { description: Deleted }
+  /admin/items/upload-url:
+    post:
+      summary: Admin creates an item image upload URL
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Upload URL }
   /admin/order-limits:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     get:
-      tags: [Admin]
-      summary: Get ordering configuration
-      operationId: getOrderLimits
+      summary: Admin gets order limits
+      security: [{ AdminCognito: [] }]
       responses:
-        '200':
-          description: Ordering configuration
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderLimitConfigListResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Limits }
     put:
-      tags: [Admin]
-      summary: Set ordering configuration
-      operationId: setOrderLimits
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                itemId:
-                  type: string
-                openTime:
-                  type: string
-                  description: HH:mm IST opening time
-                  example: "11:00"
-                closeTime:
-                  type: string
-                  description: HH:mm IST closing time
-                  example: "21:00"
-                deliveryPromiseMinutes:
-                  type: integer
-                  example: 60
-                isAcceptingOrders:
-                  type: boolean
-              required:
-                - itemId
+      summary: Admin updates order limits
+      security: [{ AdminCognito: [] }]
       responses:
-        '200':
-          description: Ordering configuration updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  config:
-                    $ref: '#/components/schemas/OrderLimitConfig'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Updated }
   /admin/killswitch:
-    x-amazon-apigateway-cors:
-      allowOrigins: ['*']
-      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Amz-Security-Token']
     put:
-      tags: [Admin]
-      summary: Set killswitch state
-      operationId: setKillswitch
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                itemId:
-                  type: string
-                isAcceptingOrders:
-                  type: boolean
-                globalKillswitch:
-                  type: boolean
+      summary: Admin updates global kill switch
+      security: [{ AdminCognito: [] }]
       responses:
-        '200':
-          description: Killswitch updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  config:
-                    $ref: '#/components/schemas/OrderLimitConfig'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-        - Cognito: []
+        '200': { description: Updated }
