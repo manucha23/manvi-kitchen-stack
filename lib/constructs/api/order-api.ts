@@ -109,6 +109,7 @@ export class OrderApi extends Construct {
 
     const adminOrders = admin.addResource('orders');
     adminOrders.addMethod('GET', orderIntegration, adminAuthOptions);
+    adminOrders.addMethod('POST', orderIntegration, adminAuthOptions);
 
     const adminOrdersBulk = adminOrders.addResource('bulk');
     adminOrdersBulk.addMethod('PATCH', orderIntegration, adminAuthOptions);

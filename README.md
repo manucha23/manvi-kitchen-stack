@@ -306,7 +306,7 @@ The stack now synthesizes separate Cognito user pools for administrators and cus
 Order routes are split by audience:
 
 - Customer: `POST /orders`, `GET /orders`, `GET /orders/{orderId}`, `PUT /orders/{orderId}`, `DELETE /orders/{orderId}`.
-- Admin: `GET /admin/orders`, `GET /admin/orders/{orderId}`, `PUT /admin/orders/{orderId}`, `DELETE /admin/orders/{orderId}`, `PATCH /admin/orders/bulk`, `GET /admin/orders/{orderId}/history`.
+- Admin: `POST /admin/orders`, `GET /admin/orders`, `GET /admin/orders/{orderId}`, `PUT /admin/orders/{orderId}`, `DELETE /admin/orders/{orderId}`, `PATCH /admin/orders/bulk`, `GET /admin/orders/{orderId}/history`.
 - Admin configuration: `GET /admin/order-limits`, `PUT /admin/order-limits`, `PUT /admin/killswitch`. The stale `PUT /orders/order-limits` route is removed.
 
 Item reads are customer/default routes (`GET /items`, `GET /items/{itemId}`), while item writes and image upload URL creation are admin routes (`POST /admin/items`, `PUT /admin/items/{itemId}`, `DELETE /admin/items/{itemId}`, `POST /admin/items/upload-url`).

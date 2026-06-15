@@ -50,6 +50,6 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
     const orderMethods = Object.values(methods).filter((method: any) =>
       JSON.stringify(method).includes('OrderHandler')
     );
-    expect(orderMethods.length).toBeGreaterThanOrEqual(9);
+    expect(orderMethods.length).toBeGreaterThanOrEqual(10);
   });
 });

@@ -109,6 +109,19 @@ describe('order authorization isolation', () => {
     expect((await bulkUpdateOrders(customerEvent('/orders/bulk', { orders: [{ orderId: 'ABC123', version: 1 }], update: { status: 'READY' } }))).statusCode).toBe(403);
   });
 
+
+  it('admin can create an order through the admin route', async () => {
+    sendMock.mockResolvedValueOnce({ Responses: { 'items-table': [{ itemId: 'item-1', name: 'Item', price: 10, available: true }] } });
+    sendMock.mockResolvedValueOnce({});
+
+    const response = await createOrder(adminEvent('/admin/orders', {
+      customerName: 'Walk-in', customerPhone: '+912', deliveryAddress: 'Counter', items: [{ id: 'item-1', quantity: 1 }],
+    }));
+
+    expect(response.statusCode).toBe(201);
+    expect((sendMock.mock.calls[1][0] as PutCommand).input.Item).toMatchObject({ orderedBy: 'admin-sub' });
+  });
+
   it('admin can get/update/delete/list through admin route and non-admin admin route is rejected by handlers', async () => {
     sendMock.mockResolvedValueOnce({ Item: { orderId: 'ABC123', orderedBy: 'customer-sub', status: 'CONFIRMED' } });
     expect((await getOrder('ABC123', adminEvent('/admin/orders/ABC123'))).statusCode).toBe(200);

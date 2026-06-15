@@ -156,6 +156,17 @@ paths:
       responses:
         '204': { description: Deleted }
   /admin/orders:
+    post:
+      summary: Admin creates an order
+      description: Allows an authenticated admin to create an order through the admin pool. The order Lambda still verifies admin-group membership before accepting the request.
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201': { description: Created }
     get:
       summary: Admin lists operational orders
       security: [{ AdminCognito: [] }]
