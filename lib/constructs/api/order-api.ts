@@ -10,8 +10,9 @@ export interface OrderApiProps {
   itemFunction: lambda.Function;
   adminFunction: lambda.Function;
   whatsappWebhookFunction: lambda.Function;
-  adminUserPool: cognito.UserPool;
   customerUserPool: cognito.UserPool;
+  sessionFunction: lambda.Function;
+  adminSessionAuthorizerFunction: lambda.Function;
   environment: string;
   cloudfrontDomainName: string;
   frontendDomainName?: string;
@@ -62,6 +63,7 @@ export class OrderApi extends Construct {
         allowHeaders: [
           'Content-Type',
           'Authorization',
+          'X-CSRF-Token',
           'X-Amz-Date',
           'X-Amz-Security-Token',
         ],
@@ -69,17 +71,19 @@ export class OrderApi extends Construct {
       },
     });
 
-    const adminAuthorizer = new apigw.CognitoUserPoolsAuthorizer(this, 'AdminAuthorizer', {
-      cognitoUserPools: [props.adminUserPool]
-    });
-
     const customerAuthorizer = new apigw.CognitoUserPoolsAuthorizer(this, 'CustomerAuthorizer', {
       cognitoUserPools: [props.customerUserPool]
     });
 
+    const adminSessionAuthorizer = new apigw.RequestAuthorizer(this, 'AdminSessionAuthorizer', {
+      handler: props.adminSessionAuthorizerFunction,
+      identitySources: [apigw.IdentitySource.header('Cookie')],
+      resultsCacheTtl: cdk.Duration.seconds(0),
+    });
+
     const adminAuthOptions: apigw.MethodOptions = {
-      authorizer: adminAuthorizer,
-      authorizationType: apigw.AuthorizationType.COGNITO,
+      authorizer: adminSessionAuthorizer,
+      authorizationType: apigw.AuthorizationType.CUSTOM,
     };
 
     const customerAuthOptions: apigw.MethodOptions = {
@@ -89,6 +93,33 @@ export class OrderApi extends Construct {
 
     const orderIntegration = new apigw.LambdaIntegration(props.orderFunction);
     const itemIntegration = new apigw.LambdaIntegration(props.itemFunction);
+    const sessionIntegration = new apigw.LambdaIntegration(props.sessionFunction);
+
+    this.api.addGatewayResponse('UnauthorizedGatewayResponse', {
+      type: apigw.ResponseType.UNAUTHORIZED,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': props.frontendDomainName
+          ? `'https://${props.frontendDomainName}'`
+          : `'https://${props.cloudfrontDomainName}'`,
+        'Access-Control-Allow-Credentials': "'true'",
+      },
+    });
+
+    this.api.addGatewayResponse('AccessDeniedGatewayResponse', {
+      type: apigw.ResponseType.ACCESS_DENIED,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': props.frontendDomainName
+          ? `'https://${props.frontendDomainName}'`
+          : `'https://${props.cloudfrontDomainName}'`,
+        'Access-Control-Allow-Credentials': "'true'",
+      },
+    });
+
+    const auth = this.api.root.addResource('auth');
+    auth.addResource('login').addMethod('GET', sessionIntegration);
+    auth.addResource('callback').addMethod('GET', sessionIntegration);
+    auth.addResource('session').addMethod('GET', sessionIntegration);
+    auth.addResource('logout').addMethod('POST', sessionIntegration);
 
     const orders = this.api.root.addResource('orders');
     orders.addMethod('GET', orderIntegration, customerAuthOptions);

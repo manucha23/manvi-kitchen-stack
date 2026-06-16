@@ -78,6 +78,14 @@ run_tests_if_exist "admin"
 npm run build
 cd ../..
 
+# Build auth-session Lambda
+echo "Building auth-session Lambda..."
+cd lambda/auth-session
+npm ci
+run_tests_if_exist "auth-session"
+npm run build
+cd ../..
+
 # Build WhatsApp webhook Lambda
 echo "Building WhatsApp webhook Lambda..."
 cd lambda/whatsapp-webhook

@@ -13,6 +13,7 @@ const parseGroups = (groupsClaim: unknown): string[] => {
 };
 
 export const isAdminRequest = (event: APIGatewayProxyEvent): boolean => {
-  const claims = event.requestContext.authorizer?.claims || {};
-  return parseGroups(claims['cognito:groups']).includes(ADMIN_GROUP_NAME);
+  const authorizer = event.requestContext.authorizer as any || {};
+  const claims = authorizer.claims || {};
+  return parseGroups(claims['cognito:groups'] || authorizer.groups).includes(ADMIN_GROUP_NAME);
 };

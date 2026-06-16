@@ -28,18 +28,19 @@ export const parseGroups = (groupsClaim: unknown): string[] => {
 };
 
 export const getCallerContext = (event: APIGatewayProxyEvent): CallerContext => {
-  const claims = event.requestContext.authorizer?.claims || {};
-  const groups = parseGroups(claims['cognito:groups']);
+  const authorizer = event.requestContext.authorizer as any || {};
+  const claims = authorizer.claims || {};
+  const groups = parseGroups(claims['cognito:groups'] || authorizer.groups);
   const path = event.path || '';
   const isAdminRoute = path.startsWith('/admin/orders');
   const isCustomerRoute = path.startsWith('/orders');
-  const principalId = String(claims.sub || claims.username || event.requestContext.authorizer?.principalId || '');
+  const principalId = String(claims.sub || claims.username || authorizer.userSub || authorizer.principalId || '');
 
   return {
     principalId,
-    username: typeof claims.username === 'string' ? claims.username : undefined,
-    email: typeof claims.email === 'string' ? claims.email : undefined,
-    phoneNumber: typeof claims.phone_number === 'string' ? claims.phone_number : undefined,
+    username: typeof claims.username === 'string' ? claims.username : authorizer.username,
+    email: typeof claims.email === 'string' ? claims.email : authorizer.email,
+    phoneNumber: typeof claims.phone_number === 'string' ? claims.phone_number : authorizer.phoneNumber,
     groups,
     isAdmin: groups.includes(ADMIN_GROUP_NAME),
     isCustomer: Boolean(principalId) && !isAdminRoute,

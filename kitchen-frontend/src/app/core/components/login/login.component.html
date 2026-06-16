@@ -12,21 +12,7 @@
       <!-- Form -->
       <div class="w-full max-w-xs mx-auto animate-fade-in-left" style="animation-delay: 0.4s">
         <form (ngSubmit)="onLogin()" class="flex flex-col gap-6">
-
-          <div class="relative">
-            <input pInputText id="username" [ngModel]="username()" (ngModelChange)="username.set($event)"
-              name="username" class="w-full" placeholder="Username" required autocomplete="username" />
-          </div>
-
-          <div class="relative">
-            <p-password id="password" [ngModel]="password()" (ngModelChange)="password.set($event)" name="password"
-              [feedback]="false" [toggleMask]="false" styleClass="w-full" inputStyleClass="w-full"
-              placeholder="Password" autocomplete="current-password" required="true">
-            </p-password>
-          </div>
-
           <p-button label="LOGIN" [loading]="loading()" type="submit" styleClass="w-full" class="w-full"></p-button>
-
         </form>
 
         @if (error()) {

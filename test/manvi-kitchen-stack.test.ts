@@ -12,9 +12,13 @@ const synthStack = () => {
 };
 
 describe('ManviKitchenStack Cognito/API isolation', () => {
-  it('synthesizes separate admin and customer Cognito pools and clients', () => {
-    const template = synthStack();
+  let template: Template;
 
+  beforeAll(() => {
+    template = synthStack();
+  });
+
+  it('synthesizes separate admin and customer Cognito pools and clients', () => {
     template.hasResourceProperties('AWS::Cognito::UserPool', {
       UserPoolName: 'manvi-kitchen-admin-test',
       AdminCreateUserConfig: { AllowAdminCreateUserOnly: true },
@@ -26,20 +30,62 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
     template.resourceCountIs('AWS::Cognito::UserPoolClient', 2);
   });
 
-  it('attaches customer authorizer to /orders and admin authorizer to /admin orders', () => {
-    const template = synthStack();
+  it('configures admin hosted login and short-lived admin tokens', () => {
+    template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
+      AccessTokenValidity: 10,
+      IdTokenValidity: 10,
+      AllowedOAuthFlows: ['code'],
+      AllowedOAuthFlowsUserPoolClient: true,
+      CallbackURLs: ['https://api.test.cravnest.in/auth/callback'],
+      LogoutURLs: ['https://admin.test.cravnest.in'],
+      RefreshTokenRotation: {
+        Feature: 'ENABLED',
+        RetryGracePeriodSeconds: 10,
+      },
+    });
+
+    template.hasResourceProperties('AWS::Cognito::UserPoolDomain', {
+      Domain: 'auth.test.cravnest.in',
+      ManagedLoginVersion: 2,
+    });
+
+    template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 1);
+  });
+
+  it('creates typed session storage and token encryption resources', () => {
+    template.hasResourceProperties('AWS::DynamoDB::Table', {
+      TableName: 'manvi-kitchen-sessions-test',
+      TimeToLiveSpecification: {
+        AttributeName: 'expiresAt',
+        Enabled: true,
+      },
+    });
+
+    template.hasResourceProperties('AWS::KMS::Key', {
+      EnableKeyRotation: true,
+    });
+  });
+
+  it('attaches customer Cognito authorizer and admin cookie-session authorizer', () => {
     const resources = template.findResources('AWS::ApiGateway::Method');
     const methodJson = JSON.stringify(resources);
 
     expect(methodJson).toContain('CustomerAuthorizer');
-    expect(methodJson).toContain('AdminAuthorizer');
+    expect(methodJson).toContain('AdminSessionAuthorizer');
+    expect(methodJson).toContain('COGNITO_USER_POOLS');
+    expect(methodJson).toContain('CUSTOM');
     expect(methodJson).toContain('GET');
     expect(methodJson).toContain('POST');
     expect(methodJson).toContain('PATCH');
+
+    template.hasResourceProperties('AWS::ApiGateway::Authorizer', {
+      Type: 'REQUEST',
+      IdentitySource: 'method.request.header.Cookie',
+      AuthorizerResultTtlInSeconds: 0,
+    });
   });
 
   it('does not synthesize stale PUT /orders/order-limits and keeps order methods on one Lambda integration', () => {
-    const template = synthStack();
     const resources = template.findResources('AWS::ApiGateway::Resource');
     const resourceJson = JSON.stringify(resources);
 
