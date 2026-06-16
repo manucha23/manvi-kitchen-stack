@@ -11,13 +11,13 @@
 
       <!-- Form -->
       <div class="w-full max-w-xs mx-auto animate-fade-in-left" style="animation-delay: 0.4s">
-        <form (ngSubmit)="onLogin()" class="flex flex-col gap-6">
-          <p-button label="LOGIN" [loading]="loading()" type="submit" styleClass="w-full" class="w-full"></p-button>
-        </form>
-
         @if (error()) {
-        <div class="mt-4 text-center">
+        <div class="text-center">
           <span class="text-sm text-red-500 font-serif italic">{{ error() }}</span>
+          <div class="mt-4">
+            <p-button label="RETRY" [loading]="loading()" type="button" styleClass="w-full" class="w-full"
+              (onClick)="startLogin()"></p-button>
+          </div>
         </div>
         }
       </div>

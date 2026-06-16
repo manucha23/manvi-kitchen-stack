@@ -28,10 +28,13 @@ export class LoginComponent implements OnInit {
     const error = this.route.snapshot.queryParamMap.get('error');
     if (error) {
       this.error.set('Login could not be completed');
+      return;
     }
+
+    this.startLogin();
   }
 
-  onLogin() {
+  startLogin() {
     this.loading.set(true);
     this.error.set('');
     this.authService.login(this.returnUrl);
