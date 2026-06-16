@@ -1,6 +1,7 @@
 const setEnv = () => {
   process.env.SESSION_TABLE = 'sessions';
-  process.env.TOKEN_KEY_ID = 'key-id';
+  process.env.TOKEN_KEY_PARAMETER_PREFIX = '/manvi/test/admin-session-token-key';
+  process.env.TOKEN_KEY_VERSION = 'v1';
   process.env.ADMIN_USER_POOL_CLIENT_ID = 'client-id';
   process.env.COGNITO_DOMAIN = 'https://auth.test.cravnest.in';
   process.env.API_BASE_URL = 'https://api.test.cravnest.in';

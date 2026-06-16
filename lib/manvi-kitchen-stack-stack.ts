@@ -142,7 +142,8 @@ export class ManviKitchenStackStack extends cdk.Stack {
 
     const authSessions = new AuthSessionLambdas(this, 'AuthSessions', {
       sessionTable: sessions.table,
-      tokenKey: sessions.tokenKey,
+      tokenKeyParameterPrefix: sessions.tokenKeyParameterPrefix,
+      activeTokenKeyVersion: sessions.activeTokenKeyVersion,
       adminUserPoolClientId: auth.adminUserPoolClient.userPoolClientId,
       cognitoDomain: `https://${adminAuthDomainName}`,
       apiBaseUrl,

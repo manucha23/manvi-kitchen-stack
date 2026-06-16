@@ -1,12 +1,13 @@
 import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as kms from 'aws-cdk-lib/aws-kms';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 
 export interface AuthSessionLambdasProps {
   sessionTable: dynamodb.Table;
-  tokenKey: kms.IKey;
+  tokenKeyParameterPrefix: string;
+  activeTokenKeyVersion: string;
   adminUserPoolClientId: string;
   cognitoDomain: string;
   apiBaseUrl: string;
@@ -24,7 +25,8 @@ export class AuthSessionLambdas extends Construct {
 
     const commonEnvironment = {
       SESSION_TABLE: props.sessionTable.tableName,
-      TOKEN_KEY_ID: props.tokenKey.keyId,
+      TOKEN_KEY_PARAMETER_PREFIX: props.tokenKeyParameterPrefix,
+      TOKEN_KEY_VERSION: props.activeTokenKeyVersion,
       ADMIN_USER_POOL_CLIENT_ID: props.adminUserPoolClientId,
       COGNITO_DOMAIN: props.cognitoDomain,
       API_BASE_URL: props.apiBaseUrl,
@@ -60,7 +62,22 @@ export class AuthSessionLambdas extends Construct {
 
     props.sessionTable.grantReadWriteData(this.sessionFunction);
     props.sessionTable.grantReadWriteData(this.authorizerFunction);
-    props.tokenKey.grantEncryptDecrypt(this.sessionFunction);
-    props.tokenKey.grantEncryptDecrypt(this.authorizerFunction);
+
+    const tokenKeyPathArn = `arn:${cdk.Aws.PARTITION}:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter${props.tokenKeyParameterPrefix}/*`;
+    const activeTokenKeyArn = `arn:${cdk.Aws.PARTITION}:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter${props.tokenKeyParameterPrefix}/${props.activeTokenKeyVersion}`;
+
+    const readTokenKeyPolicy = new iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: [tokenKeyPathArn],
+    });
+    const createActiveTokenKeyPolicy = new iam.PolicyStatement({
+      actions: ['ssm:PutParameter'],
+      resources: [activeTokenKeyArn],
+    });
+
+    for (const fn of [this.sessionFunction, this.authorizerFunction]) {
+      fn.addToRolePolicy(readTokenKeyPolicy);
+      fn.addToRolePolicy(createActiveTokenKeyPolicy);
+    }
   }
 }

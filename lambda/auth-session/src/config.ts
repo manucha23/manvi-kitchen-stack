@@ -8,7 +8,8 @@ export const requiredEnv = (name: string): string => {
 
 export const config = {
   tableName: requiredEnv('SESSION_TABLE'),
-  kmsKeyId: requiredEnv('TOKEN_KEY_ID'),
+  tokenKeyParameterPrefix: requiredEnv('TOKEN_KEY_PARAMETER_PREFIX').replace(/\/$/, ''),
+  tokenKeyVersion: process.env.TOKEN_KEY_VERSION || 'v1',
   adminUserPoolClientId: requiredEnv('ADMIN_USER_POOL_CLIENT_ID'),
   cognitoDomain: requiredEnv('COGNITO_DOMAIN').replace(/\/$/, ''),
   apiBaseUrl: requiredEnv('API_BASE_URL').replace(/\/$/, ''),

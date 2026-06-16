@@ -52,7 +52,7 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 1);
   });
 
-  it('creates typed session storage and token encryption resources', () => {
+  it('creates typed session storage and SSM-backed token encryption config', () => {
     template.hasResourceProperties('AWS::DynamoDB::Table', {
       TableName: 'manvi-kitchen-sessions-test',
       TimeToLiveSpecification: {
@@ -61,9 +61,20 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
       },
     });
 
-    template.hasResourceProperties('AWS::KMS::Key', {
-      EnableKeyRotation: true,
+    template.resourceCountIs('AWS::KMS::Key', 0);
+    template.hasResourceProperties('AWS::Lambda::Function', {
+      Environment: {
+        Variables: {
+          TOKEN_KEY_PARAMETER_PREFIX: '/manvi-kitchen/test/admin-session-token-key',
+          TOKEN_KEY_VERSION: 'v1',
+        },
+      },
     });
+    const policies = JSON.stringify(template.findResources('AWS::IAM::Policy'));
+    expect(policies).toContain('ssm:GetParameter');
+    expect(policies).toContain('ssm:PutParameter');
+    expect(policies).toContain(':parameter/manvi-kitchen/test/admin-session-token-key/*');
+    expect(policies).toContain(':parameter/manvi-kitchen/test/admin-session-token-key/v1');
   });
 
   it('attaches customer Cognito authorizer and admin cookie-session authorizer', () => {
