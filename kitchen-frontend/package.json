@@ -18,7 +18,6 @@
     "@angular/platform-browser": "^21.0.6",
     "@angular/platform-browser-dynamic": "^21.0.6",
     "@angular/router": "^21.0.6",
-    "@aws-sdk/client-cognito-identity-provider": "^3.958.0",
     "@primeuix/themes": "^2.0.2",
     "@tailwindcss/postcss": "^4.1.18",
     "ng": "^0.0.0",

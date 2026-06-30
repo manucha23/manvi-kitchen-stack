@@ -59,8 +59,8 @@ export class HeaderComponent implements OnInit {
     this.sidebarService.toggle();
   }
 
-  logout() {
-    this.authService.logout();
+  async logout() {
+    await this.authService.logout();
     this.router.navigate(['/login']);
   }
 }

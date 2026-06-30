@@ -8,11 +8,13 @@ import { WhatsAppConversationDatabase } from './constructs/database/whatsapp-con
 import { CustomerProfileDatabase } from './constructs/database/customer-profile-database';
 import { CartDatabase } from './constructs/database/cart-database';
 import { CartEventDatabase } from './constructs/database/cart-event-database';
+import { SessionDatabase } from './constructs/database/session-database';
 import { ImageStorage } from './constructs/storage/image-storage';
 import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
+import { AuthSessionLambdas } from './constructs/compute/auth-session-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
 import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lambda';
 import { createCartMaintenanceLambda } from './constructs/compute/cart-maintenance-lambda';
@@ -57,7 +59,13 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const cartEvents = new CartEventDatabase(this, 'CartEvents', {
       environment,
     });
-    const auth = new CognitoAuth(this, 'Auth', { environment });
+    const sessions = new SessionDatabase(this, 'Sessions', { environment });
+
+    const adminFrontendDomain = 'admin.test.cravnest.in';
+    const apiDomainName = 'api.test.cravnest.in';
+    const adminAuthDomainName = 'auth.test.cravnest.in';
+    const adminFrontendOrigin = `https://${adminFrontendDomain}`;
+    const apiBaseUrl = `https://${apiDomainName}`;
     
     // Domain and SSL setup
     const hostedZone = new Route53HostedZone(this, 'HostedZone', {
@@ -74,6 +82,14 @@ export class ManviKitchenStackStack extends cdk.Stack {
       hostedZone: hostedZone.hostedZone,
       cloudfrontCertificateArn: cloudfrontCertificateArn,
     });
+
+    const auth = new CognitoAuth(this, 'Auth', {
+      environment,
+      adminAuthDomainName,
+      adminCallbackUrl: `${apiBaseUrl}/auth/callback`,
+      adminLogoutUrl: adminFrontendOrigin,
+      customDomainCertificate: certificates.cloudfrontCertificate,
+    });
     
     const lambdas = new OrderLambdas(this, 'Lambdas', {
       orderTable: orderDatabase.table,
@@ -83,9 +99,6 @@ export class ManviKitchenStackStack extends cdk.Stack {
       allowedOrigins: 'https://admin.test.cravnest.in',
       adminGroupName: auth.adminGroup.groupName!,
     });
-    
-    const adminFrontendDomain = 'admin.test.cravnest.in';
-    const adminFrontendOrigin = `https://${adminFrontendDomain}`;
 
     const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
       supportsInlineCode: true,
@@ -127,6 +140,18 @@ export class ManviKitchenStackStack extends cdk.Stack {
       allowedOrigins: 'https://admin.test.cravnest.in',
     });
 
+    const authSessions = new AuthSessionLambdas(this, 'AuthSessions', {
+      sessionTable: sessions.table,
+      tokenKeyParameterPrefix: sessions.tokenKeyParameterPrefix,
+      activeTokenKeyVersion: sessions.activeTokenKeyVersion,
+      adminUserPoolClientId: auth.adminUserPoolClient.userPoolClientId,
+      cognitoDomain: `https://${adminAuthDomainName}`,
+      apiBaseUrl,
+      callbackUrl: `${apiBaseUrl}/auth/callback`,
+      adminUiOrigin: adminFrontendOrigin,
+      adminGroupName: auth.adminGroup.groupName!,
+    });
+
     createCartMaintenanceLambda(this, {
       customerProfileTable: customerProfiles.table,
       cartTable: carts.table,
@@ -165,13 +190,14 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemFunction: itemLambdas.itemFunction,
       adminFunction: adminLambdas.adminFunction,
       whatsappWebhookFunction: whatsappWebhook.webhookFunction,
-      adminUserPool: auth.adminUserPool,
       customerUserPool: auth.customerUserPool,
+      sessionFunction: authSessions.sessionFunction,
+      adminSessionAuthorizerFunction: authSessions.authorizerFunction,
       environment,
       cloudfrontDomainName: frontend.distribution.distributionDomainName,
       frontendDomainName: adminFrontendDomain,
       certificate: certificates.apiCertificate,
-      domainName: 'api.test.cravnest.in',
+      domainName: apiDomainName,
     });
 
     // DNS Records
@@ -194,10 +220,21 @@ export class ManviKitchenStackStack extends cdk.Stack {
     if (api.domain) {
       new route53.ARecord(this, 'ApiDNS', {
         zone: hostedZone.hostedZone,
-        recordName: 'api.test.cravnest.in',
+        recordName: apiDomainName,
         target: route53.RecordTarget.fromAlias(new targets.ApiGatewayDomain(api.domain)),
       });
     }
+
+    new route53.ARecord(this, 'AdminAuthDNS', {
+      zone: hostedZone.hostedZone,
+      recordName: adminAuthDomainName,
+      target: route53.RecordTarget.fromAlias({
+        bind: () => ({
+          dnsName: auth.adminUserPoolDomain.cloudFrontEndpoint,
+          hostedZoneId: 'Z2FDTNDATAQYW2',
+        }),
+      }),
+    });
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
@@ -210,6 +247,12 @@ export class ManviKitchenStackStack extends cdk.Stack {
       value: api.domain ? `https://${api.domain.domainName}` : api.api.url,
       description: 'API Gateway Custom Domain URL',
       exportName: `${environment}-api-custom-url`,
+    });
+
+    new cdk.CfnOutput(this, 'AdminAuthCustomUrl', {
+      value: `https://${adminAuthDomainName}`,
+      description: 'Admin Cognito managed login custom domain URL',
+      exportName: `${environment}-admin-auth-custom-url`,
     });
 
     new cdk.CfnOutput(this, 'FrontendUrl', {
