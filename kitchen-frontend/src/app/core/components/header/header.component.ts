@@ -6,7 +6,6 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { SidebarService } from '../../services/sidebar.service';
 import { AuthService } from '../../../shared/services/auth.service';
@@ -22,7 +21,6 @@ import { AuthService } from '../../../shared/services/auth.service';
 export class HeaderComponent implements OnInit {
   public sidebarService = inject(SidebarService);
   private authService = inject(AuthService);
-  private router = inject(Router);
 
   title = "Manvi's Kitchen";
   isDarkMode = signal<boolean>(false);
@@ -61,6 +59,5 @@ export class HeaderComponent implements OnInit {
 
   async logout() {
     await this.authService.logout();
-    this.router.navigate(['/login']);
   }
 }

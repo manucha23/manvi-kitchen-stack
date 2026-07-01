@@ -58,6 +58,19 @@ const buildLoginUrl = (returnTo?: string): string => {
   return loginUrl.toString();
 };
 
+const buildLoggedOutUrl = (): string => {
+  const loggedOutUrl = new URL('/login', config.adminUiOrigin);
+  loggedOutUrl.searchParams.set('loggedOut', 'true');
+  return loggedOutUrl.toString();
+};
+
+const buildHostedLogoutUrl = (): string => {
+  const logoutUrl = new URL(`${config.cognitoDomain}/logout`);
+  logoutUrl.searchParams.set('client_id', config.adminUserPoolClientId);
+  logoutUrl.searchParams.set('logout_uri', buildLoggedOutUrl());
+  return logoutUrl.toString();
+};
+
 const login = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const state = randomUrlSafe(32);
   const nonce = randomUrlSafe(32);
@@ -179,7 +192,9 @@ const logout = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResul
     }
   }
 
-  return noContentResponse({
+  return jsonResponse(200, {
+    logoutUrl: buildHostedLogoutUrl(),
+  }, {
     'Set-Cookie': clearSessionCookie(),
   });
 };

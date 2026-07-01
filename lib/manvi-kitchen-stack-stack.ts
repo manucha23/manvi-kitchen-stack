@@ -65,6 +65,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const apiDomainName = 'api.test.cravnest.in';
     const adminAuthDomainName = 'auth.test.cravnest.in';
     const adminFrontendOrigin = `https://${adminFrontendDomain}`;
+    const adminLogoutUrl = `${adminFrontendOrigin}/login?loggedOut=true`;
     const apiBaseUrl = `https://${apiDomainName}`;
     
     // Domain and SSL setup
@@ -87,7 +88,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       environment,
       adminAuthDomainName,
       adminCallbackUrl: `${apiBaseUrl}/auth/callback`,
-      adminLogoutUrl: adminFrontendOrigin,
+      adminLogoutUrl,
       customDomainCertificate: certificates.cloudfrontCertificate,
     });
     

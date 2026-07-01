@@ -19,6 +19,19 @@
               (onClick)="startLogin()"></p-button>
           </div>
         </div>
+        } @else if (loggedOut()) {
+        <div class="signed-out-panel">
+          <div class="signed-out-icon" aria-hidden="true">
+            <i class="pi pi-check"></i>
+          </div>
+          <p class="signed-out-kicker">Signed out</p>
+          <h1>Thanks for using Cravnest.</h1>
+          <p class="signed-out-copy">
+            Your admin session has ended. You can safely close this browser tab.
+          </p>
+          <p-button label="SIGN IN AGAIN" [loading]="loading()" type="button" styleClass="w-full" class="w-full"
+            (onClick)="startLogin()"></p-button>
+        </div>
         }
       </div>
 

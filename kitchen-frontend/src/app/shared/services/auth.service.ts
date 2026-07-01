@@ -14,6 +14,10 @@ interface SessionResponse {
   };
 }
 
+interface LogoutResponse {
+  logoutUrl?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -47,12 +51,15 @@ export class AuthService {
   }
 
   async logout(): Promise<void> {
+    let logoutUrl: string | undefined;
     try {
-      await firstValueFrom(this.http.post<void>(this.logoutUrl, {}, { withCredentials: true }));
+      const response = await firstValueFrom(this.http.post<LogoutResponse>(this.logoutUrl, {}, { withCredentials: true }));
+      logoutUrl = response.logoutUrl;
     } catch (error) {
       console.warn('Logout request failed:', error);
     }
     this._isAuthenticated.set(false);
+    window.location.assign(logoutUrl || this.buildLoggedOutUrl());
   }
 
   markLoggedOut(): void {
@@ -63,5 +70,11 @@ export class AuthService {
     const url = new URL(this.loginUrl);
     url.searchParams.set('returnTo', returnUrl);
     return url.toString();
+  }
+
+  private buildLoggedOutUrl(): string {
+    const loggedOutUrl = new URL('/login', window.location.origin);
+    loggedOutUrl.searchParams.set('loggedOut', 'true');
+    return loggedOutUrl.toString();
   }
 }

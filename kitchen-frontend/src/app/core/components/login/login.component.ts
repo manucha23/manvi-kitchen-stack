@@ -16,6 +16,7 @@ import { CardModule } from 'primeng/card';
 export class LoginComponent implements OnInit {
   loading = signal(false);
   error = signal('');
+  loggedOut = signal(false);
   private returnUrl: string = '/orders';
 
   constructor(
@@ -25,6 +26,11 @@ export class LoginComponent implements OnInit {
 
   ngOnInit() {
     this.returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || '/orders';
+    if (this.route.snapshot.queryParamMap.get('loggedOut') === 'true') {
+      this.loggedOut.set(true);
+      return;
+    }
+
     const error = this.route.snapshot.queryParamMap.get('error');
     if (error) {
       this.error.set('Login could not be completed');
