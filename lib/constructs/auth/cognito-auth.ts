@@ -80,6 +80,9 @@ export class CognitoAuth extends Construct {
     });
 
     const adminUserPoolClientResource = this.adminUserPoolClient.node.defaultChild as cognito.CfnUserPoolClient;
+    adminUserPoolClientResource.addPropertyOverride('ExplicitAuthFlows', [
+      'ALLOW_USER_SRP_AUTH',
+    ]);
     adminUserPoolClientResource.addPropertyOverride('RefreshTokenRotation', {
       Feature: 'ENABLED',
       RetryGracePeriodSeconds: 10,

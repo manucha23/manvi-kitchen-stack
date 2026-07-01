@@ -36,6 +36,7 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
       IdTokenValidity: 10,
       AllowedOAuthFlows: ['code'],
       AllowedOAuthFlowsUserPoolClient: true,
+      ExplicitAuthFlows: ['ALLOW_USER_SRP_AUTH'],
       CallbackURLs: ['https://api.test.cravnest.in/auth/callback'],
       LogoutURLs: ['https://admin.test.cravnest.in'],
       RefreshTokenRotation: {
