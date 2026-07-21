@@ -1,6 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { config } from './config';
 
+const ALLOWED_ORIGINS = [config.adminUiOrigin, 'http://localhost:4200'];
+
 export const parseCookies = (headers: Record<string, string | undefined>): Record<string, string> => {
   const cookieHeader = headers.Cookie || headers.cookie;
   if (!cookieHeader) return {};
@@ -61,28 +63,44 @@ export const clearSessionCookie = (): string => {
   ].join('; ');
 };
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': config.adminUiOrigin,
+const resolveAllowedOrigin = (requestHeaders: Record<string, string | undefined>): string => {
+  const origin = requestHeaders.Origin || requestHeaders.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    return origin;
+  }
+  return config.adminUiOrigin;
+};
+
+export const corsHeaders = (requestHeaders: Record<string, string | undefined> = {}) => ({
+  'Access-Control-Allow-Origin': resolveAllowedOrigin(requestHeaders),
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Headers': 'Content-Type,X-CSRF-Token',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   Vary: 'Origin',
-};
+});
 
-export const jsonResponse = (statusCode: number, body: unknown, headers: Record<string, string> = {}): APIGatewayProxyResult => ({
+export const jsonResponse = (
+  statusCode: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+  requestHeaders: Record<string, string | undefined> = {},
+): APIGatewayProxyResult => ({
   statusCode,
   headers: {
-    ...corsHeaders,
+    ...corsHeaders(requestHeaders),
     'Content-Type': 'application/json',
     ...headers,
   },
   body: JSON.stringify(body),
 });
 
-export const noContentResponse = (headers: Record<string, string> = {}): APIGatewayProxyResult => ({
+export const noContentResponse = (
+  headers: Record<string, string> = {},
+  requestHeaders: Record<string, string | undefined> = {},
+): APIGatewayProxyResult => ({
   statusCode: 204,
   headers: {
-    ...corsHeaders,
+    ...corsHeaders(requestHeaders),
     ...headers,
   },
   body: '',
@@ -104,5 +122,5 @@ export const redirectResponse = (
 
 export const isAllowedUnsafeOrigin = (headers: Record<string, string | undefined>): boolean => {
   const origin = headers.Origin || headers.origin;
-  return !origin || origin === config.adminUiOrigin || origin === 'http://localhost:4200';
+  return !origin || ALLOWED_ORIGINS.includes(origin);
 };

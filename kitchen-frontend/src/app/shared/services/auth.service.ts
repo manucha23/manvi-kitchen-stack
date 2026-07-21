@@ -31,10 +31,11 @@ export class AuthService {
   constructor(private http: HttpClient) {}
 
   async ensureAuthenticated(returnUrl: string): Promise<boolean> {
+    const absoluteReturnUrl = new URL(returnUrl, window.location.origin).toString();
     try {
       const session = await firstValueFrom(this.http.get<SessionResponse>(this.sessionUrl, {
         withCredentials: true,
-        params: { returnTo: returnUrl },
+        params: { returnTo: absoluteReturnUrl },
       }));
       this._isAuthenticated.set(Boolean(session.authenticated));
       return Boolean(session.authenticated);

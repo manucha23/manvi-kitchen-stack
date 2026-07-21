@@ -156,7 +156,7 @@ const callback = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyRes
 const session = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const sessionId = getSessionIdFromEvent(event);
   if (!sessionId) {
-    return jsonResponse(401, { authenticated: false, loginUrl: buildLoginUrl(event.queryStringParameters?.returnTo) });
+    return jsonResponse(401, { authenticated: false, loginUrl: buildLoginUrl(event.queryStringParameters?.returnTo) }, {}, event.headers);
   }
 
   try {
@@ -170,10 +170,10 @@ const session = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResu
         groups: adminSession.groups,
       },
       expiresAt: adminSession.expiresAt,
-    });
+    }, {}, event.headers);
   } catch (error) {
     if (error instanceof UnauthorizedSessionError) {
-      return jsonResponse(401, { authenticated: false, loginUrl: buildLoginUrl(event.queryStringParameters?.returnTo) });
+      return jsonResponse(401, { authenticated: false, loginUrl: buildLoginUrl(event.queryStringParameters?.returnTo) }, {}, event.headers);
     }
     throw error;
   }
@@ -181,7 +181,7 @@ const session = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResu
 
 const logout = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (!isAllowedUnsafeOrigin(event.headers || {})) {
-    return jsonResponse(403, { message: 'Invalid request origin' });
+    return jsonResponse(403, { message: 'Invalid request origin' }, {}, event.headers);
   }
 
   const sessionId = getSessionIdFromEvent(event);
@@ -196,13 +196,13 @@ const logout = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResul
     logoutUrl: buildHostedLogoutUrl(),
   }, {
     'Set-Cookie': clearSessionCookie(),
-  });
+  }, event.headers);
 };
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
     if (event.httpMethod === 'OPTIONS') {
-      return noContentResponse();
+      return noContentResponse({}, event.headers);
     }
 
     if (event.path === '/auth/login' && event.httpMethod === 'GET') {
@@ -221,10 +221,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return logout(event);
     }
 
-    return jsonResponse(404, { message: 'Route not found' });
+    return jsonResponse(404, { message: 'Route not found' }, {}, event.headers);
   } catch (error) {
     console.error('Auth session handler failed:', error);
-    return jsonResponse(500, { message: 'Internal server error' });
+    return jsonResponse(500, { message: 'Internal server error' }, {}, event.headers);
   }
 };
 
