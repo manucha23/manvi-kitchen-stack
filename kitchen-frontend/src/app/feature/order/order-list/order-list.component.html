@@ -2,12 +2,12 @@
   <!-- Header Section -->
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
     <div>
-      <h1 class="text-2xl md:text-4xl font-extrabold text-surface-900 dark:text-surface-0 tracking-tight m-0">Orders
+      <h1 class="text-[18px] font-extrabold text-surface-900 dark:text-surface-0 tracking-tight m-0">Orders
       </h1>
-      <p class="text-surface-500 dark:text-surface-400 mt-1">Manage and track your kitchen workflow</p>
+      <p class="text-[16px] text-surface-500 dark:text-surface-400 mt-1">Manage and track your kitchen workflow</p>
     </div>
     <p-button label="Create Order" icon="pi pi-plus" (click)="showCreatePopup.set(true)" severity="primary"
-      rounded="true" size="large" class="w-full md:w-auto transition-shadow duration-300" />
+      rounded="true" styleClass="text-[16px]" class="w-full md:w-auto transition-shadow duration-300" />
   </div>
 
   <!-- Filters Section -->
@@ -16,7 +16,7 @@
     <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch">
       <div class="flex flex-col flex-1 w-full sm:w-auto">
         <label for="searchPhone"
-          class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Search Phone</label>
+          class="text-[14px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Search Phone</label>
         <p-iconfield class="w-full">
           <p-inputicon>
             <i class="pi pi-search text-surface-400"></i>
@@ -29,7 +29,7 @@
 
       <div class="flex flex-col w-full sm:w-auto">
         <label for="dateRangePicker"
-          class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Date Range</label>
+          class="text-[14px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Date Range</label>
         <p-datepicker [(ngModel)]="rangeDates" selectionMode="range" [readonlyInput]="true" dateFormat="dd/mm/yy"
           placeholder="Select Date Range" (onSelect)="onFilterSearchChanges(FILTER_TYPE.DATE)" [showIcon]="true"
           appendTo="body" inputId="dateRangePicker" styleClass="w-full sm:w-auto" inputStyleClass="rounded-xl w-full" />
@@ -37,7 +37,7 @@
 
       <div class="flex flex-col w-full sm:w-56">
         <label for="statusFilter"
-          class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
+          class="text-[14px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
         <p-select [options]="statusOptions" [(ngModel)]="selectedStatus"
           (onChange)="onFilterSearchChanges(FILTER_TYPE.STATUS)" appendTo="body" [showClear]="false"
           inputId="statusFilter" placeholder="Select Status" styleClass="w-full rounded-xl" />
@@ -107,7 +107,7 @@
       <div class="pt-2 flex items-center justify-between gap-4">
         <div class="flex-1">
           <label
-            class="text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
+            class="text-[14px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 block ml-1">Status</label>
           <p-select [options]="statusOptions" [ngModel]="order.status"
             (onChange)="updateOrderStatus(order.orderId, $event.value)" appendTo="body"
             styleClass="w-full rounded-xl border-surface-300 dark:border-surface-600 focus:border-primary" />
@@ -123,7 +123,7 @@
     class="hidden lg:block bg-surface-0 dark:bg-surface-900 rounded-3xl shadow-sm border border-surface-200 dark:border-surface-800 overflow-hidden animate-fade-in-up">
     <p-table #dt [value]="loading() ? placeholderOrders : orders()" [paginator]="!loading()" [rows]="10"
       [rowsPerPageOptions]="[10, 20, 50]" [scrollable]="true" scrollHeight="calc(100vh - 24rem)"
-      styleClass="p-datatable-lg" [tableStyle]="{ 'min-width': '100rem' }">
+      styleClass="p-datatable-lg text-[14px]" [tableStyle]="{ 'min-width': '100rem' }">
 
       <ng-template #header>
           <tr>
@@ -172,27 +172,27 @@
             {{order.customerName}}
           </td>
           <td class="whitespace-nowrap">
-            <span class="text-sm text-surface-500">{{order.createdAt | date:'dd/MM/yyyy'}}</span>
+            <span class="text-[14px] text-surface-500">{{order.createdAt | date:'dd/MM/yyyy'}}</span>
           </td>
           <td class="whitespace-nowrap">
             <div class="flex flex-col">
               <span class="font-medium">{{order.promisedDeliveryAt | date:'mediumDate'}}</span>
-              <span class="text-xs text-surface-500">{{order.promisedDeliveryAt | date:'shortTime'}}</span>
+              <span class="text-[14px] text-surface-500">{{order.promisedDeliveryAt | date:'shortTime'}}</span>
             </div>
           </td>
           <td>
-            <div class="text-sm text-surface-600 dark:text-surface-300 line-clamp-2 leading-snug max-w-xs">
+            <div class="text-[14px] text-surface-600 dark:text-surface-300 line-clamp-2 leading-snug max-w-xs">
               {{order.deliveryAddress}}
             </div>
           </td>
           <td>
-            <span class="font-bold text-lg text-surface-900 dark:text-surface-0 tracking-tight">
+            <span class="font-bold text-[14px] text-surface-900 dark:text-surface-0 tracking-tight">
               ₹{{order.totalAmount | number:'1.2-2'}}
             </span>
           </td>
           <td>
             <p-tag [value]="getStatusLabel(order.status) | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
-              styleClass="font-bold tracking-wider text-[10px] px-2 py-1" />
+              styleClass="font-bold tracking-wider text-[14px] px-2 py-1" />
           </td>
           <td>
             <p-select [options]="statusOptions" [ngModel]="order.status"

@@ -104,5 +104,5 @@ export const redirectResponse = (
 
 export const isAllowedUnsafeOrigin = (headers: Record<string, string | undefined>): boolean => {
   const origin = headers.Origin || headers.origin;
-  return !origin || origin === config.adminUiOrigin;
+  return !origin || origin === config.adminUiOrigin || origin === 'http://localhost:4200';
 };

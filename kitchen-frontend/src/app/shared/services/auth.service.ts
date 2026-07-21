@@ -68,7 +68,8 @@ export class AuthService {
 
   private buildLoginUrl(returnUrl: string): string {
     const url = new URL(this.loginUrl);
-    url.searchParams.set('returnTo', returnUrl);
+    const absoluteReturnUrl = new URL(returnUrl, window.location.origin).toString();
+    url.searchParams.set('returnTo', absoluteReturnUrl);
     return url.toString();
   }
 

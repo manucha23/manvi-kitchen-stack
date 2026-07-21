@@ -42,7 +42,7 @@ const validateReturnTo = (rawReturnTo?: string): string => {
 
   try {
     const parsed = new URL(rawReturnTo);
-    if (parsed.origin === config.adminUiOrigin) {
+    if (parsed.origin === config.adminUiOrigin || parsed.origin === 'http://localhost:4200') {
       return parsed.toString();
     }
   } catch {
