@@ -138,7 +138,7 @@ const callback = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyRes
 
     return redirectResponse(stateRecord.returnTo, {}, {
       'Set-Cookie': [
-        buildSessionCookie(session.sessionId),
+        buildSessionCookie(session.sessionId, stateRecord.returnTo.startsWith('http://localhost')),
         clearOAuthStateCookie(),
       ],
     });

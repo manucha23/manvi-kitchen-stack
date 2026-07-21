@@ -38,9 +38,23 @@ export class AuthService {
         params: { returnTo: absoluteReturnUrl },
       }));
       this._isAuthenticated.set(Boolean(session.authenticated));
+      sessionStorage.removeItem('auth_redirect_ts');
       return Boolean(session.authenticated);
     } catch (error) {
       this._isAuthenticated.set(false);
+
+      // Prevent infinite redirect loop: if we already tried logging in recently, stop.
+      const REDIRECT_KEY = 'auth_redirect_ts';
+      const lastRedirect = Number(sessionStorage.getItem(REDIRECT_KEY) || '0');
+      const now = Date.now();
+      if (now - lastRedirect < 30_000) {
+        console.error('Auth redirect loop detected — redirecting to /login instead.');
+        sessionStorage.removeItem(REDIRECT_KEY);
+        window.location.assign('/login?error=session_failed');
+        return false;
+      }
+      sessionStorage.setItem(REDIRECT_KEY, String(now));
+
       const loginUrl = (error as any)?.error?.loginUrl || this.buildLoginUrl(returnUrl);
       window.location.assign(loginUrl);
       return false;

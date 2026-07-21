@@ -19,12 +19,12 @@ export const getSessionIdFromEvent = (event: Pick<APIGatewayProxyEvent, 'headers
   return parseCookies(event.headers || {})[config.cookieName];
 };
 
-export const buildSessionCookie = (sessionId: string): string => {
+export const buildSessionCookie = (sessionId: string, isLocalOrigin = false): string => {
   return [
     `${config.cookieName}=${encodeURIComponent(sessionId)}`,
     'HttpOnly',
     'Secure',
-    'SameSite=Strict',
+    isLocalOrigin ? 'SameSite=None' : 'SameSite=Strict',
     'Path=/',
     `Max-Age=${config.sessionTtlSeconds}`,
   ].join('; ');
