@@ -182,6 +182,8 @@ const getModelId = (): string => process.env.BEDROCK_MODEL_ID || DEFAULT_MODEL_I
 
 const getMenuUrl = (): string => process.env.WHATSAPP_MENU_URL || DEFAULT_MENU_URL;
 
+const getWhatsAppTemplateLanguage = (): string => process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US';
+
 const getOrderingCore = (): OrderingCore => new OrderingCore({
   customerTableName: getRequiredEnv('CUSTOMER_PROFILE_TABLE'),
   cartTableName: getRequiredEnv('CART_TABLE'),
@@ -553,6 +555,40 @@ const sendTextMessage = async (to: string, body: string): Promise<void> => {
       body,
     },
   });
+};
+
+export const buildOrderConfirmedTemplatePayload = (
+  customerName: string,
+  orderId: string,
+): Record<string, unknown> => ({
+  type: 'template',
+  template: {
+    name: 'order_confirmed_v1',
+    language: {
+      code: getWhatsAppTemplateLanguage(),
+    },
+    components: [{
+      type: 'body',
+      parameters: [
+        {
+          type: 'text',
+          text: normalizeFirstName(customerName),
+        },
+        {
+          type: 'text',
+          text: orderId,
+        },
+      ],
+    }],
+  },
+});
+
+const sendOrderConfirmedTemplate = async (
+  to: string,
+  customerName: string,
+  orderId: string,
+): Promise<void> => {
+  await sendWhatsAppPayload(to, buildOrderConfirmedTemplatePayload(customerName, orderId));
 };
 
 export interface ReplyButton {
@@ -1152,8 +1188,8 @@ const placeCodOrder = async (
       createdAt: new Date().toISOString(),
     });
     await core.convertCart(cart, order.orderId);
-    const body = `Your order has been placed.\nOrder ID: ${order.orderId}\nPayment mode: Cash on Delivery\nEstimated delivery: around 60 mins.\nOur kitchen will confirm it shortly.`;
-    await sendTextMessage(message.from, body);
+    const body = `Order confirmed for ${payload.customerName}. Order ID: ${order.orderId}`;
+    await sendOrderConfirmedTemplate(message.from, payload.customerName, order.orderId);
     return { body, session: { ...session, state: 'IDLE', pendingItemId: undefined } };
   } catch (error) {
     console.error('Unable to place WhatsApp COD order', error);

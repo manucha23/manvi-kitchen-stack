@@ -1,6 +1,7 @@
 import {
   applyAddressChange,
   applySimpleQuantityChange,
+  buildOrderConfirmedTemplatePayload,
   buildStartButtons,
   buildOrderReviewMessage,
   calculateExpiresAt,
@@ -40,6 +41,25 @@ describe('WhatsApp worker helpers', () => {
       { itemId: '1', name: 'Biryani', price: 250, quantity: 2, amount: 500 },
       { itemId: '2', name: 'Paneer Tikka', price: 220, quantity: 1, amount: 220 },
     ])).toBe('2 Biryani, 1 Paneer Tikka');
+  });
+
+  it('builds the order confirmation template payload', () => {
+    expect(buildOrderConfirmedTemplatePayload('Rahul', 'ORD-123')).toEqual({
+      type: 'template',
+      template: {
+        name: 'order_confirmed_v1',
+        language: {
+          code: 'en_US',
+        },
+        components: [{
+          type: 'body',
+          parameters: [
+            { type: 'text', text: 'Rahul' },
+            { type: 'text', text: 'ORD-123' },
+          ],
+        }],
+      },
+    });
   });
 
   it('does not expose recommendations before five orders', () => {
