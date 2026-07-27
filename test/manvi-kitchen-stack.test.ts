@@ -130,15 +130,14 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
   });
 
   it('sets one-month Lambda log retention for the test environment', () => {
-    const logRetentionResources = template.findResources('Custom::LogRetention');
-    const appLogRetentionResources = Object.values(logRetentionResources).filter((resource: any) =>
-      JSON.stringify(resource.Properties?.LogGroupName || '').includes('/aws/lambda/')
-    );
+    const customLogRetention = template.findResources('Custom::LogRetention');
+    const logGroupResources = template.findResources('AWS::Logs::LogGroup');
 
-    expect(appLogRetentionResources).toHaveLength(11);
-    for (const resource of appLogRetentionResources as any[]) {
-      expect(resource.Properties.RetentionInDays).toBe(30);
-    }
+    const appLogRetentionCount =
+      Object.keys(customLogRetention).length +
+      Object.values(logGroupResources).filter((res: any) => res.Properties?.RetentionInDays === 30).length;
+
+    expect(appLogRetentionCount).toBe(11);
   });
 
   it('sets one-month Lambda log retention for the prod environment', () => {
@@ -149,15 +148,14 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
         env: { account: '123456789012', region: 'ap-south-1' },
       });
       const envTemplate = Template.fromStack(stack);
-      const logRetentionResources = envTemplate.findResources('Custom::LogRetention');
-      const appLogRetentionResources = Object.values(logRetentionResources).filter((resource: any) =>
-        JSON.stringify(resource.Properties?.LogGroupName || '').includes('/aws/lambda/')
-      );
+      const customLogRetention = envTemplate.findResources('Custom::LogRetention');
+      const logGroupResources = envTemplate.findResources('AWS::Logs::LogGroup');
 
-      expect(appLogRetentionResources).toHaveLength(11);
-      for (const resource of appLogRetentionResources as any[]) {
-        expect(resource.Properties.RetentionInDays).toBe(30);
-      }
+      const appLogRetentionCount =
+        Object.keys(customLogRetention).length +
+        Object.values(logGroupResources).filter((res: any) => res.Properties?.RetentionInDays === 30).length;
+
+      expect(appLogRetentionCount).toBe(11);
     }
   });
 

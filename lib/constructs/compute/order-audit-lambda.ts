@@ -6,7 +6,6 @@ import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import * as path from 'path';
-import { createLambdaLogGroup } from './log-retention';
 
 export interface OrderAuditLambdaProps {
   orderTable: dynamodb.Table;
@@ -24,12 +23,12 @@ export class OrderAuditLambda extends Construct {
     this.function = new NodejsFunction(this, 'OrderAuditHandler', {
       entry: path.join(__dirname, '../../../lambda/order-audit/src/index.ts'),
       handler: 'handler',
-      runtime: props.nodeRuntime ?? lambda.Runtime.NODEJS_20_X,
+      runtime: props.nodeRuntime ?? new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, { supportsInlineCode: true }),
       environment: {
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
       },
       timeout: cdk.Duration.seconds(30),
-      logGroup: createLambdaLogGroup(this, 'OrderAuditLogGroup', props.logRetention),
+      logRetention: props.logRetention,
       bundling: {
         minify: true,
         sourceMap: false,
