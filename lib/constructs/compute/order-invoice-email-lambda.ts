@@ -8,7 +8,6 @@ import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ses from 'aws-cdk-lib/aws-ses';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
 
 export interface OrderInvoiceEmailLambdaProps {
   environment: string;
@@ -88,7 +87,7 @@ export class OrderInvoiceEmailLambda extends Construct {
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 512,
-      logGroup: createLambdaLogGroup(this, 'OrderInvoiceEmailLogGroup', props.logRetention),
+      logRetention: props.logRetention,
     });
 
     this.invoiceBucket.grantPut(this.function);

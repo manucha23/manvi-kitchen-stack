@@ -4,7 +4,6 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
 
 export interface ImageProcessorLambdaProps {
   environment: string;
@@ -31,7 +30,7 @@ export const createImageProcessorLambda = (
     },
     memorySize: 1024,
     timeout: cdk.Duration.seconds(60),
-    logGroup: createLambdaLogGroup(scope, 'ImageProcessorLogGroup', props.logRetention),
+    logRetention: props.logRetention,
   });
 
   processorFunction.addEventSource(new eventSources.S3EventSource(props.pendingImageBucket, {

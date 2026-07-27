@@ -5,7 +5,6 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
 
 export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
@@ -39,7 +38,7 @@ export class ItemLambdas extends Construct {
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
-      logGroup: createLambdaLogGroup(this, 'ItemHandlerLogGroup', props.logRetention),
+      logRetention: props.logRetention,
     });
 
     props.itemTable.grantReadWriteData(this.itemFunction);

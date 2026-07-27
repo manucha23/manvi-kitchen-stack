@@ -3,7 +3,6 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
 
 export interface OrderLambdasProps {
   orderTable: dynamodb.Table;
@@ -36,7 +35,7 @@ export class OrderLambdas extends Construct {
         ADMIN_GROUP_NAME: props.adminGroupName,
       },
       timeout: cdk.Duration.seconds(30),
-      logGroup: createLambdaLogGroup(this, 'OrderHandlerLogGroup', props.logRetention),
+      logRetention: props.logRetention,
     });
 
     props.orderTable.grantReadWriteData(this.orderFunction);
