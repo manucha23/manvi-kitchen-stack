@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 
@@ -9,6 +10,7 @@ export interface WhatsAppWebhookHandlerLambdaProps {
   inboundQueue: sqs.IQueue;
   nodeRuntime: lambda.Runtime;
   parameterPrefix: string;
+  logRetention?: logs.RetentionDays;
 }
 
 export const createWhatsAppWebhookHandlerLambda = (
@@ -28,6 +30,7 @@ export const createWhatsAppWebhookHandlerLambda = (
       WHATSAPP_INBOUND_QUEUE_URL: props.inboundQueue.queueUrl,
     },
     timeout: cdk.Duration.seconds(10),
+    logRetention: props.logRetention,
   });
 
   webhookFunction.addToRolePolicy(new iam.PolicyStatement({

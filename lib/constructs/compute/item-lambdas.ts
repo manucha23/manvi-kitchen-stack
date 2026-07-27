@@ -3,6 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
 export interface ItemLambdasProps {
@@ -13,6 +14,7 @@ export interface ItemLambdasProps {
   imageDomain: string;
   adminGroupName: string;
   allowedOrigins?: string;
+  logRetention?: logs.RetentionDays;
 }
 
 export class ItemLambdas extends Construct {
@@ -36,6 +38,7 @@ export class ItemLambdas extends Construct {
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
+      logRetention: props.logRetention,
     });
 
     props.itemTable.grantReadWriteData(this.itemFunction);

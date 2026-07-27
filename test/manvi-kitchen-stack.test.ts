@@ -110,4 +110,80 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
     );
     expect(orderMethods.length).toBeGreaterThanOrEqual(10);
   });
+
+  it('adds SES DKIM records without managing Zoho mailbox DNS records', () => {
+    template.hasResourceProperties('AWS::SES::EmailIdentity', {
+      EmailIdentity: 'cravnest.in',
+    });
+
+    const recordSets = template.findResources('AWS::Route53::RecordSet');
+    const records = Object.values(recordSets).map((record: any) => record.Properties);
+    const sesDkimRecords = records.filter((record) =>
+      record.Type === 'CNAME' && JSON.stringify(record).includes('DkimDNS')
+    );
+    const mxRecords = records.filter((record) => record.Type === 'MX');
+    const txtRecords = records.filter((record) => record.Type === 'TXT');
+
+    expect(sesDkimRecords).toHaveLength(3);
+    expect(mxRecords).toHaveLength(0);
+    expect(txtRecords).toHaveLength(0);
+  });
+
+  it('sets one-month Lambda log retention for the test environment', () => {
+    const logRetentionResources = template.findResources('Custom::LogRetention');
+    const appLogRetentionResources = Object.values(logRetentionResources).filter((resource: any) =>
+      JSON.stringify(resource.Properties?.LogGroupName || '').includes('/aws/lambda/')
+    );
+
+    expect(appLogRetentionResources).toHaveLength(11);
+    for (const resource of appLogRetentionResources as any[]) {
+      expect(resource.Properties.RetentionInDays).toBe(30);
+    }
+  });
+
+  it('sets one-month Lambda log retention for the prod environment', () => {
+    for (const env of ['prod']) {
+      const app = new cdk.App({ context: { environment: env } });
+      const stack = new ManviKitchenStackStack(app, `Stack-${env}`, {
+        environment: env,
+        env: { account: '123456789012', region: 'ap-south-1' },
+      });
+      const envTemplate = Template.fromStack(stack);
+      const logRetentionResources = envTemplate.findResources('Custom::LogRetention');
+      const appLogRetentionResources = Object.values(logRetentionResources).filter((resource: any) =>
+        JSON.stringify(resource.Properties?.LogGroupName || '').includes('/aws/lambda/')
+      );
+
+      expect(appLogRetentionResources).toHaveLength(11);
+      for (const resource of appLogRetentionResources as any[]) {
+        expect(resource.Properties.RetentionInDays).toBe(30);
+      }
+    }
+  });
+
+  it('moves test invoice PDFs to IA after one month and deletes them after six months', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: {
+        'Fn::Join': [
+          '',
+          ['manvi-kitchen-invoices-test-', { Ref: 'AWS::AccountId' }],
+        ],
+      },
+      LifecycleConfiguration: {
+        Rules: [
+          {
+            Id: 'TestInvoiceLifecycle',
+            Status: 'Enabled',
+            Transitions: [
+              {
+                StorageClass: 'STANDARD_IA',
+                TransitionInDays: 30,
+              },
+            ],
+            ExpirationInDays: 180,
+          },
+        ],
+      },
+    });
+  });
 });

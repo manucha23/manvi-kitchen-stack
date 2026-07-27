@@ -16,9 +16,11 @@ import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
 import { AuthSessionLambdas } from './constructs/compute/auth-session-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
+import { OrderInvoiceEmailLambda } from './constructs/compute/order-invoice-email-lambda';
 import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lambda';
 import { createCartMaintenanceLambda } from './constructs/compute/cart-maintenance-lambda';
 import { createImageProcessorLambda } from './constructs/compute/image-processor-lambda';
+import { logRetentionForEnvironment } from './constructs/compute/log-retention';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
@@ -41,6 +43,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const testIndiaGeoRestriction = environment === 'test'
       ? cloudfront.GeoRestriction.allowlist('IN')
       : undefined;
+    const lambdaLogRetention = logRetentionForEnvironment(environment);
 
     // Create constructs
     const orderDatabase = new OrderDatabase(this, 'Database');
@@ -99,6 +102,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       orderLimitsConfigTable: orderLimitsConfig.table,
       allowedOrigins: 'https://admin.test.cravnest.in',
       adminGroupName: auth.adminGroup.groupName!,
+      logRetention: lambdaLogRetention,
     });
 
     const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
@@ -118,6 +122,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       pendingImageBucket: imageStorage.pendingBucket,
       imageBucket: imageStorage.bucket,
       nodeRuntime: nodeJs24Runtime,
+      logRetention: lambdaLogRetention,
     });
 
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
@@ -128,17 +133,27 @@ export class ManviKitchenStackStack extends cdk.Stack {
       imageDomain: `images.${environment === 'prod' ? 'cravnest.in' : `${environment}.cravnest.in`}`,
       adminGroupName: auth.adminGroup.groupName!,
       allowedOrigins: adminFrontendOrigin,
+      logRetention: lambdaLogRetention,
     });
     
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
       orderTable: orderDatabase.table,
       orderHistoryTable: orderHistory.table,
+      logRetention: lambdaLogRetention,
+    });
+
+    const orderInvoiceEmail = new OrderInvoiceEmailLambda(this, 'OrderInvoiceEmail', {
+      environment,
+      orderTable: orderDatabase.table,
+      hostedZone: hostedZone.hostedZone,
+      logRetention: lambdaLogRetention,
     });
     
     const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
       orderLimitsConfigTable: orderLimitsConfig.table,
       adminGroupName: auth.adminGroup.groupName!,
       allowedOrigins: 'https://admin.test.cravnest.in',
+      logRetention: lambdaLogRetention,
     });
 
     const authSessions = new AuthSessionLambdas(this, 'AuthSessions', {
@@ -151,6 +166,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       callbackUrl: `${apiBaseUrl}/auth/callback`,
       adminUiOrigin: adminFrontendOrigin,
       adminGroupName: auth.adminGroup.groupName!,
+      logRetention: lambdaLogRetention,
     });
 
     createCartMaintenanceLambda(this, {
@@ -160,6 +176,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemTable: itemDatabase.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
       nodeRuntime: nodeJs24Runtime,
+      logRetention: lambdaLogRetention,
     });
 
     const whatsappWebhook = new WhatsAppWebhookLambda(this, 'WhatsAppWebhook', {
@@ -172,6 +189,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemTable: itemDatabase.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
       orderFunction: lambdas.orderFunction,
+      logRetention: lambdaLogRetention,
     });
     
     const frontend = new FrontendHosting(this, 'Frontend', { 
@@ -272,6 +290,18 @@ export class ManviKitchenStackStack extends cdk.Stack {
       value: frontend.bucket.bucketName,
       description: 'Frontend S3 Bucket Name',
       exportName: `${environment}-frontend-bucket-name`,
+    });
+
+    new cdk.CfnOutput(this, 'InvoiceBucketName', {
+      value: orderInvoiceEmail.invoiceBucket.bucketName,
+      description: 'Private S3 bucket for generated customer invoice PDFs',
+      exportName: `${environment}-invoice-bucket-name`,
+    });
+
+    new cdk.CfnOutput(this, 'SesFromEmail', {
+      value: 'noreply@cravnest.in',
+      description: 'SES sender address for customer invoice emails',
+      exportName: `${environment}-ses-from-email`,
     });
 
     new cdk.CfnOutput(this, 'DistributionId', {

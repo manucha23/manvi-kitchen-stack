@@ -1,73 +1,148 @@
-import { DynamoDBStreamEvent } from 'aws-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBRecord, DynamoDBStreamEvent } from 'aws-lambda';
+import { AttributeValue, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
+type OrderImage = Record<string, unknown>;
+
+export type AuditChangeType = 'CREATED' | 'STATUS_CHANGE' | 'UPDATED' | 'DELETED';
+
+export interface FieldChange {
+  from?: unknown;
+  to?: unknown;
+}
+
+export interface OrderAuditRecord {
+  orderId: string;
+  timestamp: string;
+  eventType: DynamoDBRecord['eventName'];
+  changeType: AuditChangeType;
+  oldStatus?: string;
+  newStatus?: string;
+  changedFields?: string[];
+  changes?: Record<string, FieldChange>;
+  oldImage?: OrderImage;
+  newImage?: OrderImage;
+}
+
+const AUDITED_FIELDS = [
+  'status',
+  'paymentMethod',
+  'paymentStatus',
+  'promisedDeliveryAt',
+  'customerName',
+  'customerPhone',
+  'deliveryAddress',
+  'items',
+  'totalAmount',
+  'instructions',
+  'version',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+const unmarshallImage = (image?: Record<string, AttributeValue>): OrderImage | undefined =>
+  image ? unmarshall(image) : undefined;
+
+const getStatus = (image?: OrderImage): string | undefined =>
+  typeof image?.status === 'string' ? image.status : undefined;
+
+const valuesDiffer = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left ?? null) !== JSON.stringify(right ?? null);
+
+const getChangedFields = (oldImage: OrderImage, newImage: OrderImage): Record<string, FieldChange> => {
+  const changes: Record<string, FieldChange> = {};
+
+  for (const field of AUDITED_FIELDS) {
+    if (valuesDiffer(oldImage[field], newImage[field])) {
+      changes[field] = {
+        from: oldImage[field],
+        to: newImage[field],
+      };
+    }
+  }
+
+  return changes;
+};
+
+export const buildAuditRecord = (
+  record: DynamoDBRecord,
+  timestamp = new Date().toISOString(),
+): OrderAuditRecord | undefined => {
+  const oldImage = unmarshallImage(record.dynamodb?.OldImage as Record<string, AttributeValue> | undefined);
+  const newImage = unmarshallImage(record.dynamodb?.NewImage as Record<string, AttributeValue> | undefined);
+  const orderId = String(newImage?.orderId || oldImage?.orderId || '');
+
+  if (!orderId || !record.eventName) {
+    return undefined;
+  }
+
+  if (record.eventName === 'INSERT' && newImage) {
+    return {
+      orderId,
+      timestamp,
+      eventType: record.eventName,
+      changeType: 'CREATED',
+      newStatus: getStatus(newImage),
+      newImage,
+    };
+  }
+
+  if (record.eventName === 'MODIFY' && oldImage && newImage) {
+    const changes = getChangedFields(oldImage, newImage);
+    const changedFields = Object.keys(changes);
+    const oldStatus = getStatus(oldImage);
+    const newStatus = getStatus(newImage);
+
+    return {
+      orderId,
+      timestamp,
+      eventType: record.eventName,
+      changeType: oldStatus !== newStatus ? 'STATUS_CHANGE' : 'UPDATED',
+      oldStatus,
+      newStatus,
+      changedFields,
+      changes,
+      oldImage,
+      newImage,
+    };
+  }
+
+  if (record.eventName === 'REMOVE' && oldImage) {
+    return {
+      orderId,
+      timestamp,
+      eventType: record.eventName,
+      changeType: 'DELETED',
+      oldStatus: getStatus(oldImage),
+      oldImage,
+    };
+  }
+
+  return undefined;
+};
+
 export const handler = async (event: DynamoDBStreamEvent) => {
   console.log('Processing order audit events:', JSON.stringify(event, null, 2));
 
   for (const record of event.Records) {
-    const eventName = record.eventName;
-    const newImage = record.dynamodb?.NewImage ? unmarshall(record.dynamodb.NewImage as any) : null;
-    const oldImage = record.dynamodb?.OldImage ? unmarshall(record.dynamodb.OldImage as any) : null;
-
-    // Get orderId from either new or old image
-    const orderId = newImage?.orderId || oldImage?.orderId;
-    if (!orderId) continue;
-
-    const timestamp = new Date().toISOString();
-
-    const historyRecord: any = {
-      orderId,
-      timestamp,
-      eventType: eventName,
-    };
-
-    if (eventName === 'INSERT' && newImage) {
-      // Order created
-      historyRecord.action = 'CREATED';
-      historyRecord.orderSnapshot = newImage;
-      historyRecord.newStatus = newImage.orderStatus;
-    } else if (eventName === 'MODIFY' && newImage && oldImage) {
-      // Order updated
-      historyRecord.action = 'UPDATED';
-      historyRecord.newStatus = newImage.orderStatus;
-      historyRecord.previousStatus = oldImage.orderStatus || null;
-      historyRecord.changes = {};
-
-      // Track what changed
-      if (oldImage.orderStatus !== newImage.orderStatus) {
-        historyRecord.changes.orderStatus = { from: oldImage.orderStatus, to: newImage.orderStatus };
-      }
-      if (JSON.stringify(oldImage.items) !== JSON.stringify(newImage.items)) {
-        historyRecord.changes.items = { from: oldImage.items, to: newImage.items };
-      }
-      if (oldImage.total !== newImage.total) {
-        historyRecord.changes.total = { from: oldImage.total, to: newImage.total };
-      }
-      if (oldImage.instructions !== newImage.instructions) {
-        historyRecord.changes.instructions = { from: oldImage.instructions, to: newImage.instructions };
-      }
-    } else if (eventName === 'REMOVE' && oldImage) {
-      // Order deleted - CRITICAL: Save full snapshot
-      historyRecord.action = 'DELETED';
-      historyRecord.orderSnapshot = oldImage; // Save complete order data
-      historyRecord.deletedStatus = oldImage.orderStatus;
-      historyRecord.deletedBy = 'SYSTEM'; // Could extract from context if available
+    const auditRecord = buildAuditRecord(record);
+    if (!auditRecord) {
+      continue;
     }
 
     try {
       await docClient.send(new PutCommand({
         TableName: process.env.ORDER_HISTORY_TABLE,
-        Item: historyRecord
+        Item: auditRecord,
       }));
 
-      console.log(`Created audit record for order ${orderId}: ${eventName}`);
+      console.log(`Created audit record for order ${auditRecord.orderId}: ${auditRecord.changeType}`);
     } catch (error) {
-      console.error(`Error creating audit record for ${orderId}:`, error);
+      console.error(`Error creating audit record for ${auditRecord.orderId}:`, error);
     }
   }
 
