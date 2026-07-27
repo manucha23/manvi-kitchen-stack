@@ -2,11 +2,13 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
 export interface OrderAuditLambdaProps {
   orderTable: dynamodb.Table;
   orderHistoryTable: dynamodb.Table;
+  logRetention?: logs.RetentionDays;
 }
 
 export class OrderAuditLambda extends Construct {
@@ -25,6 +27,7 @@ export class OrderAuditLambda extends Construct {
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
       },
       timeout: cdk.Duration.seconds(30),
+      logRetention: props.logRetention,
     });
 
     props.orderHistoryTable.grantWriteData(this.function);

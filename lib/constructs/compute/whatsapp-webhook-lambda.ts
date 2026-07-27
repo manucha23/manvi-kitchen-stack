@@ -1,5 +1,6 @@
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 import { createWhatsAppInboundQueue } from '../messaging/whatsapp-inbound-queue';
@@ -16,6 +17,7 @@ export interface WhatsAppWebhookLambdaProps {
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
   orderFunction: lambda.IFunction;
+  logRetention?: logs.RetentionDays;
 }
 
 export class WhatsAppWebhookLambda extends Construct {
@@ -41,6 +43,7 @@ export class WhatsAppWebhookLambda extends Construct {
       inboundQueue: this.inboundQueue,
       nodeRuntime: nodeJs24Runtime,
       parameterPrefix,
+      logRetention: props.logRetention,
     });
 
     this.workerFunction = createWhatsAppInboundWorkerLambda(this, {
@@ -56,6 +59,7 @@ export class WhatsAppWebhookLambda extends Construct {
       itemTable: props.itemTable,
       orderLimitsConfigTable: props.orderLimitsConfigTable,
       orderFunction: props.orderFunction,
+      logRetention: props.logRetention,
     });
   }
 }

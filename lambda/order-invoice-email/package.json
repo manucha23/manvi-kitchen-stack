@@ -1,6 +1,7 @@
 {
-  "name": "order-audit",
+  "name": "@manvi-kitchen/order-invoice-email",
   "version": "1.0.0",
+  "private": true,
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -8,12 +9,16 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-sesv2": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0",
     "@aws-sdk/util-dynamodb": "^3.0.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.0",
     "@types/jest": "^29.5.0",
+    "@types/node": "^24.0.0",
+    "aws-sdk-client-mock": "^3.0.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.0"

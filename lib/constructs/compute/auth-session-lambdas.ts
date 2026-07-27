@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
 export interface AuthSessionLambdasProps {
@@ -14,6 +15,7 @@ export interface AuthSessionLambdasProps {
   callbackUrl: string;
   adminUiOrigin: string;
   adminGroupName: string;
+  logRetention?: logs.RetentionDays;
 }
 
 export class AuthSessionLambdas extends Construct {
@@ -48,6 +50,7 @@ export class AuthSessionLambdas extends Construct {
       }),
       environment: commonEnvironment,
       timeout: cdk.Duration.seconds(15),
+      logRetention: props.logRetention,
     });
 
     this.authorizerFunction = new lambda.Function(this, 'AdminSessionAuthorizer', {
@@ -58,6 +61,7 @@ export class AuthSessionLambdas extends Construct {
       }),
       environment: commonEnvironment,
       timeout: cdk.Duration.seconds(10),
+      logRetention: props.logRetention,
     });
 
     props.sessionTable.grantReadWriteData(this.sessionFunction);

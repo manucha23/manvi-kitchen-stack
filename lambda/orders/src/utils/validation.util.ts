@@ -5,6 +5,7 @@ import { PaymentMethod } from '../models';
 export interface ValidatedOrderRequest {
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   deliveryAddress: string;
   paymentMethod: PaymentMethod;
   items: Array<{ id: string; quantity: number }>;
@@ -47,13 +48,16 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     return createErrorResponse(400, 'Request body must be an object');
   }
 
-  const { customerName, customerPhone, deliveryAddress, paymentMethod = PaymentMethod.COD, items, instructions } = parsed;
+  const { customerName, customerPhone, customerEmail, deliveryAddress, paymentMethod = PaymentMethod.COD, items, instructions } = parsed;
 
   if (customerName !== undefined && typeof customerName !== 'string') {
     return createErrorResponse(400, 'customerName must be a string');
   }
   if (customerPhone !== undefined && typeof customerPhone !== 'string') {
     return createErrorResponse(400, 'customerPhone must be a string');
+  }
+  if (customerEmail !== undefined && typeof customerEmail !== 'string') {
+    return createErrorResponse(400, 'customerEmail must be a string');
   }
   if (deliveryAddress !== undefined && typeof deliveryAddress !== 'string') {
     return createErrorResponse(400, 'deliveryAddress must be a string');
@@ -89,7 +93,7 @@ export const validateCreateOrderRequest = (body: string | null): ValidatedOrderR
     }
   }
 
-  return { customerName, customerPhone, deliveryAddress, paymentMethod: paymentMethod as PaymentMethod, items, instructions };
+  return { customerName, customerPhone, customerEmail, deliveryAddress, paymentMethod: paymentMethod as PaymentMethod, items, instructions };
 };
 
 export const validateUpdateOrderRequest = (body: string | null): ValidatedUpdateOrderRequest | APIGatewayProxyResult => {

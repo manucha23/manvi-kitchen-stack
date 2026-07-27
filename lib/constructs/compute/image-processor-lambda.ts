@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
@@ -9,6 +10,7 @@ export interface ImageProcessorLambdaProps {
   pendingImageBucket: s3.Bucket;
   imageBucket: s3.IBucket;
   nodeRuntime: lambda.Runtime;
+  logRetention?: logs.RetentionDays;
 }
 
 export const createImageProcessorLambda = (
@@ -28,6 +30,7 @@ export const createImageProcessorLambda = (
     },
     memorySize: 1024,
     timeout: cdk.Duration.seconds(60),
+    logRetention: props.logRetention,
   });
 
   processorFunction.addEventSource(new eventSources.S3EventSource(props.pendingImageBucket, {
