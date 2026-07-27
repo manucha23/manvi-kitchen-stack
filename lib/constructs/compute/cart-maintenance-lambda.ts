@@ -3,6 +3,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
 export interface CartMaintenanceLambdaProps {
@@ -12,6 +13,7 @@ export interface CartMaintenanceLambdaProps {
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
   nodeRuntime: lambda.Runtime;
+  logRetention?: logs.RetentionDays;
 }
 
 export const createCartMaintenanceLambda = (
@@ -32,6 +34,7 @@ export const createCartMaintenanceLambda = (
       ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
     },
     timeout: cdk.Duration.seconds(60),
+    logRetention: props.logRetention,
   });
 
   props.customerProfileTable.grantReadWriteData(maintenanceFunction);

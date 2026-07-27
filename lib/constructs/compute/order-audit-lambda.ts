@@ -3,13 +3,16 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import * as path from 'path';
+import { createLambdaLogGroup } from './log-retention';
 
 export interface OrderAuditLambdaProps {
   orderTable: dynamodb.Table;
   orderHistoryTable: dynamodb.Table;
   nodeRuntime?: lambda.Runtime;
+  logRetention?: logs.RetentionDays;
 }
 
 export class OrderAuditLambda extends Construct {
@@ -26,6 +29,7 @@ export class OrderAuditLambda extends Construct {
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
       },
       timeout: cdk.Duration.seconds(30),
+      logGroup: createLambdaLogGroup(this, 'OrderAuditLogGroup', props.logRetention),
       bundling: {
         minify: true,
         sourceMap: false,
@@ -48,4 +52,5 @@ export class OrderAuditLambda extends Construct {
     }));
   }
 }
+
 

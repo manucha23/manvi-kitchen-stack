@@ -32,6 +32,7 @@ export interface Order {
   orderedBy: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   deliveryAddress: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;

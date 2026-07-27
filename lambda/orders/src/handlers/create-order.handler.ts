@@ -19,8 +19,9 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       return createErrorResponse(403, 'Admin access is required');
     }
 
-    const { customerName, customerPhone, deliveryAddress, paymentMethod, items, instructions } = validationResult;
+    const { customerName, customerPhone, customerEmail, deliveryAddress, paymentMethod, items, instructions } = validationResult;
     const orderedBy = caller.isCustomerRoute ? caller.principalId : caller.principalId;
+    const resolvedCustomerEmail = customerEmail || caller.email;
 
     // Generate orderId
     const orderId = getNextOrderId();
@@ -81,6 +82,7 @@ export const createOrder = async (event: APIGatewayProxyEvent): Promise<APIGatew
       orderedBy,
       customerName,
       customerPhone,
+      ...(resolvedCustomerEmail ? { customerEmail: resolvedCustomerEmail } : {}),
       deliveryAddress,
       status,
       paymentMethod,

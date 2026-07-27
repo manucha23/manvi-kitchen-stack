@@ -3,6 +3,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 
@@ -19,6 +20,7 @@ export interface WhatsAppInboundWorkerLambdaProps {
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
   orderFunction: lambda.IFunction;
+  logRetention?: logs.RetentionDays;
 }
 
 export const createWhatsAppInboundWorkerLambda = (
@@ -48,6 +50,7 @@ export const createWhatsAppInboundWorkerLambda = (
       BEDROCK_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     },
     timeout: cdk.Duration.seconds(60),
+    logRetention: props.logRetention,
   });
 
   workerFunction.addEventSource(new eventSources.SqsEventSource(props.inboundQueue, {

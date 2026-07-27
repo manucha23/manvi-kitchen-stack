@@ -23,6 +23,7 @@ export interface Order {
   customerName: string;
   deliveryAddress: string;
   customerPhone: string;
+  customerEmail?: string;
   status: OrderStatus;
   promisedDeliveryAt: string;
   items: OrderItem[];

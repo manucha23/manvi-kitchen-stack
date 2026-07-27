@@ -1,12 +1,14 @@
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
 export interface AdminLambdasProps {
   orderLimitsConfigTable: dynamodb.Table;
   allowedOrigins?: string;
   adminGroupName: string;
+  logRetention?: logs.RetentionDays;
 }
 
 export class AdminLambdas extends Construct {
@@ -27,6 +29,7 @@ export class AdminLambdas extends Construct {
         ADMIN_GROUP_NAME: props.adminGroupName,
       },
       timeout: cdk.Duration.seconds(30),
+      logRetention: props.logRetention,
     });
 
     props.orderLimitsConfigTable.grantReadWriteData(this.adminFunction);

@@ -120,4 +120,12 @@ run_tests_if_exist "order-audit"
 npm run build
 cd ../..
 
+# Build order-invoice-email Lambda
+echo "Building order-invoice-email Lambda..."
+cd lambda/order-invoice-email
+npm ci
+run_tests_if_exist "order-invoice-email"
+npm run build
+cd ../..
+
 echo "Lambda functions built successfully!"
