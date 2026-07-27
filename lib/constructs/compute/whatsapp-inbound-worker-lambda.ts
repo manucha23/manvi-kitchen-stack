@@ -6,6 +6,7 @@ import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
+import { createLambdaLogGroup } from './log-retention';
 
 export interface WhatsAppInboundWorkerLambdaProps {
   environment: string;
@@ -50,7 +51,7 @@ export const createWhatsAppInboundWorkerLambda = (
       BEDROCK_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     },
     timeout: cdk.Duration.seconds(60),
-    logRetention: props.logRetention,
+    logGroup: createLambdaLogGroup(scope, 'WhatsAppInboundWorkerLogGroup', props.logRetention),
   });
 
   workerFunction.addEventSource(new eventSources.SqsEventSource(props.inboundQueue, {
