@@ -132,6 +132,6 @@ jobs:
         run: |
           export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-          npx cdk deploy -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
+          npx cdk deploy --all --ci -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval=never --app "cdk.out" --region ${{ secrets.AWS_REGION }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
