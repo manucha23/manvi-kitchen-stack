@@ -1,12 +1,15 @@
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Construct } from 'constructs';
+import * as path from 'path';
 
 export interface OrderAuditLambdaProps {
   orderTable: dynamodb.Table;
   orderHistoryTable: dynamodb.Table;
+  nodeRuntime?: lambda.Runtime;
 }
 
 export class OrderAuditLambda extends Construct {
@@ -15,16 +18,19 @@ export class OrderAuditLambda extends Construct {
   constructor(scope: Construct, id: string, props: OrderAuditLambdaProps) {
     super(scope, id);
 
-    this.function = new lambda.Function(this, 'OrderAuditHandler', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: 'dist/index.handler',
-      code: lambda.Code.fromAsset('lambda/order-audit', {
-        exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
-      }),
+    this.function = new NodejsFunction(this, 'OrderAuditHandler', {
+      entry: path.join(__dirname, '../../../lambda/order-audit/src/index.ts'),
+      handler: 'handler',
+      runtime: props.nodeRuntime ?? lambda.Runtime.NODEJS_20_X,
       environment: {
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
       },
       timeout: cdk.Duration.seconds(30),
+      bundling: {
+        minify: true,
+        sourceMap: false,
+        externalModules: ['@aws-sdk/*'],
+      },
     });
 
     props.orderHistoryTable.grantWriteData(this.function);
@@ -42,3 +48,4 @@ export class OrderAuditLambda extends Construct {
     }));
   }
 }
+
