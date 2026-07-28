@@ -137,8 +137,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
       orderTable: orderDatabase.table,
       orderHistoryTable: orderHistory.table,
-      logRetention: lambdaLogRetention,
-      nodeRuntime: nodeJs24Runtime,
+      logRetentionDays: lambdaLogRetention,
     });
 
     const orderInvoiceEmail = new OrderInvoiceEmailLambda(this, 'OrderInvoiceEmail', {
