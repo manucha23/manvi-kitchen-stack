@@ -7,6 +7,7 @@ import { Construct } from 'constructs';
 
 export interface OrderApiProps {
   orderFunction: lambda.Function;
+  customerFunction?: lambda.Function;
   itemFunction: lambda.Function;
   adminFunction: lambda.Function;
   whatsappWebhookFunction: lambda.Function;
@@ -129,6 +130,21 @@ export class OrderApi extends Construct {
     order.addMethod('GET', orderIntegration, customerAuthOptions);
     order.addMethod('PUT', orderIntegration, customerAuthOptions);
     order.addMethod('DELETE', orderIntegration, customerAuthOptions);
+
+    if (props.customerFunction) {
+      const customerIntegration = new apigw.LambdaIntegration(props.customerFunction);
+      const customers = this.api.root.addResource('customers');
+      const customerProfile = customers.addResource('profile');
+      customerProfile.addMethod('GET', customerIntegration, customerAuthOptions);
+      customerProfile.addMethod('PUT', customerIntegration, customerAuthOptions);
+
+      const customerAddresses = customers.addResource('addresses');
+      customerAddresses.addMethod('POST', customerIntegration, customerAuthOptions);
+
+      const customerAddress = customerAddresses.addResource('{addressId}');
+      customerAddress.addMethod('PUT', customerIntegration, customerAuthOptions);
+      customerAddress.addMethod('DELETE', customerIntegration, customerAuthOptions);
+    }
 
     const items = this.api.root.addResource('items');
     items.addMethod('GET', itemIntegration);

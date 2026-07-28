@@ -5,7 +5,8 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface CartMaintenanceLambdaProps {
   customerProfileTable: dynamodb.ITable;
@@ -13,16 +14,21 @@ export interface CartMaintenanceLambdaProps {
   cartEventTable: dynamodb.ITable;
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
-  nodeRuntime: lambda.Runtime;
-  logRetention?: logs.RetentionDays;
+  nodeRuntime?: lambda.Runtime;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export const createCartMaintenanceLambda = (
   scope: Construct,
   props: CartMaintenanceLambdaProps,
 ): lambda.Function => {
+  const logGroup = new logs.LogGroup(scope, 'CartMaintenanceLogGroup', {
+    retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
   const maintenanceFunction = new lambda.Function(scope, 'CartMaintenance', {
-    runtime: props.nodeRuntime,
+    runtime: props.nodeRuntime ?? nodeJs24Runtime,
     handler: 'dist/index.handler',
     code: lambda.Code.fromAsset('lambda/cart-maintenance', {
       exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
@@ -35,7 +41,7 @@ export const createCartMaintenanceLambda = (
       ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
     },
     timeout: cdk.Duration.seconds(60),
-    logGroup: createLambdaLogGroup(scope, 'CartMaintenanceLogGroup', props.logRetention),
+    logGroup,
   });
 
   props.customerProfileTable.grantReadWriteData(maintenanceFunction);

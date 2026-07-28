@@ -18,6 +18,16 @@ run_tests_if_exist() {
   fi
 }
 
+install_dependencies() {
+  if [ ! -d "node_modules" ]; then
+    if [ -f "package-lock.json" ]; then
+      npm ci
+    else
+      npm install
+    fi
+  fi
+}
+
 vendor_ordering_core_dependency() {
   local target="node_modules/@manvi-kitchen/ordering-core"
 
@@ -33,7 +43,7 @@ vendor_ordering_core_dependency() {
 # Build shared ordering core package
 echo "Building ordering-core package..."
 cd packages/ordering-core
-npm ci
+install_dependencies
 run_tests_if_exist "ordering-core"
 npm run build
 cd ../..
@@ -41,7 +51,7 @@ cd ../..
 # Build orders Lambda
 echo "Building orders Lambda..."
 cd lambda/orders
-npm ci
+install_dependencies
 run_tests_if_exist "orders"
 npm run build
 cd ../..
@@ -49,7 +59,7 @@ cd ../..
 # Build items Lambda  
 echo "Building items Lambda..."
 cd lambda/items
-npm ci
+install_dependencies
 run_tests_if_exist "items"
 npm run build
 cd ../..
@@ -57,7 +67,7 @@ cd ../..
 # Build image-processor Lambda
 echo "Building image-processor Lambda..."
 cd lambda/image-processor
-npm ci
+install_dependencies
 run_tests_if_exist "image-processor"
 npm run build
 cd ../..
@@ -65,7 +75,7 @@ cd ../..
 # Build ttl-cleanup Lambda
 echo "Building ttl-cleanup Lambda..."
 cd lambda/ttl-cleanup
-npm ci
+install_dependencies
 run_tests_if_exist "ttl-cleanup"
 npm run build
 cd ../..
@@ -73,7 +83,7 @@ cd ../..
 # Build admin Lambda
 echo "Building admin Lambda..."
 cd lambda/admin
-npm ci
+install_dependencies
 run_tests_if_exist "admin"
 npm run build
 cd ../..
@@ -81,7 +91,7 @@ cd ../..
 # Build auth-session Lambda
 echo "Building auth-session Lambda..."
 cd lambda/auth-session
-npm ci
+install_dependencies
 run_tests_if_exist "auth-session"
 npm run build
 cd ../..
@@ -89,7 +99,7 @@ cd ../..
 # Build WhatsApp webhook Lambda
 echo "Building WhatsApp webhook Lambda..."
 cd lambda/whatsapp-webhook
-npm ci
+install_dependencies
 run_tests_if_exist "whatsapp-webhook"
 npm run build
 cd ../..
@@ -97,7 +107,7 @@ cd ../..
 # Build WhatsApp worker Lambda
 echo "Building WhatsApp worker Lambda..."
 cd lambda/whatsapp-worker
-npm ci
+install_dependencies
 vendor_ordering_core_dependency
 run_tests_if_exist "whatsapp-worker"
 npm run build
@@ -106,7 +116,7 @@ cd ../..
 # Build cart-maintenance Lambda
 echo "Building cart-maintenance Lambda..."
 cd lambda/cart-maintenance
-npm ci
+install_dependencies
 vendor_ordering_core_dependency
 run_tests_if_exist "cart-maintenance"
 npm run build
@@ -115,7 +125,7 @@ cd ../..
 # Build order-audit Lambda
 echo "Building order-audit Lambda..."
 cd lambda/order-audit
-npm ci
+install_dependencies
 run_tests_if_exist "order-audit"
 npm run build
 cd ../..
@@ -123,8 +133,17 @@ cd ../..
 # Build order-invoice-email Lambda
 echo "Building order-invoice-email Lambda..."
 cd lambda/order-invoice-email
-npm ci
+install_dependencies
 run_tests_if_exist "order-invoice-email"
+npm run build
+cd ../..
+
+# Build customers Lambda
+echo "Building customers Lambda..."
+cd lambda/customers
+install_dependencies
+vendor_ordering_core_dependency
+run_tests_if_exist "customers"
 npm run build
 cd ../..
 

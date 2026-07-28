@@ -3,7 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface OrderLambdasProps {
   orderTable: dynamodb.Table;
@@ -12,7 +12,7 @@ export interface OrderLambdasProps {
   orderLimitsConfigTable: dynamodb.Table;
   allowedOrigins?: string;
   adminGroupName: string;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export class OrderLambdas extends Construct {
@@ -21,8 +21,13 @@ export class OrderLambdas extends Construct {
   constructor(scope: Construct, id: string, props: OrderLambdasProps) {
     super(scope, id);
 
+    const logGroup = new logs.LogGroup(this, 'OrderHandlerLogGroup', {
+      retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     this.orderFunction = new lambda.Function(this, 'OrderHandler', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
+      runtime: nodeJs24Runtime,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/orders', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
@@ -36,7 +41,7 @@ export class OrderLambdas extends Construct {
         ADMIN_GROUP_NAME: props.adminGroupName,
       },
       timeout: cdk.Duration.seconds(30),
-      logGroup: createLambdaLogGroup(this, 'OrderHandlerLogGroup', props.logRetention),
+      logGroup,
     });
 
     props.orderTable.grantReadWriteData(this.orderFunction);

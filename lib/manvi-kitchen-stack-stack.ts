@@ -14,6 +14,7 @@ import { CognitoAuth } from './constructs/auth/cognito-auth';
 import { OrderLambdas } from './constructs/compute/order-lambdas';
 import { ItemLambdas } from './constructs/compute/item-lambdas';
 import { AdminLambdas } from './constructs/compute/admin-lambdas';
+import { CustomerLambdas } from './constructs/compute/customer-lambdas';
 import { AuthSessionLambdas } from './constructs/compute/auth-session-lambdas';
 import { OrderAuditLambda } from './constructs/compute/order-audit-lambda';
 import { OrderInvoiceEmailLambda } from './constructs/compute/order-invoice-email-lambda';
@@ -21,6 +22,7 @@ import { WhatsAppWebhookLambda } from './constructs/compute/whatsapp-webhook-lam
 import { createCartMaintenanceLambda } from './constructs/compute/cart-maintenance-lambda';
 import { createImageProcessorLambda } from './constructs/compute/image-processor-lambda';
 import { logRetentionForEnvironment } from './constructs/compute/log-retention';
+import { nodeJs24Runtime } from './constructs/compute/node-runtime';
 import { FrontendHosting } from './constructs/frontend/frontend-hosting';
 import { OpenApiHosting } from './constructs/frontend/openapi-hosting';
 import { OrderApi } from './constructs/api/order-api';
@@ -102,11 +104,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       orderLimitsConfigTable: orderLimitsConfig.table,
       allowedOrigins: 'https://admin.test.cravnest.in',
       adminGroupName: auth.adminGroup.groupName!,
-      logRetention: lambdaLogRetention,
-    });
-
-    const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
-      supportsInlineCode: true,
+      logRetentionDays: lambdaLogRetention,
     });
 
     const imageStorage = new ImageStorage(this, 'ImageStorage', { 
@@ -122,7 +120,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       pendingImageBucket: imageStorage.pendingBucket,
       imageBucket: imageStorage.bucket,
       nodeRuntime: nodeJs24Runtime,
-      logRetention: lambdaLogRetention,
+      logRetentionDays: lambdaLogRetention,
     });
 
     const itemLambdas = new ItemLambdas(this, 'ItemLambdas', {
@@ -133,28 +131,28 @@ export class ManviKitchenStackStack extends cdk.Stack {
       imageDomain: `images.${environment === 'prod' ? 'cravnest.in' : `${environment}.cravnest.in`}`,
       adminGroupName: auth.adminGroup.groupName!,
       allowedOrigins: adminFrontendOrigin,
-      logRetention: lambdaLogRetention,
+      logRetentionDays: lambdaLogRetention,
     });
     
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
       orderTable: orderDatabase.table,
       orderHistoryTable: orderHistory.table,
-      logRetention: lambdaLogRetention,
-      nodeRuntime: nodeJs24Runtime,
+      logRetentionDays: lambdaLogRetention,
     });
 
     const orderInvoiceEmail = new OrderInvoiceEmailLambda(this, 'OrderInvoiceEmail', {
       environment,
       orderTable: orderDatabase.table,
       hostedZone: hostedZone.hostedZone,
-      logRetention: lambdaLogRetention,
+      certificate: certificates.cloudfrontCertificate,
+      logRetentionDays: lambdaLogRetention,
     });
     
     const adminLambdas = new AdminLambdas(this, 'AdminLambdas', {
       orderLimitsConfigTable: orderLimitsConfig.table,
       adminGroupName: auth.adminGroup.groupName!,
       allowedOrigins: 'https://admin.test.cravnest.in',
-      logRetention: lambdaLogRetention,
+      logRetentionDays: lambdaLogRetention,
     });
 
     const authSessions = new AuthSessionLambdas(this, 'AuthSessions', {
@@ -167,7 +165,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       callbackUrl: `${apiBaseUrl}/auth/callback`,
       adminUiOrigin: adminFrontendOrigin,
       adminGroupName: auth.adminGroup.groupName!,
-      logRetention: lambdaLogRetention,
+      logRetentionDays: lambdaLogRetention,
     });
 
     createCartMaintenanceLambda(this, {
@@ -177,7 +175,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemTable: itemDatabase.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
       nodeRuntime: nodeJs24Runtime,
-      logRetention: lambdaLogRetention,
+      logRetentionDays: lambdaLogRetention,
     });
 
     const whatsappWebhook = new WhatsAppWebhookLambda(this, 'WhatsAppWebhook', {
@@ -190,7 +188,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
       itemTable: itemDatabase.table,
       orderLimitsConfigTable: orderLimitsConfig.table,
       orderFunction: lambdas.orderFunction,
-      logRetention: lambdaLogRetention,
+      logRetentionDays: lambdaLogRetention,
     });
     
     const frontend = new FrontendHosting(this, 'Frontend', { 
@@ -205,8 +203,15 @@ export class ManviKitchenStackStack extends cdk.Stack {
       domainName: 'api-doc.test.cravnest.in',
       geoRestriction: testIndiaGeoRestriction,
     });
+    const customerLambdas = new CustomerLambdas(this, 'CustomerLambdas', {
+      customerProfileTable: customerProfiles.table,
+      allowedOrigins: adminFrontendOrigin,
+      logRetentionDays: lambdaLogRetention,
+    });
+
     const api = new OrderApi(this, 'Api', {
       orderFunction: lambdas.orderFunction,
+      customerFunction: customerLambdas.customerFunction,
       itemFunction: itemLambdas.itemFunction,
       adminFunction: adminLambdas.adminFunction,
       whatsappWebhookFunction: whatsappWebhook.webhookFunction,

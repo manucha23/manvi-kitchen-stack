@@ -24,6 +24,8 @@ export type DeliveryArea = 'TOWNSHIP' | 'OUTSIDE' | 'UNKNOWN';
 export interface Address {
   addressId?: string;
   text: string;
+  label?: string;
+  isDefault?: boolean;
   deliveryArea?: DeliveryArea;
   createdAt?: string;
   updatedAt?: string;
@@ -33,7 +35,11 @@ export interface CustomerProfile {
   phoneNumber: string;
   customerId: string;
   firstName?: string;
+  lastName?: string;
+  email?: string;
+  savedAddresses?: Address[];
   savedAddress?: Address;
+  defaultAddressId?: string;
   marketingOptIn?: boolean;
   marketingOptInSource?: string;
   marketingOptInAt?: string;
@@ -95,6 +101,7 @@ export interface CartEvent {
 export interface CreateOrderPayload {
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   deliveryAddress: string;
   paymentMethod: 'COD' | 'ONLINE';
   items: Array<{ id: string; quantity: number }>;

@@ -7,6 +7,8 @@ import { createWhatsAppInboundQueue } from '../messaging/whatsapp-inbound-queue'
 import { createWhatsAppInboundWorkerLambda } from './whatsapp-inbound-worker-lambda';
 import { createWhatsAppWebhookHandlerLambda } from './whatsapp-webhook-handler-lambda';
 
+import { nodeJs24Runtime } from './node-runtime';
+
 export interface WhatsAppWebhookLambdaProps {
   environment: string;
   conversationTable: dynamodb.ITable;
@@ -17,7 +19,7 @@ export interface WhatsAppWebhookLambdaProps {
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
   orderFunction: lambda.IFunction;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export class WhatsAppWebhookLambda extends Construct {
@@ -29,9 +31,6 @@ export class WhatsAppWebhookLambda extends Construct {
     super(scope, id);
 
     const parameterPrefix = `/manvi-kitchen/${props.environment}/whatsapp`;
-    const nodeJs24Runtime = new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, {
-      supportsInlineCode: true,
-    });
 
     const queueResources = createWhatsAppInboundQueue(this, {
       environment: props.environment,
@@ -43,7 +42,7 @@ export class WhatsAppWebhookLambda extends Construct {
       inboundQueue: this.inboundQueue,
       nodeRuntime: nodeJs24Runtime,
       parameterPrefix,
-      logRetention: props.logRetention,
+      logRetentionDays: props.logRetentionDays,
     });
 
     this.workerFunction = createWhatsAppInboundWorkerLambda(this, {
@@ -59,7 +58,7 @@ export class WhatsAppWebhookLambda extends Construct {
       itemTable: props.itemTable,
       orderLimitsConfigTable: props.orderLimitsConfigTable,
       orderFunction: props.orderFunction,
-      logRetention: props.logRetention,
+      logRetentionDays: props.logRetentionDays,
     });
   }
 }

@@ -4,22 +4,28 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface WhatsAppWebhookHandlerLambdaProps {
   environment: string;
   inboundQueue: sqs.IQueue;
-  nodeRuntime: lambda.Runtime;
+  nodeRuntime?: lambda.Runtime;
   parameterPrefix: string;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export const createWhatsAppWebhookHandlerLambda = (
   scope: Construct,
   props: WhatsAppWebhookHandlerLambdaProps,
 ): lambda.Function => {
+  const logGroup = new logs.LogGroup(scope, 'WhatsAppWebhookHandlerLogGroup', {
+    retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
   const webhookFunction = new lambda.Function(scope, 'WhatsAppWebhookHandler', {
-    runtime: props.nodeRuntime,
+    runtime: props.nodeRuntime ?? nodeJs24Runtime,
     handler: 'dist/index.handler',
     code: lambda.Code.fromAsset('lambda/whatsapp-webhook', {
       exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
@@ -31,7 +37,7 @@ export const createWhatsAppWebhookHandlerLambda = (
       WHATSAPP_INBOUND_QUEUE_URL: props.inboundQueue.queueUrl,
     },
     timeout: cdk.Duration.seconds(10),
-    logGroup: createLambdaLogGroup(scope, 'WhatsAppWebhookHandlerLogGroup', props.logRetention),
+    logGroup,
   });
 
   webhookFunction.addToRolePolicy(new iam.PolicyStatement({
