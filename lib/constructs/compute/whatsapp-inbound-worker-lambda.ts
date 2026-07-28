@@ -6,12 +6,13 @@ import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface WhatsAppInboundWorkerLambdaProps {
   environment: string;
   inboundQueue: sqs.IQueue;
-  nodeRuntime: lambda.Runtime;
+  nodeRuntime?: lambda.Runtime;
   parameterPrefix: string;
   conversationTable: dynamodb.ITable;
   customerProfileTable: dynamodb.ITable;
@@ -21,15 +22,20 @@ export interface WhatsAppInboundWorkerLambdaProps {
   itemTable: dynamodb.ITable;
   orderLimitsConfigTable: dynamodb.ITable;
   orderFunction: lambda.IFunction;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export const createWhatsAppInboundWorkerLambda = (
   scope: Construct,
   props: WhatsAppInboundWorkerLambdaProps,
 ): lambda.Function => {
+  const logGroup = new logs.LogGroup(scope, 'WhatsAppInboundWorkerLogGroup', {
+    retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
   const workerFunction = new lambda.Function(scope, 'WhatsAppInboundWorker', {
-    runtime: props.nodeRuntime,
+    runtime: props.nodeRuntime ?? nodeJs24Runtime,
     handler: 'dist/index.handler',
     code: lambda.Code.fromAsset('lambda/whatsapp-worker', {
       exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
@@ -51,7 +57,7 @@ export const createWhatsAppInboundWorkerLambda = (
       BEDROCK_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     },
     timeout: cdk.Duration.seconds(60),
-    logGroup: createLambdaLogGroup(scope, 'WhatsAppInboundWorkerLogGroup', props.logRetention),
+    logGroup,
   });
 
   workerFunction.addEventSource(new eventSources.SqsEventSource(props.inboundQueue, {

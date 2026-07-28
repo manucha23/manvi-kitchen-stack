@@ -1,18 +1,15 @@
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import * as path from 'path';
-import { createLambdaLogGroup } from './log-retention';
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface OrderAuditLambdaProps {
   orderTable: dynamodb.Table;
   orderHistoryTable: dynamodb.Table;
-  nodeRuntime?: lambda.Runtime;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export class OrderAuditLambda extends Construct {
@@ -21,20 +18,22 @@ export class OrderAuditLambda extends Construct {
   constructor(scope: Construct, id: string, props: OrderAuditLambdaProps) {
     super(scope, id);
 
-    this.function = new NodejsFunction(this, 'OrderAuditHandler', {
-      entry: path.join(__dirname, '../../../lambda/order-audit/src/index.ts'),
-      handler: 'handler',
-      runtime: props.nodeRuntime ?? new lambda.Runtime('nodejs24.x', lambda.RuntimeFamily.NODEJS, { supportsInlineCode: true }),
+    const logGroup = new logs.LogGroup(this, 'OrderAuditHandlerLogGroup', {
+      retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    this.function = new lambda.Function(this, 'OrderAuditHandler', {
+      runtime: nodeJs24Runtime,
+      handler: 'dist/index.handler',
+      code: lambda.Code.fromAsset('lambda/order-audit', {
+        exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
+      }),
       environment: {
         ORDER_HISTORY_TABLE: props.orderHistoryTable.tableName,
       },
       timeout: cdk.Duration.seconds(30),
-      logGroup: createLambdaLogGroup(this, 'OrderAuditLogGroup', props.logRetention),
-      bundling: {
-        minify: true,
-        sourceMap: false,
-        externalModules: ['@aws-sdk/*'],
-      },
+      logGroup,
     });
 
     props.orderHistoryTable.grantWriteData(this.function);
@@ -52,5 +51,3 @@ export class OrderAuditLambda extends Construct {
     }));
   }
 }
-
-

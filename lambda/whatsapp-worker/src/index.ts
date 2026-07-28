@@ -57,7 +57,9 @@ type WhatsAppConversationState =
   | 'CART_ACTIVE'
   | 'SPECIAL_REQUEST'
   | 'ADDRESS_CONFIRMATION'
+  | 'ADDRESS_SELECTION'
   | 'WAITING_FOR_ADDRESS'
+  | 'WAITING_FOR_EMAIL'
   | 'PAYMENT_SELECTION'
   | 'HANDOFF_REQUIRED';
 
@@ -1100,11 +1102,26 @@ const handleSpecialRequest = async (
   const specialRequest = isAction(message, 'special:skip', 'skip') ? undefined : message.text;
   const updatedCart = await core.saveSpecialRequest(cart, specialRequest);
   const customer = await core.getOrCreateCustomer(message.from, session.firstName);
-  if (customer.savedAddress?.text && customer.savedAddress.deliveryArea === 'TOWNSHIP') {
-    const body = `Deliver to this address?\n${customer.savedAddress.text}\nDelivery: Free inside township`;
+  const addresses = customer.savedAddresses || (customer.savedAddress ? [customer.savedAddress] : []);
+
+  if (addresses.length > 1) {
+    const rows = addresses.slice(0, 9).map((addr, index) => ({
+      id: `addr:${index}`,
+      title: addr.label ? `${addr.label}` : `Address ${index + 1}`,
+      description: addr.text.slice(0, 60),
+    }));
+    rows.push({ id: 'addr:new', title: '+ Add New Address', description: 'Enter a new delivery address' });
+
+    const body = `Please select your delivery address from your saved list:`;
+    await sendListMessage(message.from, body, 'Choose Address', [{ title: 'Saved Addresses', rows }]);
+    return { body, session: { ...session, state: 'ADDRESS_SELECTION' } };
+  }
+
+  if (addresses.length === 1 && addresses[0].deliveryArea === 'TOWNSHIP') {
+    const body = `Deliver to this address?\n${addresses[0].text}\nDelivery: Free inside township`;
     await sendReplyButtonsMessage(message.from, body, [
-      { id: 'address:use_saved', title: 'Use This' },
-      { id: 'address:change', title: 'Change' },
+      { id: 'address:use_saved', title: 'Use Saved' },
+      { id: 'address:change', title: 'New Address' },
     ]);
     return { body, session: { ...session, state: 'ADDRESS_CONFIRMATION' } };
   }
@@ -1128,6 +1145,53 @@ const sendPaymentSelection = async (
   return { body, session: { ...session, state: 'PAYMENT_SELECTION' } };
 };
 
+const checkAndPromptForEmail = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+  cart: Cart,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const customer = await core.getOrCreateCustomer(message.from, session.firstName);
+  if (customer.email) {
+    return sendPaymentSelection(message, session, cart);
+  }
+
+  const body = `Would you like to add an email address to receive your PDF tax invoice?`;
+  await sendReplyButtonsMessage(message.from, body, [
+    { id: 'email:skip', title: 'Skip for now' },
+  ]);
+
+  return { body, session: { ...session, state: 'WAITING_FOR_EMAIL' } };
+};
+
+const handleEmail = async (
+  message: WhatsAppInboundMessage,
+  session: ConversationSession,
+  core: OrderingCore,
+): Promise<{ body: string; session: ConversationSession }> => {
+  const cart = await core.getActiveCart(message.from, 'WHATSAPP');
+  if (!cart) {
+    return sendMenuList(message, session, core);
+  }
+
+  if (isAction(message, 'email:skip', 'skip', 'skip for now')) {
+    return sendPaymentSelection(message, session, cart);
+  }
+
+  const emailText = message.text.trim();
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailText);
+  if (!isValidEmail) {
+    const body = `Please enter a valid email address (e.g. name@example.com) or tap "Skip for now".`;
+    await sendReplyButtonsMessage(message.from, body, [
+      { id: 'email:skip', title: 'Skip for now' },
+    ]);
+    return { body, session: { ...session, state: 'WAITING_FOR_EMAIL' } };
+  }
+
+  await core.updateCustomerEmail(message.from, emailText);
+  return sendPaymentSelection(message, session, cart);
+};
+
 const handleAddress = async (
   message: WhatsAppInboundMessage,
   session: ConversationSession,
@@ -1138,16 +1202,28 @@ const handleAddress = async (
     return sendMenuList(message, session, core);
   }
 
-  if (isAction(message, 'address:change', 'change')) {
+  if (isAction(message, 'address:change', 'change') || getActionValue(message) === 'addr:new') {
     const body = 'Please share your delivery address.';
     await sendTextMessage(message.from, body);
     return { body, session: { ...session, state: 'WAITING_FOR_ADDRESS' } };
   }
 
   const customer = await core.getOrCreateCustomer(message.from, session.firstName);
-  const updatedCart = isAction(message, 'address:use_saved', 'use this') && customer.savedAddress?.text
-    ? await core.saveDeliveryAddress(cart, customer.savedAddress.text)
-    : await core.saveDeliveryAddress(cart, message.text);
+  const addresses = customer.savedAddresses || (customer.savedAddress ? [customer.savedAddress] : []);
+  const actionValue = getActionValue(message);
+
+  let selectedAddressText: string | undefined;
+  if (actionValue.startsWith('addr:')) {
+    const index = Number(actionValue.slice('addr:'.length));
+    if (!isNaN(index) && addresses[index]) {
+      selectedAddressText = addresses[index].text;
+    }
+  } else if (isAction(message, 'address:use_saved', 'use saved', 'use this')) {
+    selectedAddressText = customer.savedAddress?.text || addresses[0]?.text;
+  }
+
+  const addressToSave = selectedAddressText || message.text;
+  const updatedCart = await core.saveDeliveryAddress(cart, addressToSave);
 
   const deliveryAddress = updatedCart.deliveryAddress || cart.deliveryAddress;
   if (!deliveryAddress?.text || deliveryAddress.deliveryArea !== 'TOWNSHIP') {
@@ -1160,7 +1236,7 @@ const handleAddress = async (
     return { body, session: { ...session, state: 'HANDOFF_REQUIRED' } };
   }
 
-  return sendPaymentSelection(message, session, updatedCart);
+  return checkAndPromptForEmail(message, session, core, updatedCart);
 };
 
 const placeCodOrder = async (
@@ -1175,7 +1251,7 @@ const placeCodOrder = async (
 
   try {
     const customer = await core.getOrCreateCustomer(message.from, session.firstName);
-    const payload = core.buildCodOrderPayload(cart, customer.firstName || session.firstName || 'Customer');
+    const payload = core.buildCodOrderPayload(cart, customer.firstName || session.firstName || 'Customer', customer.email);
     const order = await invokeCreateOrder(message, {
       orderId: '',
       customerName: payload.customerName,
@@ -1380,8 +1456,24 @@ const handleCustomer = async (
     return;
   }
 
-  if (session.state === 'ADDRESS_CONFIRMATION' || session.state === 'WAITING_FOR_ADDRESS' || actionValue.startsWith('address:')) {
+  if (
+    session.state === 'ADDRESS_CONFIRMATION' ||
+    session.state === 'ADDRESS_SELECTION' ||
+    session.state === 'WAITING_FOR_ADDRESS' ||
+    actionValue.startsWith('address:') ||
+    actionValue.startsWith('addr:')
+  ) {
     const result = await handleAddress(message, session, core);
+    await saveConversation(appendConversation(
+      result.session,
+      getActionText(message),
+      result.body,
+    ));
+    return;
+  }
+
+  if (session.state === 'WAITING_FOR_EMAIL' || actionValue.startsWith('email:')) {
+    const result = await handleEmail(message, session, core);
     await saveConversation(appendConversation(
       result.session,
       getActionText(message),

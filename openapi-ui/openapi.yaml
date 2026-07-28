@@ -99,6 +99,46 @@ components:
         status: { type: string }
         version: { type: integer }
         createdAt: { type: string, format: date-time }
+    CustomerAddress:
+      type: object
+      required: [text]
+      properties:
+        addressId: { type: string }
+        text: { type: string }
+        label: { type: string, example: "Home" }
+        isDefault: { type: boolean }
+        deliveryArea: { type: string, enum: [TOWNSHIP, OUTSIDE] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CustomerProfile:
+      type: object
+      required: [phoneNumber, customerId]
+      properties:
+        phoneNumber: { type: string }
+        customerId: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        savedAddresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerAddress'
+        defaultAddressId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateAddressRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+        label: { type: string, example: "Home" }
+        isDefault: { type: boolean }
+    UpdateCustomerProfileRequest:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
     CreateItemRequest:
       type: object
       properties:
@@ -109,6 +149,63 @@ components:
         imageUrl: { type: string }
         available: { type: boolean }
 paths:
+  /customers/profile:
+    get:
+      summary: Customer gets their profile and saved addresses
+      security: [{ CustomerCognito: [] }]
+      responses:
+        '200':
+          description: Profile retrieved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfile' }
+    put:
+      summary: Customer updates their profile (name, email)
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCustomerProfileRequest' }
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfile' }
+  /customers/addresses:
+    post:
+      summary: Customer adds a new saved address
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAddressRequest' }
+      responses:
+        '201':
+          description: Address added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfile' }
+  /customers/addresses/{addressId}:
+    parameters:
+      - { name: addressId, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Customer updates a saved address or sets it as default
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAddressRequest' }
+      responses:
+        '200': { description: Address updated }
+    delete:
+      summary: Customer deletes a saved address
+      security: [{ CustomerCognito: [] }]
+      responses:
+        '200': { description: Address deleted }
   /orders:
     post:
       summary: Customer creates an order

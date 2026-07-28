@@ -57,7 +57,7 @@ export class OrderingCore {
     this.idGenerator = deps.idGenerator || uuidv4;
   }
 
-  async getOrCreateCustomer(phoneNumber: string, firstName?: string): Promise<CustomerProfile> {
+  async getOrCreateCustomer(phoneNumber: string, firstName?: string, email?: string): Promise<CustomerProfile> {
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
     const result = await this.docClient.send(new GetCommand({
       TableName: this.config.customerTableName,
@@ -67,12 +67,15 @@ export class OrderingCore {
     const now = this.now().toISOString();
     if (result.Item) {
       const existing = result.Item as CustomerProfile;
+      const needsUpdate = (!existing.firstName && firstName) || (!existing.email && email);
       const updated: CustomerProfile = {
         ...existing,
         firstName: existing.firstName || firstName,
-        updatedAt: now,
+        email: existing.email || email,
+        updatedAt: needsUpdate ? now : existing.updatedAt,
       };
-      if (!existing.firstName && firstName) {
+
+      if (needsUpdate) {
         await this.docClient.send(new PutCommand({
           TableName: this.config.customerTableName,
           Item: updated,
@@ -85,6 +88,8 @@ export class OrderingCore {
       phoneNumber: normalizedPhone,
       customerId: buildCustomerId(normalizedPhone),
       firstName,
+      email,
+      savedAddresses: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -97,29 +102,162 @@ export class OrderingCore {
     return customer;
   }
 
-  async saveCustomerAddress(phoneNumber: string, addressText: string): Promise<CustomerProfile> {
+  async saveCustomerAddress(
+    phoneNumber: string,
+    addressText: string,
+    label?: string,
+    isDefault?: boolean,
+  ): Promise<CustomerProfile> {
     const customer = await this.getOrCreateCustomer(phoneNumber);
     const now = this.now().toISOString();
-    const address: Address = {
-      addressId: customer.savedAddress?.addressId || this.idGenerator(),
-      text: addressText,
-      deliveryArea: isTownshipAddress(addressText) ? 'TOWNSHIP' : 'OUTSIDE',
-      createdAt: customer.savedAddress?.createdAt || now,
-      updatedAt: now,
-    };
+    const existingAddresses = customer.savedAddresses || (customer.savedAddress ? [customer.savedAddress] : []);
 
-    const updated: CustomerProfile = {
+    // Check if address text already exists (case-insensitive trim)
+    const existingIndex = existingAddresses.findIndex(
+      (a) => a.text.trim().toLowerCase() === addressText.trim().toLowerCase(),
+    );
+
+    let updatedAddresses: Address[];
+    let newAddressId: string;
+
+    if (existingIndex >= 0) {
+      newAddressId = existingAddresses[existingIndex].addressId || this.idGenerator();
+      const updatedAddress: Address = {
+        ...existingAddresses[existingIndex],
+        addressId: newAddressId,
+        text: addressText,
+        label: label || existingAddresses[existingIndex].label || 'Home',
+        deliveryArea: isTownshipAddress(addressText) ? 'TOWNSHIP' : 'OUTSIDE',
+        isDefault: isDefault ?? existingAddresses[existingIndex].isDefault ?? (existingAddresses.length === 1),
+        updatedAt: now,
+      };
+
+      updatedAddresses = [...existingAddresses];
+      updatedAddresses[existingIndex] = updatedAddress;
+    } else {
+      newAddressId = this.idGenerator();
+      const shouldBeDefault = isDefault ?? (existingAddresses.length === 0);
+      const newAddress: Address = {
+        addressId: newAddressId,
+        text: addressText,
+        label: label || 'Home',
+        deliveryArea: isTownshipAddress(addressText) ? 'TOWNSHIP' : 'OUTSIDE',
+        isDefault: shouldBeDefault,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      if (shouldBeDefault) {
+        updatedAddresses = existingAddresses.map((a) => ({ ...a, isDefault: false }));
+        updatedAddresses.push(newAddress);
+      } else {
+        updatedAddresses = [...existingAddresses, newAddress];
+      }
+    }
+
+    const defaultAddress = updatedAddresses.find((a) => a.isDefault) || updatedAddresses[0];
+    const updatedCustomer: CustomerProfile = {
       ...customer,
-      savedAddress: address,
+      savedAddresses: updatedAddresses,
+      savedAddress: defaultAddress,
+      defaultAddressId: defaultAddress?.addressId,
       updatedAt: now,
     };
 
     await this.docClient.send(new PutCommand({
       TableName: this.config.customerTableName,
-      Item: updated,
+      Item: updatedCustomer,
     }));
 
-    return updated;
+    return updatedCustomer;
+  }
+
+  async updateCustomerEmail(phoneNumber: string, email: string): Promise<CustomerProfile> {
+    const customer = await this.getOrCreateCustomer(phoneNumber);
+    const now = this.now().toISOString();
+    const updatedCustomer: CustomerProfile = {
+      ...customer,
+      email: email.trim().toLowerCase(),
+      updatedAt: now,
+    };
+
+    await this.docClient.send(new PutCommand({
+      TableName: this.config.customerTableName,
+      Item: updatedCustomer,
+    }));
+
+    return updatedCustomer;
+  }
+
+  async updateCustomerName(phoneNumber: string, firstName: string, lastName?: string): Promise<CustomerProfile> {
+    const customer = await this.getOrCreateCustomer(phoneNumber);
+    const now = this.now().toISOString();
+    const updatedCustomer: CustomerProfile = {
+      ...customer,
+      firstName: firstName.trim(),
+      ...(lastName ? { lastName: lastName.trim() } : {}),
+      updatedAt: now,
+    };
+
+    await this.docClient.send(new PutCommand({
+      TableName: this.config.customerTableName,
+      Item: updatedCustomer,
+    }));
+
+    return updatedCustomer;
+  }
+
+  async deleteCustomerAddress(phoneNumber: string, addressId: string): Promise<CustomerProfile> {
+    const customer = await this.getOrCreateCustomer(phoneNumber);
+    const existingAddresses = customer.savedAddresses || (customer.savedAddress ? [customer.savedAddress] : []);
+    const updatedAddresses = existingAddresses.filter((a) => a.addressId !== addressId);
+    const now = this.now().toISOString();
+
+    if (updatedAddresses.length > 0 && !updatedAddresses.some((a) => a.isDefault)) {
+      updatedAddresses[0].isDefault = true;
+    }
+
+    const defaultAddress = updatedAddresses.find((a) => a.isDefault) || updatedAddresses[0];
+    const updatedCustomer: CustomerProfile = {
+      ...customer,
+      savedAddresses: updatedAddresses,
+      savedAddress: defaultAddress,
+      defaultAddressId: defaultAddress?.addressId,
+      updatedAt: now,
+    };
+
+    await this.docClient.send(new PutCommand({
+      TableName: this.config.customerTableName,
+      Item: updatedCustomer,
+    }));
+
+    return updatedCustomer;
+  }
+
+  async setDefaultCustomerAddress(phoneNumber: string, addressId: string): Promise<CustomerProfile> {
+    const customer = await this.getOrCreateCustomer(phoneNumber);
+    const existingAddresses = customer.savedAddresses || (customer.savedAddress ? [customer.savedAddress] : []);
+    const updatedAddresses = existingAddresses.map((a) => ({
+      ...a,
+      isDefault: a.addressId === addressId,
+    }));
+    const now = this.now().toISOString();
+    const defaultAddress = updatedAddresses.find((a) => a.isDefault) || updatedAddresses[0];
+
+    const updatedCustomer: CustomerProfile = {
+      ...customer,
+      savedAddresses: updatedAddresses,
+      savedAddress: defaultAddress,
+      defaultAddressId: defaultAddress?.addressId,
+      updatedAt: now,
+    };
+
+    await this.docClient.send(new PutCommand({
+      TableName: this.config.customerTableName,
+      Item: updatedCustomer,
+    }));
+
+    return updatedCustomer;
   }
 
   async getAvailableMenu(): Promise<MenuItem[]> {
@@ -296,9 +434,9 @@ export class OrderingCore {
     });
   }
 
-  buildCodOrderPayload(cart: Cart, customerName: string): CreateOrderPayload {
+  buildCodOrderPayload(cart: Cart, customerName: string, customerEmail?: string): CreateOrderPayload {
     if (!cart.deliveryAddress?.text) {
-      throw new Error('Delivery address is required before order creation');
+      throw new Error('Cart must have a delivery address before order creation');
     }
     if (!cart.items.length) {
       throw new Error('Cart must contain at least one item before order creation');
@@ -310,6 +448,7 @@ export class OrderingCore {
     return {
       customerName,
       customerPhone: cart.phoneNumber,
+      customerEmail: customerEmail || (cart as any).customerEmail,
       deliveryAddress: cart.deliveryAddress.text,
       paymentMethod: 'COD',
       items: cart.items.map((item) => ({ id: item.itemId, quantity: item.quantity })),

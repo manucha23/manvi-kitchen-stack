@@ -4,7 +4,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface AuthSessionLambdasProps {
   sessionTable: dynamodb.Table;
@@ -16,7 +17,7 @@ export interface AuthSessionLambdasProps {
   callbackUrl: string;
   adminUiOrigin: string;
   adminGroupName: string;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export class AuthSessionLambdas extends Construct {
@@ -43,26 +44,36 @@ export class AuthSessionLambdas extends Construct {
       REFRESH_LOCK_SECONDS: String(10),
     };
 
+    const sessionLogGroup = new logs.LogGroup(this, 'SessionHandlerLogGroup', {
+      retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     this.sessionFunction = new lambda.Function(this, 'SessionHandler', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
+      runtime: nodeJs24Runtime,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/auth-session', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
       }),
       environment: commonEnvironment,
       timeout: cdk.Duration.seconds(15),
-      logGroup: createLambdaLogGroup(this, 'SessionHandlerLogGroup', props.logRetention),
+      logGroup: sessionLogGroup,
+    });
+
+    const authorizerLogGroup = new logs.LogGroup(this, 'AdminSessionAuthorizerLogGroup', {
+      retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     this.authorizerFunction = new lambda.Function(this, 'AdminSessionAuthorizer', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
+      runtime: nodeJs24Runtime,
       handler: 'dist/authorizer.handler',
       code: lambda.Code.fromAsset('lambda/auth-session', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
       }),
       environment: commonEnvironment,
       timeout: cdk.Duration.seconds(10),
-      logGroup: createLambdaLogGroup(this, 'AdminSessionAuthorizerLogGroup', props.logRetention),
+      logGroup: authorizerLogGroup,
     });
 
     props.sessionTable.grantReadWriteData(this.sessionFunction);

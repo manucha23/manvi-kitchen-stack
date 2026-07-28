@@ -5,7 +5,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
@@ -15,7 +15,7 @@ export interface ItemLambdasProps {
   imageDomain: string;
   adminGroupName: string;
   allowedOrigins?: string;
-  logRetention?: logs.RetentionDays;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export class ItemLambdas extends Construct {
@@ -24,8 +24,13 @@ export class ItemLambdas extends Construct {
   constructor(scope: Construct, id: string, props: ItemLambdasProps) {
     super(scope, id);
 
+    const logGroup = new logs.LogGroup(this, 'ItemHandlerLogGroup', {
+      retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     this.itemFunction = new lambda.Function(this, 'ItemHandler', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
+      runtime: nodeJs24Runtime,
       handler: 'dist/index.handler',
       code: lambda.Code.fromAsset('lambda/items', {
         exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
@@ -39,7 +44,7 @@ export class ItemLambdas extends Construct {
         ALLOWED_ORIGIN: props.allowedOrigins || '*',
       },
       timeout: cdk.Duration.seconds(30),
-      logGroup: createLambdaLogGroup(this, 'ItemHandlerLogGroup', props.logRetention),
+      logGroup,
     });
 
     props.itemTable.grantReadWriteData(this.itemFunction);

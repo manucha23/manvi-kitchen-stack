@@ -4,22 +4,27 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
-import { createLambdaLogGroup } from './log-retention';
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface ImageProcessorLambdaProps {
   environment: string;
   pendingImageBucket: s3.Bucket;
   imageBucket: s3.IBucket;
-  nodeRuntime: lambda.Runtime;
-  logRetention?: logs.RetentionDays;
+  nodeRuntime?: lambda.Runtime;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export const createImageProcessorLambda = (
   scope: Construct,
   props: ImageProcessorLambdaProps,
 ): lambda.Function => {
+  const logGroup = new logs.LogGroup(scope, 'ImageProcessorLogGroup', {
+    retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
   const processorFunction = new lambda.Function(scope, 'ImageProcessor', {
-    runtime: props.nodeRuntime,
+    runtime: props.nodeRuntime ?? nodeJs24Runtime,
     handler: 'dist/index.handler',
     code: lambda.Code.fromAsset('lambda/image-processor', {
       exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
@@ -31,7 +36,7 @@ export const createImageProcessorLambda = (
     },
     memorySize: 1024,
     timeout: cdk.Duration.seconds(60),
-    logGroup: createLambdaLogGroup(scope, 'ImageProcessorLogGroup', props.logRetention),
+    logGroup,
   });
 
   processorFunction.addEventSource(new eventSources.S3EventSource(props.pendingImageBucket, {
