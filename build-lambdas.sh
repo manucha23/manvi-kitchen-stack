@@ -145,6 +145,8 @@ install_dependencies
 vendor_ordering_core_dependency
 run_tests_if_exist "customers"
 npm run build
+cd ../..
+
 # Build whatsapp-notification Lambda
 echo "Building whatsapp-notification Lambda..."
 cd lambda/whatsapp-notification
