@@ -64,11 +64,12 @@ export class OrderEventBus extends Construct {
     this.topic.addSubscription(
       new subscriptions.SqsSubscription(this.invoiceEmailQueue, {
         rawMessageDelivery: true,
-        filterPolicyScope: sns.FilterPolicyScope.MESSAGE_BODY,
-        filterPolicy: {
-          status: sns.SubscriptionFilter.stringFilter({
-            allowlist: ['COMPLETED'],
-          }),
+        filterPolicyWithMessageBody: {
+          status: sns.FilterOrPolicy.filter(
+            sns.SubscriptionFilter.stringFilter({
+              allowlist: ['COMPLETED'],
+            })
+          ),
         },
       })
     );
@@ -90,11 +91,12 @@ export class OrderEventBus extends Construct {
     this.topic.addSubscription(
       new subscriptions.SqsSubscription(this.whatsAppNotificationQueue, {
         rawMessageDelivery: true,
-        filterPolicyScope: sns.FilterPolicyScope.MESSAGE_BODY,
-        filterPolicy: {
-          status: sns.SubscriptionFilter.stringFilter({
-            allowlist: ['CONFIRMED', 'DISPATCHED', 'COMPLETED'],
-          }),
+        filterPolicyWithMessageBody: {
+          status: sns.FilterOrPolicy.filter(
+            sns.SubscriptionFilter.stringFilter({
+              allowlist: ['CONFIRMED', 'DISPATCHED', 'COMPLETED'],
+            })
+          ),
         },
       })
     );
