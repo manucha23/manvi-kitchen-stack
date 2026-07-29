@@ -139,7 +139,7 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
       Object.keys(customLogRetention).length +
       Object.values(logGroupResources).filter((res: any) => res.Properties?.RetentionInDays === 30).length;
 
-    expect(appLogRetentionCount).toBe(12);
+    expect(appLogRetentionCount).toBe(13);
   });
 
   it.skip('sets one-month Lambda log retention for the prod environment', () => {
@@ -157,7 +157,7 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
         Object.keys(customLogRetention).length +
         Object.values(logGroupResources).filter((res: any) => res.Properties?.RetentionInDays === 30).length;
 
-      expect(appLogRetentionCount).toBe(12);
+      expect(appLogRetentionCount).toBe(13);
     }
   });
 
