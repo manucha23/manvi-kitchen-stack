@@ -15,9 +15,12 @@ import { Construct } from 'constructs';
 
 import { nodeJs24Runtime } from './node-runtime';
 
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+
 export interface OrderInvoiceEmailLambdaProps {
   environment: string;
   orderTable: dynamodb.Table;
+  invoiceEmailQueue: sqs.IQueue;
   hostedZone: route53.IHostedZone;
   certificate?: acm.ICertificate;
   logRetentionDays?: logs.RetentionDays;
@@ -64,12 +67,9 @@ export class OrderInvoiceEmailLambda extends Construct {
   public readonly function: lambda.Function;
   public readonly invoiceBucket: s3.Bucket;
   public readonly emailIdentity: ses.EmailIdentity;
-  public readonly distribution?: cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: OrderInvoiceEmailLambdaProps) {
     super(scope, id);
-
-    const invoiceDomain = `invoices.${props.environment}.cravnest.in`;
 
     this.invoiceBucket = new s3.Bucket(this, 'InvoiceBucket', {
       bucketName: `manvi-kitchen-invoices-${props.environment}-${cdk.Aws.ACCOUNT_ID}`,
@@ -79,23 +79,6 @@ export class OrderInvoiceEmailLambda extends Construct {
       lifecycleRules: invoiceLifecycleRules(props.environment),
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
-
-    if (props.certificate) {
-      this.distribution = new cloudfront.Distribution(this, 'InvoiceDistribution', {
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(this.invoiceBucket),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        },
-        domainNames: [invoiceDomain],
-        certificate: props.certificate,
-      });
-
-      new route53.ARecord(this, 'InvoiceDNS', {
-        zone: props.hostedZone,
-        recordName: invoiceDomain,
-        target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution)),
-      });
-    }
 
     this.emailIdentity = new ses.EmailIdentity(this, 'CravnestEmailIdentity', {
       identity: ses.Identity.publicHostedZone(props.hostedZone),
@@ -116,7 +99,6 @@ export class OrderInvoiceEmailLambda extends Construct {
         ENVIRONMENT: props.environment,
         ORDER_TABLE: props.orderTable.tableName,
         INVOICE_BUCKET: this.invoiceBucket.bucketName,
-        INVOICE_DOMAIN: invoiceDomain,
         FROM_EMAIL: 'noreply@cravnest.in',
       },
       timeout: cdk.Duration.seconds(30),
@@ -142,21 +124,10 @@ export class OrderInvoiceEmailLambda extends Construct {
       ],
     }));
 
-    this.function.addEventSource(new lambdaEventSources.DynamoEventSource(props.orderTable, {
-      startingPosition: lambda.StartingPosition.LATEST,
-      retryAttempts: 2,
-      filters: [
-        lambda.FilterCriteria.filter({
-          eventName: lambda.FilterRule.isEqual('MODIFY'),
-          dynamodb: {
-            NewImage: {
-              status: {
-                S: lambda.FilterRule.isEqual('COMPLETED'),
-              },
-            },
-          },
-        }),
-      ],
+    props.invoiceEmailQueue.grantConsumeMessages(this.function);
+
+    this.function.addEventSource(new lambdaEventSources.SqsEventSource(props.invoiceEmailQueue, {
+      batchSize: 1,
     }));
   }
 }

@@ -5,6 +5,9 @@ import { ItemDatabase } from './constructs/database/item-database';
 import { OrderHistoryDatabase } from './constructs/database/order-history-database';
 import { OrderLimitsConfigDatabase } from './constructs/database/order-limits-config-database';
 import { WhatsAppConversationDatabase } from './constructs/database/whatsapp-conversation-database';
+import { WhatsAppTemplateDatabase } from './constructs/database/whatsapp-template-database';
+import { OrderEventBus } from './constructs/messaging/order-event-bus';
+import { WhatsAppNotificationLambda } from './constructs/compute/whatsapp-notification-lambda';
 import { CustomerProfileDatabase } from './constructs/database/customer-profile-database';
 import { CartDatabase } from './constructs/database/cart-database';
 import { CartEventDatabase } from './constructs/database/cart-event-database';
@@ -55,6 +58,9 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const whatsappConversations = new WhatsAppConversationDatabase(this, 'WhatsAppConversations', {
       environment,
     });
+    const whatsappTemplates = new WhatsAppTemplateDatabase(this, 'WhatsAppTemplates', {
+      environment,
+    });
     const customerProfiles = new CustomerProfileDatabase(this, 'CustomerProfiles', {
       environment,
     });
@@ -65,6 +71,11 @@ export class ManviKitchenStackStack extends cdk.Stack {
       environment,
     });
     const sessions = new SessionDatabase(this, 'Sessions', { environment });
+
+    const orderEventBus = new OrderEventBus(this, 'OrderEventBus', {
+      environment,
+      orderTable: orderDatabase.table,
+    });
 
     const adminFrontendDomain = 'admin.test.cravnest.in';
     const apiDomainName = 'api.test.cravnest.in';
@@ -135,7 +146,7 @@ export class ManviKitchenStackStack extends cdk.Stack {
     });
     
     const orderAudit = new OrderAuditLambda(this, 'OrderAudit', {
-      orderTable: orderDatabase.table,
+      auditQueue: orderEventBus.auditQueue,
       orderHistoryTable: orderHistory.table,
       logRetentionDays: lambdaLogRetention,
     });
@@ -143,8 +154,17 @@ export class ManviKitchenStackStack extends cdk.Stack {
     const orderInvoiceEmail = new OrderInvoiceEmailLambda(this, 'OrderInvoiceEmail', {
       environment,
       orderTable: orderDatabase.table,
+      invoiceEmailQueue: orderEventBus.invoiceEmailQueue,
       hostedZone: hostedZone.hostedZone,
       certificate: certificates.cloudfrontCertificate,
+      logRetentionDays: lambdaLogRetention,
+    });
+
+    new WhatsAppNotificationLambda(this, 'WhatsAppNotification', {
+      environment,
+      notificationQueue: orderEventBus.whatsAppNotificationQueue,
+      templateTable: whatsappTemplates.table,
+      parameterPrefix: `/manvi-kitchen/${environment}/whatsapp`,
       logRetentionDays: lambdaLogRetention,
     });
     

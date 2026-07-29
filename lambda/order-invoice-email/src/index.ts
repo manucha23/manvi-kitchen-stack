@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { DynamoDBRecord, DynamoDBStreamEvent } from 'aws-lambda';
 import { AttributeValue, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -127,13 +128,26 @@ const wrapText = (value: string, maxLength: number): string[] => {
   return lines.length ? lines : [''];
 };
 
-export const extractCompletedOrder = (record: DynamoDBRecord): Order | undefined => {
-  if (record.eventName !== 'MODIFY') {
-    return undefined;
-  }
+export const extractCompletedOrder = (record: any): Order | undefined => {
+  let oldImage: Order | undefined;
+  let newImage: Order | undefined;
 
-  const oldImage = asOrder(unmarshallImage(record.dynamodb?.OldImage as Record<string, AttributeValue> | undefined));
-  const newImage = asOrder(unmarshallImage(record.dynamodb?.NewImage as Record<string, AttributeValue> | undefined));
+  if (record.body) {
+    try {
+      const bodyData = typeof record.body === 'string' ? JSON.parse(record.body) : record.body;
+      const messageContent = typeof bodyData.Message === 'string' ? JSON.parse(bodyData.Message) : bodyData;
+      if (messageContent.dynamodb?.NewImage) {
+        newImage = asOrder(unmarshallImage(messageContent.dynamodb.NewImage));
+        oldImage = asOrder(unmarshallImage(messageContent.dynamodb.OldImage));
+      }
+    } catch (err) {
+      console.warn('Failed to parse SQS record body in OrderInvoiceEmailLambda:', err);
+      return undefined;
+    }
+  } else if (record.eventName === 'MODIFY') {
+    oldImage = asOrder(unmarshallImage(record.dynamodb?.OldImage as Record<string, AttributeValue> | undefined));
+    newImage = asOrder(unmarshallImage(record.dynamodb?.NewImage as Record<string, AttributeValue> | undefined));
+  }
 
   if (!newImage || newImage.status !== COMPLETED_STATUS || oldImage?.status === COMPLETED_STATUS) {
     return undefined;
@@ -146,8 +160,8 @@ export const extractCompletedOrder = (record: DynamoDBRecord): Order | undefined
   return newImage;
 };
 
-export const buildInvoiceS3Key = (order: Order): string =>
-  `orders/${order.orderId}/invoice-v${order.version || 1}.pdf`;
+export const buildInvoiceS3Key = (_order?: Order): string =>
+  `invoices/${randomUUID()}.pdf`;
 
 export const buildInvoicePdf = (order: Order, generatedAt = new Date()): Buffer => {
   const lines: string[] = [
@@ -357,9 +371,9 @@ const getSsmParameter = async (paramName: string): Promise<string> => {
   return response.Parameter.Value;
 };
 
-const sendWhatsAppInvoiceFallback = async (
+const sendWhatsAppInvoiceDocument = async (
   order: Order,
-  customDomainInvoiceUrl: string,
+  pdfBuffer: Buffer,
 ): Promise<string> => {
   const env = process.env.ENVIRONMENT || 'test';
   const [accessToken, phoneNumberId] = await Promise.all([
@@ -367,9 +381,39 @@ const sendWhatsAppInvoiceFallback = async (
     getSsmParameter(`/manvi-kitchen/${env}/whatsapp/phone-number-id`),
   ]);
 
-  const bodyText = `Hi ${order.customerName},\n\nThank you for ordering from Cravnest! Your order ${order.orderId} has been successfully delivered.\n\nTotal: ${formatCurrency(order.totalAmount)}\n\n📄 Download Tax Invoice (PDF):\n${customDomainInvoiceUrl}\n\nFor support, reply to this chat or email support@cravnest.in.`;
+  const graphApiVersion = process.env.WHATSAPP_GRAPH_API_VERSION || 'v25.0';
+  const filename = `cravnest-invoice-${order.orderId}.pdf`;
 
-  const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+  // 1. Upload PDF to Meta Media API
+  const formData = new FormData();
+  const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
+  formData.append('file', pdfBlob, filename);
+  formData.append('type', 'application/pdf');
+  formData.append('messaging_product', 'whatsapp');
+
+  const uploadResponse = await fetch(`https://graph.facebook.com/${graphApiVersion}/${phoneNumberId}/media`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: formData,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`WhatsApp media upload failed (${uploadResponse.status}): ${await uploadResponse.text()}`);
+  }
+
+  const uploadData = (await uploadResponse.json()) as any;
+  const mediaId = uploadData.id;
+  if (!mediaId) {
+    throw new Error('WhatsApp media upload did not return a valid media ID');
+  }
+
+  // 2. Send Document Message via WhatsApp Graph API
+  const rawPhone = order.customerPhone.replace(/\D/g, '');
+  const recipientPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+
+  const messageResponse = await fetch(`https://graph.facebook.com/${graphApiVersion}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -378,21 +422,22 @@ const sendWhatsAppInvoiceFallback = async (
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
-      to: order.customerPhone,
-      type: 'text',
-      text: {
-        preview_url: true,
-        body: bodyText,
+      to: recipientPhone,
+      type: 'document',
+      document: {
+        id: mediaId,
+        filename,
+        caption: `Hi ${order.customerName}, thank you for ordering from Cravnest! Here is your tax invoice for order ${order.orderId}.`,
       },
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`WhatsApp invoice fallback failed (${response.status}): ${await response.text()}`);
+  if (!messageResponse.ok) {
+    throw new Error(`WhatsApp document dispatch failed (${messageResponse.status}): ${await messageResponse.text()}`);
   }
 
-  const resData = (await response.json()) as any;
-  return resData.messages?.[0]?.id || 'wa-sent';
+  const messageData = (await messageResponse.json()) as any;
+  return messageData.messages?.[0]?.id || mediaId;
 };
 
 const claimInvoiceProcessing = async (order: Order): Promise<void> => {
@@ -441,19 +486,17 @@ const clearInvoiceClaim = async (order: Order): Promise<void> => {
 
 export const processCompletedOrder = async (order: Order): Promise<void> => {
   const invoiceBucket = getRequiredEnv('INVOICE_BUCKET');
-  const invoiceDomain = process.env.INVOICE_DOMAIN || 'invoices.test.cravnest.in';
   const fromEmail = getRequiredEnv('FROM_EMAIL');
   const invoiceS3Key = buildInvoiceS3Key(order);
   const invoicePdf = buildInvoicePdf(order);
   const attachmentName = `cravnest-invoice-${order.orderId}.pdf`;
-  const customDomainInvoiceUrl = `https://${invoiceDomain}/${invoiceS3Key}`;
 
   await claimInvoiceProcessing(order);
 
   let success = false;
 
   try {
-    // 1. Save PDF Invoice to private S3 bucket
+    // 1. Save PDF Invoice to private S3 bucket (using random UUID key)
     await s3Client.send(new PutObjectCommand({
       Bucket: invoiceBucket,
       Key: invoiceS3Key,
@@ -464,7 +507,7 @@ export const processCompletedOrder = async (order: Order): Promise<void> => {
       },
     }));
 
-    // 2. Deliver via Email (SES) if email is present, else deliver via WhatsApp Fallback
+    // 2. Deliver via Email (SES) if email is present, else deliver via WhatsApp inline PDF document attachment
     if (order.customerEmail) {
       const emailContent = buildEmailContent(order);
       const sendResult = await sesClient.send(new SendEmailCommand({
@@ -482,8 +525,8 @@ export const processCompletedOrder = async (order: Order): Promise<void> => {
       success = true;
       await markInvoiceSent(order, invoiceS3Key, 'EMAIL', sendResult.MessageId);
     } else {
-      console.log(`Order ${order.orderId} completed without email; delivering invoice via WhatsApp fallback to ${order.customerPhone}`);
-      const messageId = await sendWhatsAppInvoiceFallback(order, customDomainInvoiceUrl);
+      console.log(`Order ${order.orderId} completed without email; delivering invoice document via WhatsApp to ${order.customerPhone}`);
+      const messageId = await sendWhatsAppInvoiceDocument(order, invoicePdf);
       success = true;
       await markInvoiceSent(order, invoiceS3Key, 'WHATSAPP', messageId);
     }
@@ -497,7 +540,11 @@ export const processCompletedOrder = async (order: Order): Promise<void> => {
   }
 };
 
-export const handler = async (event: DynamoDBStreamEvent): Promise<{ statusCode: number; body: string }> => {
+export const handler = async (event: any): Promise<{ statusCode: number; body: string }> => {
+  if (!event || !Array.isArray(event.Records)) {
+    return { statusCode: 200, body: 'No records to process' };
+  }
+
   for (const record of event.Records) {
     const order = extractCompletedOrder(record);
     if (!order) {
