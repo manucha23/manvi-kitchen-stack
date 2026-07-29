@@ -39,7 +39,7 @@ export class WhatsAppNotificationLambda extends Construct {
         WHATSAPP_PHONE_NUMBER_ID_PARAM: `${props.parameterPrefix}/phone-number-id`,
         WHATSAPP_GRAPH_API_VERSION: 'v25.0',
         WHATSAPP_TEMPLATE_TABLE: props.templateTable.tableName,
-        WHATSAPP_TEMPLATE_LANGUAGE: 'en_US',
+        WHATSAPP_TEMPLATE_LANGUAGE: 'en',
       },
       timeout: cdk.Duration.seconds(30),
       logGroup,
