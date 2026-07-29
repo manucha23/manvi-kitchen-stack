@@ -50,7 +50,13 @@ export class InvoiceProcessorService {
       try {
         const bodyData = typeof record.body === 'string' ? JSON.parse(record.body) : record.body;
         const messageContent = typeof bodyData.Message === 'string' ? JSON.parse(bodyData.Message) : bodyData;
-        if (messageContent.dynamodb?.NewImage) {
+
+        // Updated inputTemplate emits top-level newImage/oldImage DynamoDB AttributeValue maps
+        if (messageContent.newImage) {
+          newImage = this.asOrder(this.unmarshallImage(messageContent.newImage));
+          oldImage = this.asOrder(this.unmarshallImage(messageContent.oldImage));
+        } else if (messageContent.dynamodb?.NewImage) {
+          // Legacy/fallback: nested dynamodb wrapper
           newImage = this.asOrder(this.unmarshallImage(messageContent.dynamodb.NewImage));
           oldImage = this.asOrder(this.unmarshallImage(messageContent.dynamodb.OldImage));
         }

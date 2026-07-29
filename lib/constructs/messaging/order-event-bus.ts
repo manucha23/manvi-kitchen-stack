@@ -43,7 +43,10 @@ export class OrderEventBus extends Construct {
     });
     this.topic.addSubscription(
       new subscriptions.SqsSubscription(this.auditQueue, {
-        rawMessageDelivery: true,
+        // rawMessageDelivery: true — intentionally disabled so the SQS body
+        // is the standard SNS JSON envelope { Message: '...', Subject: '...' }.
+        // The audit lambda already handles both raw and enveloped formats.
+        rawMessageDelivery: false,
       })
     );
 
@@ -63,7 +66,10 @@ export class OrderEventBus extends Construct {
     });
     this.topic.addSubscription(
       new subscriptions.SqsSubscription(this.invoiceEmailQueue, {
-        rawMessageDelivery: true,
+        // rawMessageDelivery must be FALSE when using filterPolicyWithMessageBody.
+        // SNS body-based filtering requires the SNS JSON envelope to be present
+        // so SNS can parse and evaluate the Message JSON before delivering.
+        rawMessageDelivery: false,
         filterPolicyWithMessageBody: {
           status: sns.FilterOrPolicy.filter(
             sns.SubscriptionFilter.stringFilter({
@@ -90,7 +96,10 @@ export class OrderEventBus extends Construct {
     });
     this.topic.addSubscription(
       new subscriptions.SqsSubscription(this.whatsAppNotificationQueue, {
-        rawMessageDelivery: true,
+        // rawMessageDelivery must be FALSE when using filterPolicyWithMessageBody.
+        // SNS body-based filtering requires the SNS JSON envelope to be present
+        // so SNS can parse and evaluate the Message JSON before delivering.
+        rawMessageDelivery: false,
         filterPolicyWithMessageBody: {
           status: sns.FilterOrPolicy.filter(
             sns.SubscriptionFilter.stringFilter({
@@ -134,15 +143,22 @@ export class OrderEventBus extends Construct {
         },
         target: this.topic.topicArn,
         targetParameters: {
-          inputTemplate: JSON.stringify({
-            eventName: '<$.eventName>',
-            status: '<$.dynamodb.NewImage.status.S>',
-            oldStatus: '<$.dynamodb.OldImage.status.S>',
-            orderId: '<$.dynamodb.NewImage.orderId.S>',
-            customerName: '<$.dynamodb.NewImage.customerName.S>',
-            customerPhone: '<$.dynamodb.NewImage.customerPhone.S>',
-            dynamodb: '<$.dynamodb>',
-          }),
+          // EventBridge Pipe input transformer: use individual field references.
+          // Do NOT embed <$.dynamodb> directly — it injects a JSON-escaped string
+          // literal into the JSON template, producing invalid JSON that breaks
+          // downstream lambda parsers. Instead, reference individual sub-fields.
+          inputTemplate: [
+            '{',
+            '"eventName": <$.eventName>,',
+            '"status": <$.dynamodb.NewImage.status.S>,',
+            '"oldStatus": <$.dynamodb.OldImage.status.S>,',
+            '"orderId": <$.dynamodb.NewImage.orderId.S>,',
+            '"customerName": <$.dynamodb.NewImage.customerName.S>,',
+            '"customerPhone": <$.dynamodb.NewImage.customerPhone.S>,',
+            '"newImage": <$.dynamodb.NewImage>,',
+            '"oldImage": <$.dynamodb.OldImage>',
+            '}',
+          ].join(''),
         },
       });
     }

@@ -75,18 +75,34 @@ export const buildAuditRecord = (
   let record: DynamoDBRecord = rawRecord;
 
   if (rawRecord.body) {
-    try {
-      const bodyData = typeof rawRecord.body === 'string' ? JSON.parse(rawRecord.body) : rawRecord.body;
-      const messageContent = typeof bodyData.Message === 'string' ? JSON.parse(bodyData.Message) : bodyData;
+    // SQS delivers the SNS envelope since rawMessageDelivery is false.
+    // SNS body format: { "Message": "<JSON string>", "Subject": "...", ... }
+    const bodyData = typeof rawRecord.body === 'string' ? JSON.parse(rawRecord.body) : rawRecord.body;
+    const messageContent = typeof bodyData.Message === 'string' ? JSON.parse(bodyData.Message) : bodyData;
+
+    // The EventBridge Pipe inputTemplate now emits top-level newImage/oldImage
+    // DynamoDB AttributeValue maps instead of a nested `dynamodb` wrapper.
+    if (messageContent.newImage || messageContent.oldImage) {
+      record = {
+        eventName: messageContent.eventName || 'MODIFY',
+        dynamodb: {
+          NewImage: messageContent.newImage,
+          OldImage: messageContent.oldImage,
+        },
+      } as DynamoDBRecord;
+    } else if (messageContent.dynamodb) {
+      // Legacy/fallback: nested dynamodb wrapper
       record = {
         eventName: messageContent.eventName || 'MODIFY',
         dynamodb: messageContent.dynamodb,
       } as DynamoDBRecord;
-    } catch (err) {
-      console.warn('Failed to parse SQS body in order-audit:', err);
-      return undefined;
+    } else {
+      console.warn('Unrecognised SQS message shape in order-audit:', JSON.stringify(messageContent));
+      // Throw so SQS retries the message and it lands in the DLQ after maxReceiveCount
+      throw new Error('Unrecognised message shape — retrying');
     }
   }
+
 
   const oldImage = unmarshallImage(record.dynamodb?.OldImage as Record<string, AttributeValue> | undefined);
   const newImage = unmarshallImage(record.dynamodb?.NewImage as Record<string, AttributeValue> | undefined);
