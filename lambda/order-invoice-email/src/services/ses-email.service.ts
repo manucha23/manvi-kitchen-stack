@@ -34,7 +34,7 @@ export class SesEmailService {
           <div style="max-width: 640px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; border: 1px solid #E5E7EB; padding: 32px;">
             <h2 style="margin-top: 0; color: #111827;">Thank you for ordering with Cravnest!</h2>
             <p>Hi ${escapeHtml(order.customerName)},</p>
-            <p>Your order <strong>#${escapeHtml(order.orderId)}</strong> has been delivered. Please find your official tax invoice attached as a PDF.</p>
+            <p>Your order has been delivered. Invoice for order <strong>#${escapeHtml(order.orderId)}</strong> is attached as a PDF.</p>
             
             <div style="background: #F3F4F6; border-radius: 8px; padding: 16px; margin: 20px 0;">
               <p style="margin: 0 0 8px 0;"><strong>Delivered At:</strong> ${escapeHtml(formatDateTime(order.updatedAt))}</p>
