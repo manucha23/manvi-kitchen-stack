@@ -69,9 +69,25 @@ const getChangedFields = (oldImage: OrderImage, newImage: OrderImage): Record<st
 };
 
 export const buildAuditRecord = (
-  record: DynamoDBRecord,
+  rawRecord: any,
   timestamp = new Date().toISOString(),
 ): OrderAuditRecord | undefined => {
+  let record: DynamoDBRecord = rawRecord;
+
+  if (rawRecord.body) {
+    try {
+      const bodyData = typeof rawRecord.body === 'string' ? JSON.parse(rawRecord.body) : rawRecord.body;
+      const messageContent = typeof bodyData.Message === 'string' ? JSON.parse(bodyData.Message) : bodyData;
+      record = {
+        eventName: messageContent.eventName || 'MODIFY',
+        dynamodb: messageContent.dynamodb,
+      } as DynamoDBRecord;
+    } catch (err) {
+      console.warn('Failed to parse SQS body in order-audit:', err);
+      return undefined;
+    }
+  }
+
   const oldImage = unmarshallImage(record.dynamodb?.OldImage as Record<string, AttributeValue> | undefined);
   const newImage = unmarshallImage(record.dynamodb?.NewImage as Record<string, AttributeValue> | undefined);
   const orderId = String(newImage?.orderId || oldImage?.orderId || '');
@@ -125,8 +141,12 @@ export const buildAuditRecord = (
   return undefined;
 };
 
-export const handler = async (event: DynamoDBStreamEvent) => {
+export const handler = async (event: any) => {
   console.log('Processing order audit events:', JSON.stringify(event, null, 2));
+
+  if (!event || !Array.isArray(event.Records)) {
+    return { statusCode: 200, body: 'No records to process' };
+  }
 
   for (const record of event.Records) {
     const auditRecord = buildAuditRecord(record);

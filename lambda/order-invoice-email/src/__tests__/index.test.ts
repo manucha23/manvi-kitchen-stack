@@ -75,8 +75,8 @@ describe('extractCompletedOrder', () => {
 describe('invoice email helpers', () => {
   const completedOrder = { ...baseOrder, status: 'COMPLETED' };
 
-  it('builds stable invoice keys from order and version', () => {
-    expect(buildInvoiceS3Key(completedOrder)).toBe('orders/ABC123/invoice-v3.pdf');
+  it('builds random UUID invoice key under invoices/ prefix', () => {
+    expect(buildInvoiceS3Key(completedOrder)).toMatch(/^invoices\/[a-f0-9-]+\.pdf$/);
   });
 
   it('creates a PDF buffer with invoice content', () => {

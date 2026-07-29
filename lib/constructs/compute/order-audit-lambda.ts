@@ -4,10 +4,11 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { nodeJs24Runtime } from './node-runtime';
 
 export interface OrderAuditLambdaProps {
-  orderTable: dynamodb.Table;
+  auditQueue: sqs.IQueue;
   orderHistoryTable: dynamodb.Table;
   logRetentionDays?: logs.RetentionDays;
 }
@@ -37,17 +38,11 @@ export class OrderAuditLambda extends Construct {
     });
 
     props.orderHistoryTable.grantWriteData(this.function);
+    props.auditQueue.grantConsumeMessages(this.function);
 
-    this.function.addEventSource(new lambdaEventSources.DynamoEventSource(props.orderTable, {
-      startingPosition: lambda.StartingPosition.LATEST,
-      filters: [
-        lambda.FilterCriteria.filter({
-          eventName: lambda.FilterRule.isEqual('INSERT')
-        }),
-        lambda.FilterCriteria.filter({
-          eventName: lambda.FilterRule.isEqual('MODIFY')
-        })
-      ]
+    this.function.addEventSource(new lambdaEventSources.SqsEventSource(props.auditQueue, {
+      batchSize: 10,
     }));
   }
 }
+
