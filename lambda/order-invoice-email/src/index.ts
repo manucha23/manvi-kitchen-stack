@@ -386,7 +386,7 @@ const sendWhatsAppInvoiceDocument = async (
 
   // 1. Upload PDF to Meta Media API
   const formData = new FormData();
-  const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
+  const pdfBlob = new Blob([new Uint8Array(pdfBuffer)], { type: 'application/pdf' });
   formData.append('file', pdfBlob, filename);
   formData.append('type', 'application/pdf');
   formData.append('messaging_product', 'whatsapp');
