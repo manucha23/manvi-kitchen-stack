@@ -5,6 +5,7 @@ import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface OrderAuditLambdaProps {
   auditQueue: sqs.IQueue;
