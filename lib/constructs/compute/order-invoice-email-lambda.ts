@@ -97,9 +97,9 @@ export class OrderInvoiceEmailLambda extends Construct {
       }),
       environment: {
         ENVIRONMENT: props.environment,
-        ORDER_TABLE: props.orderTable.tableName,
-        INVOICE_BUCKET: this.invoiceBucket.bucketName,
-        FROM_EMAIL: 'noreply@cravnest.in',
+        ORDER_TABLE_NAME: props.orderTable.tableName,
+        INVOICE_BUCKET_NAME: this.invoiceBucket.bucketName,
+        INVOICE_SENDER_EMAIL: 'noreply@cravnest.in',
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 512,
