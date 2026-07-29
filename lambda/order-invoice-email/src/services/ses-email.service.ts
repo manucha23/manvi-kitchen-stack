@@ -10,7 +10,7 @@ export class SesEmailService {
   }
 
   public buildEmailContent(order: Order): EmailContent {
-    const subject = `Your Cravnest Tax Invoice for Order #${order.orderId}`;
+    const subject = `Your Cravnest order ${order.orderId} has been delivered`;
     const itemsHtml = order.items
       .map(
         (item) => `

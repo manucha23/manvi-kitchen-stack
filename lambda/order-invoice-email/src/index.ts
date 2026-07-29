@@ -32,6 +32,55 @@ export const buildInvoicePdf = (order: Order, generatedAt?: Date): Buffer =>
 export const buildEmailContent = (order: Order) =>
   sesEmailService.buildEmailContent(order);
 
+export const buildRawEmail = (
+  senderEmail: string,
+  recipientEmail: string,
+  emailContent: { subject: string; html: string; text: string },
+  pdfBuffer: Buffer,
+  pdfFilename: string
+): string => {
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+  const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+
+  const headers = [
+    `From: ${senderEmail}`,
+    `To: ${recipientEmail}`,
+    `Subject: ${emailContent.subject}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+  ];
+
+  const bodyParts = [
+    `--${boundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    '',
+    `--${altBoundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    emailContent.text,
+    '',
+    `--${altBoundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    emailContent.html,
+    '',
+    `--${altBoundary}--`,
+    '',
+    `--${boundary}`,
+    `Content-Type: application/pdf; name="${pdfFilename}"`,
+    `Content-Disposition: attachment; filename="${pdfFilename}"`,
+    'Content-Transfer-Encoding: base64',
+    '',
+    pdfBuffer.toString('base64').match(/.{1,76}/g)?.join('\r\n') || pdfBuffer.toString('base64'),
+    '',
+    `--${boundary}--`,
+  ];
+
+  return `${headers.join('\r\n')}\r\n\r\n${bodyParts.join('\r\n')}`;
+};
+
 export const buildRawEmailMessage = (
   senderEmail: string,
   recipientEmail: string,
