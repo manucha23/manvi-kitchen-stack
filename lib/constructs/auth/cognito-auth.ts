@@ -95,9 +95,6 @@ export class CognitoAuth extends Construct {
       },
     });
 
-    const adminUserPoolDomainResource = this.adminUserPoolDomain.node.defaultChild as cognito.CfnUserPoolDomain;
-    adminUserPoolDomainResource.addPropertyOverride('ManagedLoginVersion', 2);
-
     new cognito.CfnManagedLoginBranding(this, 'AdminManagedLoginBranding', {
       userPoolId: this.adminUserPool.userPoolId,
       clientId: this.adminUserPoolClient.userPoolClientId,

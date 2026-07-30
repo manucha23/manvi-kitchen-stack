@@ -47,7 +47,6 @@ describe('ManviKitchenStack Cognito/API isolation', () => {
 
     template.hasResourceProperties('AWS::Cognito::UserPoolDomain', {
       Domain: 'auth.test.cravnest.in',
-      ManagedLoginVersion: 2,
     });
 
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 1);
