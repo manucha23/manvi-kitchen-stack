@@ -91,9 +91,10 @@ export class ManviKitchenStackStack extends cdk.Stack {
     });
     
     // CloudFront certificate ARN from us-east-1 (hardcoded per environment in cdk.context.json)
-    const cloudfrontCertificateArn =
-      this.node.tryGetContext(`cloudFrontCertificateArn:${environment}`) ??
+    const rawCertArn =
+      this.node.tryGetContext(`cloudFrontCertificateArn:${environment}`) ||
       this.node.tryGetContext('cloudFrontCertificateArn');
+    const cloudfrontCertificateArn = rawCertArn && typeof rawCertArn === 'string' && rawCertArn.trim() !== '' ? rawCertArn : undefined;
     
     const certificates = new AcmCertificates(this, 'Certificates', {
       hostedZone: hostedZone.hostedZone,

@@ -61,9 +61,13 @@ jobs:
           
           echo "New certificate ARN: $CERT_ARN"
           
-          # Update cdk.context.json with the new ARN
-          jq --arg arn "$CERT_ARN" '."cloudFrontCertificateArn:test" = $arn' cdk.context.json > cdk.context.json.tmp
-          mv cdk.context.json.tmp cdk.context.json
+          if [ -n "$CERT_ARN" ] && [ "$CERT_ARN" != "None" ]; then
+            # Update cdk.context.json with the new ARN
+            jq --arg arn "$CERT_ARN" '."cloudFrontCertificateArn:test" = $arn' cdk.context.json > cdk.context.json.tmp
+            mv cdk.context.json.tmp cdk.context.json
+          else
+            echo "⚠️ CERT_ARN was empty or None. Skipping cdk.context.json update."
+          fi
         env:
           AWS_REGION: us-east-1
 
