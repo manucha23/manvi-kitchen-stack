@@ -1,89 +1,189 @@
-import { Component, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  inject,
+  input,
+  output,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
+import {
+  FormBuilder,
+  FormGroup,
+  FormArray,
+  Validators,
+  ReactiveFormsModule,
+  FormsModule,
+} from '@angular/forms';
 import { OrderService } from '../../../shared/services/order.service';
+import { MenuItemsService } from '../../../shared/services/menu-items.service';
+import { NotificationService } from '../../../shared/services/notification.service';
+import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { TextareaModule } from 'primeng/textarea';
+import { FluidModule } from 'primeng/fluid';
+import { DialogModule } from 'primeng/dialog';
+import { SelectModule } from 'primeng/select';
+import { CommonModule } from '@angular/common';
+import { MenuItem } from 'src/app/shared/models/items';
+import { IconField } from 'primeng/iconfield';
+import { InputIcon } from 'primeng/inputicon';
 
-interface OrderItem {
-  name: string;
-  quantity: number;
-  amount: number;
+interface DeliveryPromise {
+  label: string;
 }
-
-interface OrderForm {
-  name: string;
-  address: string;
-  pinCode: number | null;
-  instructions: string;
-  items: OrderItem[];
-}
-
-import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-order-create',
   templateUrl: './order-create.component.html',
-  styleUrls: ['./order-create.component.sass'],
+  styleUrls: ['./order-create.component.scss'],
   standalone: true,
-  imports: [FormsModule],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    InputNumberModule,
+    TextareaModule,
+    FluidModule,
+    DialogModule,
+    SelectModule,
+    IconField,
+    InputIcon,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OrderCreateComponent {
+export class OrderCreateComponent implements OnInit {
   readonly isVisible = input(false);
   readonly orderCreated = output<void>();
   readonly closePopup = output<void>();
 
   creating = signal(false);
+  menuItems = signal<MenuItem[]>([]);
+  deliveryPromise = signal<DeliveryPromise>(this.calculateDeliveryPromise());
 
-  order = signal<OrderForm>({
-    name: '',
-    address: '',
-    pinCode: null,
-    instructions: '',
-    items: [{ name: '', quantity: 1, amount: 0 }]
+  private fb = inject(FormBuilder);
+  private orderService = inject(OrderService);
+  private menuItemsService = inject(MenuItemsService);
+  private notificationService = inject(NotificationService);
+
+  orderForm: FormGroup = this.fb.group({
+    customerName: ['', Validators.required],
+    deliveryAddress: ['', Validators.required],
+    customerPhone: [
+      '',
+      [Validators.required, Validators.pattern(/^\+?[\d\s-]{10,}$/)],
+    ],
+    instructions: [''],
+    items: this.fb.array([]),
   });
 
-  constructor(private orderService: OrderService) { }
-
-  addItem(): void {
-    this.order.update(curr => ({
-      ...curr,
-      items: [...curr.items, { name: '', quantity: 1, amount: 0 }]
-    }));
+  get items(): FormArray {
+    return this.orderForm.get('items') as FormArray;
   }
 
-  removeItem(index: number): void {
-    this.order.update(curr => ({
-      ...curr,
-      items: curr.items.filter((_, i) => i !== index)
-    }));
+  ngOnInit(): void {
+    this.fetchMenuItems();
+    this.addItem();
   }
 
-  updateItem(index: number, field: keyof OrderItem, value: any): void {
-    this.order.update(curr => {
-      const items = [...curr.items];
-      items[index] = { ...items[index], [field]: value };
-      return { ...curr, items };
+  private calculateDeliveryPromise(now = new Date()): DeliveryPromise {
+    return {
+      label: new Date(now.getTime() + 60 * 60 * 1000).toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
+    };
+  }
+
+  fetchMenuItems(): void {
+    this.menuItemsService.getItems().subscribe({
+      next: (response) => this.menuItems.set(response.items),
+      error: (err) => console.error('Error fetching menu items', err),
     });
   }
 
-  updateOrderField(field: keyof OrderForm, value: any): void {
-    this.order.update(curr => ({ ...curr, [field]: value }));
+  addItem(): void {
+    const itemGroup = this.fb.group({
+      selectedItem: [null, Validators.required],
+      quantity: [1, [Validators.required, Validators.min(1)]],
+    });
+    this.items.push(itemGroup);
+  }
+
+  calculateRowAmount(index: number): number {
+    const group = this.items.at(index);
+    const selectedItem = group.get('selectedItem')?.value as MenuItem;
+    const quantity = group.get('quantity')?.value || 0;
+    return selectedItem ? selectedItem.price * quantity : 0;
+  }
+
+  getAvailableItems(index: number): MenuItem[] {
+    const allItems = this.menuItems();
+    const selectedIds = this.items.controls
+      .map((ctrl, i) =>
+        i !== index
+          ? (ctrl.get('selectedItem')?.value as MenuItem)?.itemId
+          : null,
+      )
+      .filter((id) => !!id);
+
+    return allItems.filter((item) => !selectedIds.includes(item.itemId));
+  }
+
+  removeItem(index: number): void {
+    this.items.removeAt(index);
+  }
+
+  onItemSelected(index: number, event: any): void {
+    // No longer need to manually patch name/amount as they are derived from selectedItem
   }
 
   createOrder(): void {
+    if (this.orderForm.invalid) {
+      this.notificationService.showError(
+        'Invalid Form',
+        'Please fill in all required fields correctly',
+      );
+      return;
+    }
+
     this.creating.set(true);
+    const formValue = this.orderForm.getRawValue();
+    this.deliveryPromise.set(this.calculateDeliveryPromise());
+
+    // Transform data to match API request body
     const orderData = {
-      ...this.order(),
-      status: 'CREATED'
+      customerName: formValue.customerName,
+      deliveryAddress: formValue.deliveryAddress,
+      customerPhone: formValue.customerPhone,
+      paymentMethod: 'COD',
+      instructions: formValue.instructions,
+      items: formValue.items.map((item: any) => ({
+        id: item.selectedItem.itemId,
+        quantity: item.quantity,
+      })),
     };
 
     this.orderService.createOrder(orderData).subscribe({
       next: () => {
+        this.notificationService.showSuccess(
+          'Success',
+          'Order created successfully',
+        );
         this.orderCreated.emit();
         this.close();
       },
       error: (error) => {
-        console.error('Error creating order:', error);
+        const errorMsg =
+          error?.error?.error ||
+          error?.error?.message ||
+          'Failed to create order';
+        this.notificationService.showError('Error', errorMsg);
         this.creating.set(false);
-      }
+      },
     });
   }
 
@@ -93,13 +193,16 @@ export class OrderCreateComponent {
   }
 
   resetForm(): void {
-    this.order.set({
-      name: '',
-      address: '',
-      pinCode: null,
+    this.orderForm.reset({
+      customerName: '',
+      deliveryAddress: '',
+      customerPhone: '',
       instructions: '',
-      items: [{ name: '', quantity: 1, amount: 0 }]
+      items: [],
     });
+    this.deliveryPromise.set(this.calculateDeliveryPromise());
+    this.items.clear();
+    this.addItem();
     this.creating.set(false);
   }
 }

@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: Manvi Kitchen API
+  description: |
+    API contract for Manvi Kitchen. Customer routes use the customer Cognito pool and always scope order ownership to the authenticated Cognito `sub`. Admin routes use the admin Cognito pool and require membership in the configured admin group.
+  version: 1.1.0
+servers:
+  - url: https://api.test.cravnest.in
+    description: Replace with your deployed API Gateway endpoint.
+components:
+  securitySchemes:
+    AdminCognito:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: Bearer token from the admin Cognito user pool.
+    CustomerCognito:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: Bearer token from the customer Cognito user pool.
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+    OrderItemRequest:
+      type: object
+      required: [id, quantity]
+      properties:
+        id:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+    CreateOrderRequest:
+      type: object
+      required: [customerName, customerPhone, deliveryAddress, items]
+      properties:
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        deliveryAddress:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [COD, ONLINE]
+          default: COD
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemRequest'
+        instructions:
+          type: string
+      description: Customer-created orders ignore any caller-supplied `orderedBy`; the backend uses the authenticated customer `sub`.
+    UpdateOrderRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [CREATED, PENDING_PAYMENT, CONFIRMED, INKITCHEN, READY, DISPATCHED, COMPLETED, CANCELLED]
+        instructions:
+          type: string
+    BulkUpdateOrdersRequest:
+      type: object
+      required: [orders, update]
+      properties:
+        orders:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [orderId, version]
+            properties:
+              orderId:
+                type: string
+              version:
+                type: integer
+                minimum: 1
+        update:
+          type: object
+          properties:
+            status:
+              type: string
+    Order:
+      type: object
+      properties:
+        orderId: { type: string }
+        orderedBy: { type: string, description: Cognito sub of the owning customer }
+        customerName: { type: string }
+        customerPhone: { type: string }
+        status: { type: string }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+    CustomerAddress:
+      type: object
+      required: [text]
+      properties:
+        addressId: { type: string }
+        text: { type: string }
+        label: { type: string, example: "Home" }
+        isDefault: { type: boolean }
+        deliveryArea: { type: string, enum: [TOWNSHIP, OUTSIDE] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CustomerProfile:
+      type: object
+      required: [phoneNumber, customerId]
+      properties:
+        phoneNumber: { type: string }
+        customerId: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        savedAddresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerAddress'
+        defaultAddressId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateAddressRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+        label: { type: string, example: "Home" }
+        isDefault: { type: boolean }
+    UpdateCustomerProfileRequest:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+    CreateItemRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        price: { type: number }
+        category: { type: string }
+        imageUrl: { type: string }
+        available: { type: boolean }
+paths:
+  /customers/profile:
+    get:
+      summary: Customer gets their profile and saved addresses
+      security: [{ CustomerCognito: [] }]
+      responses:
+        '200':
+          description: Profile retrieved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfile' }
+    put:
+      summary: Customer updates their profile (name, email)
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCustomerProfileRequest' }
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfile' }
+  /customers/addresses:
+    post:
+      summary: Customer adds a new saved address
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAddressRequest' }
+      responses:
+        '201':
+          description: Address added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfile' }
+  /customers/addresses/{addressId}:
+    parameters:
+      - { name: addressId, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Customer updates a saved address or sets it as default
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAddressRequest' }
+      responses:
+        '200': { description: Address updated }
+    delete:
+      summary: Customer deletes a saved address
+      security: [{ CustomerCognito: [] }]
+      responses:
+        '200': { description: Address deleted }
+  /orders:
+    post:
+      summary: Customer creates an order
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201': { description: Created }
+    get:
+      summary: Customer lists their own orders
+      description: Ignores arbitrary `orderedBy` and `customerPhone`; results are scoped to the caller's Cognito `sub`. Safe filters include status and date range.
+      security: [{ CustomerCognito: [] }]
+      parameters:
+        - { name: orderStatus, in: query, schema: { type: string } }
+        - { name: fromDate, in: query, schema: { type: string, format: date-time } }
+        - { name: toDate, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Own order list }
+  /orders/{orderId}:
+    parameters:
+      - { name: orderId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Customer gets their own order
+      security: [{ CustomerCognito: [] }]
+      responses:
+        '200': { description: Order }
+        '404': { description: Not found or not owned by caller }
+    put:
+      summary: Customer updates/cancels their own order
+      description: Customer updates are constrained to customer-safe changes and require ownership plus optimistic concurrency version.
+      security: [{ CustomerCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOrderRequest' }
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Customer cancels/deletes their own order when status allows
+      security: [{ CustomerCognito: [] }]
+      responses:
+        '204': { description: Deleted }
+  /admin/orders:
+    post:
+      summary: Admin creates an order
+      description: Allows an authenticated admin to create an order through the admin pool. The order Lambda still verifies admin-group membership before accepting the request.
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201': { description: Created }
+    get:
+      summary: Admin lists operational orders
+      security: [{ AdminCognito: [] }]
+      parameters:
+        - { name: customerPhone, in: query, schema: { type: string } }
+        - { name: orderedBy, in: query, schema: { type: string } }
+        - { name: orderStatus, in: query, schema: { type: string } }
+        - { name: fromDate, in: query, schema: { type: string, format: date-time } }
+        - { name: toDate, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Order list }
+  /admin/orders/bulk:
+    patch:
+      summary: Admin bulk-updates orders
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkUpdateOrdersRequest' }
+      responses:
+        '200': { description: Bulk update result }
+  /admin/orders/{orderId}:
+    parameters:
+      - { name: orderId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Admin gets an order
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Order }
+    put:
+      summary: Admin updates order status/instructions
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOrderRequest' }
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Admin deletes/cancels an order when status allows
+      security: [{ AdminCognito: [] }]
+      responses:
+        '204': { description: Deleted }
+  /admin/orders/{orderId}/history:
+    get:
+      summary: Admin gets order history
+      security: [{ AdminCognito: [] }]
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: History }
+  /items:
+    get:
+      summary: Lists menu items
+      responses:
+        '200': { description: Items }
+  /items/{itemId}:
+    get:
+      summary: Gets a menu item
+      parameters:
+        - { name: itemId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Item }
+  /admin/items:
+    post:
+      summary: Admin creates a menu item
+      security: [{ AdminCognito: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateItemRequest' }
+      responses:
+        '201': { description: Created }
+  /admin/items/{itemId}:
+    parameters:
+      - { name: itemId, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Admin updates a menu item
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Admin deletes a menu item
+      security: [{ AdminCognito: [] }]
+      responses:
+        '204': { description: Deleted }
+  /admin/items/upload-url:
+    post:
+      summary: Admin creates an item image upload URL
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Upload URL }
+  /admin/order-limits:
+    get:
+      summary: Admin gets order limits
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Limits }
+    put:
+      summary: Admin updates order limits
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Updated }
+  /admin/killswitch:
+    put:
+      summary: Admin updates global kill switch
+      security: [{ AdminCognito: [] }]
+      responses:
+        '200': { description: Updated }

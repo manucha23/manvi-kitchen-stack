@@ -1,0 +1,10 @@
+// Global field adjustments if needed
+.field {
+    margin-bottom: 1rem;
+}
+
+:host ::ng-deep {
+    .p-inputnumber {
+        width: 100%;
+    }
+}

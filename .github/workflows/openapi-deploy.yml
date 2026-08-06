@@ -1,0 +1,45 @@
+name: Deploy OpenAPI Docs
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'openapi-ui/**'
+      - '.github/workflows/openapi-deploy.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get stack outputs
+        id: stack
+        run: |
+          STACK_NAME="ManviKitchenStack-test"
+          echo "bucket=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='OpenApiDocsBucketName'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+          echo "distribution=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='OpenApiDocsDistributionId'].OutputValue" --output text)" >> $GITHUB_OUTPUT
+
+      - name: Deploy to S3
+        run: aws s3 sync openapi-ui/ s3://${{ steps.stack.outputs.bucket }}/ --delete
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id ${{ steps.stack.outputs.distribution }} --paths "/*"
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ OpenAPI Docs deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://api-doc.test.cravnest.in" >> $GITHUB_STEP_SUMMARY

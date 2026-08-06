@@ -1,60 +1,96 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
-import { CognitoIdentityProviderClient, InitiateAuthCommand, AuthFlowType } from '@aws-sdk/client-cognito-identity-provider';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
+
+interface SessionResponse {
+  authenticated: boolean;
+  loginUrl?: string;
+  user?: {
+    userSub: string;
+    username?: string;
+    email?: string;
+    groups: string[];
+  };
+}
+
+interface LogoutResponse {
+  logoutUrl?: string;
+}
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private client: CognitoIdentityProviderClient;
   private readonly _isAuthenticated = signal(false);
   public readonly isAuthenticated = this._isAuthenticated.asReadonly();
-  private idToken: string | null = null;
+  private readonly sessionUrl = `${environment.adminApiUrl}/auth/session`;
+  private readonly loginUrl = `${environment.adminApiUrl}/auth/login`;
+  private readonly logoutUrl = `${environment.adminApiUrl}/auth/logout`;
 
-  constructor() {
-    this.client = new CognitoIdentityProviderClient({ region: environment.aws.region });
-    this.checkAuthState();
+  constructor(private http: HttpClient) {}
+
+  async ensureAuthenticated(returnUrl: string): Promise<boolean> {
+    const absoluteReturnUrl = new URL(returnUrl, window.location.origin).toString();
+    try {
+      const session = await firstValueFrom(this.http.get<SessionResponse>(this.sessionUrl, {
+        withCredentials: true,
+        params: { returnTo: absoluteReturnUrl },
+      }));
+      this._isAuthenticated.set(Boolean(session.authenticated));
+      sessionStorage.removeItem('auth_redirect_ts');
+      return Boolean(session.authenticated);
+    } catch (error) {
+      this._isAuthenticated.set(false);
+
+      // Prevent infinite redirect loop: if we already tried logging in recently, stop.
+      const REDIRECT_KEY = 'auth_redirect_ts';
+      const lastRedirect = Number(sessionStorage.getItem(REDIRECT_KEY) || '0');
+      const now = Date.now();
+      if (now - lastRedirect < 30_000) {
+        console.error('Auth redirect loop detected — redirecting to /login instead.');
+        sessionStorage.removeItem(REDIRECT_KEY);
+        window.location.assign('/login?error=session_failed');
+        return false;
+      }
+      sessionStorage.setItem(REDIRECT_KEY, String(now));
+
+      const loginUrl = (error as any)?.error?.loginUrl || this.buildLoginUrl(returnUrl);
+      window.location.assign(loginUrl);
+      return false;
+    }
   }
 
-  async login(username: string, password: string): Promise<void> {
-    try {
-      const command = new InitiateAuthCommand({
-        AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
-        ClientId: environment.aws.userPoolClientId,
-        AuthParameters: {
-          USERNAME: username,
-          PASSWORD: password
-        }
-      });
-
-      const response = await this.client.send(command);
-
-      if (response.AuthenticationResult?.IdToken) {
-        this.idToken = response.AuthenticationResult.IdToken;
-        localStorage.setItem('idToken', this.idToken);
-        this._isAuthenticated.set(true);
-      }
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
-    }
+  login(returnUrl = '/orders'): void {
+    window.location.assign(this.buildLoginUrl(returnUrl));
   }
 
   async logout(): Promise<void> {
-    this.idToken = null;
-    localStorage.removeItem('idToken');
+    let logoutUrl: string | undefined;
+    try {
+      const response = await firstValueFrom(this.http.post<LogoutResponse>(this.logoutUrl, {}, { withCredentials: true }));
+      logoutUrl = response.logoutUrl;
+    } catch (error) {
+      console.warn('Logout request failed:', error);
+    }
+    this._isAuthenticated.set(false);
+    window.location.assign(logoutUrl || this.buildLoggedOutUrl());
+  }
+
+  markLoggedOut(): void {
     this._isAuthenticated.set(false);
   }
 
-  async getIdToken(): Promise<string | null> {
-    return this.idToken;
+  private buildLoginUrl(returnUrl: string): string {
+    const url = new URL(this.loginUrl);
+    const absoluteReturnUrl = new URL(returnUrl, window.location.origin).toString();
+    url.searchParams.set('returnTo', absoluteReturnUrl);
+    return url.toString();
   }
 
-  private checkAuthState(): void {
-    const token = localStorage.getItem('idToken');
-    if (token) {
-      this.idToken = token;
-      this._isAuthenticated.set(true);
-    }
+  private buildLoggedOutUrl(): string {
+    const loggedOutUrl = new URL('/login', window.location.origin);
+    loggedOutUrl.searchParams.set('loggedOut', 'true');
+    return loggedOutUrl.toString();
   }
 }

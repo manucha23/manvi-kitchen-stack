@@ -1,6 +1,6 @@
 {
   "name": "kitchen-frontend",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -18,8 +18,12 @@
     "@angular/platform-browser": "^21.0.6",
     "@angular/platform-browser-dynamic": "^21.0.6",
     "@angular/router": "^21.0.6",
-    "@aws-sdk/client-cognito-identity-provider": "^3.958.0",
+    "@primeuix/themes": "^2.0.2",
+    "@tailwindcss/postcss": "^4.1.18",
     "ng": "^0.0.0",
+    "primeflex": "^4.0.0",
+    "primeicons": "^7.0.0",
+    "primeng": "^21.0.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -30,12 +34,17 @@
     "@jefiozie/ngx-aws-deploy": "^4.1.0",
     "@types/jasmine": "~4.3.0",
     "@types/node": "^25.0.3",
+    "autoprefixer": "^10.4.23",
     "jasmine-core": "~4.6.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "tailwindcss-primeui": "^0.6.1",
     "typescript": "~5.9.3"
   }
 }
+

@@ -1,11 +1,15 @@
+<p-toast />
+
 @if (isAuthenticated()) {
-<div>
-  <div class="header">
-    <h1>Welcome to {{title}}</h1>
-    <button (click)="logout()">Logout</button>
+  <div class="app-layout">
+    <app-header />
+    <div class="app-body">
+      <app-side-menu />
+      <main class="app-content" [class.sidebar-open]="sidebarService.isOpen()">
+        <router-outlet />
+      </main>
+    </div>
   </div>
-  <app-order-list></app-order-list>
-</div>
 } @else {
-<app-login></app-login>
+  <router-outlet />
 }

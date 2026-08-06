@@ -1,0 +1,117 @@
+name: Deploy Landing Page
+
+on:
+  push:
+    paths:
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should-deploy: ${{ steps.env.outputs.should-deploy }}
+    steps:
+      - id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/develop" && "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-landing-page:
+    needs: determine-environment
+    if: needs.determine-environment.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    strategy:
+      matrix:
+        node-version: ['24.x']
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ap-south-1
+
+      - name: CDK Synth Landing Page
+        run: npx cdk synth --app "npx ts-node bin/landing-page-stack.ts" -c environment=${{ needs.determine-environment.outputs.environment }}
+
+      - name: CDK Deploy Landing Page
+        run: npx cdk deploy --app "npx ts-node bin/landing-page-stack.ts" -c environment=${{ needs.determine-environment.outputs.environment }} --require-approval never
+
+      - name: Get CloudFront Distribution IDs
+        id: distributions
+        run: |
+          STACK_NAME="LandingPageStack-${{ needs.determine-environment.outputs.environment }}"
+          
+          LANDING_DIST=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`LandingPageDistributionId`].OutputValue' \
+            --output text)
+          echo "landing-distribution=$LANDING_DIST" >> $GITHUB_OUTPUT
+          
+          REDIRECT_CRAVNEST_DIST=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`RedirectCravnestDistributionId`].OutputValue' \
+            --output text)
+          echo "redirect-cravnest-distribution=$REDIRECT_CRAVNEST_DIST" >> $GITHUB_OUTPUT
+          
+          REDIRECT_TEST_DIST=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`RedirectTestDistributionId`].OutputValue' \
+            --output text)
+          echo "redirect-test-distribution=$REDIRECT_TEST_DIST" >> $GITHUB_OUTPUT
+
+      - name: Invalidate CloudFront Caches
+        run: |
+          echo "Invalidating landing page distribution..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.distributions.outputs.landing-distribution }} \
+            --paths "/*"
+          
+          echo "Invalidating cravnest.in redirect distribution..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.distributions.outputs.redirect-cravnest-distribution }} \
+            --paths "/*"
+          
+          echo "Invalidating test.cravnest.in redirect distribution..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.distributions.outputs.redirect-test-distribution }} \
+            --paths "/*"
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Landing Page deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URLs:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - https://www.cravnest.in" >> $GITHUB_STEP_SUMMARY
+          echo "  - https://www.test.cravnest.in" >> $GITHUB_STEP_SUMMARY

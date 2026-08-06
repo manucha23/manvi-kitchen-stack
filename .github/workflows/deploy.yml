@@ -4,11 +4,23 @@ on:
   push:
     paths-ignore:
       - 'kitchen-frontend/**'
+      - 'openapi-ui/**'
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
+      - 'lib/constructs/certificates/cloudfront-certificate.ts'
+      - 'bin/cloudfront-certificate.ts'
   pull_request:
     branches:
       - develop
     paths-ignore:
       - 'kitchen-frontend/**'
+      - 'openapi-ui/**'
+      - 'landing-page/**'
+      - 'bin/landing-page-stack.ts'
+      - 'lib/constructs/frontend/landing-page-hosting.ts'
+      - 'lib/constructs/certificates/cloudfront-certificate.ts'
+      - 'bin/cloudfront-certificate.ts'
 
 permissions:
   contents: read
@@ -20,27 +32,35 @@ jobs:
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       should-deploy: ${{ steps.env.outputs.should-deploy }}
+      should-upload-artifacts: ${{ steps.env.outputs.should-upload-artifacts }}
     steps:
       - id: env
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/develop" && "${{ github.event_name }}" == "push" ]]; then
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should-deploy=true" >> $GITHUB_OUTPUT
+            echo "should-upload-artifacts=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" && "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+            echo "should-upload-artifacts=true" >> $GITHUB_OUTPUT
           else
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should-deploy=false" >> $GITHUB_OUTPUT
+            echo "should-upload-artifacts=false" >> $GITHUB_OUTPUT
           fi
 
   build-and-test:
+    needs: [determine-environment]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ['22.x']
+        node-version: ['24.x']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -61,7 +81,8 @@ jobs:
         run: npx cdk synth
 
       - name: Upload CDK artifacts
-        uses: actions/upload-artifact@v4
+        if: needs.determine-environment.outputs.should-upload-artifacts == 'true'
+        uses: actions/upload-artifact@v7
         with:
           name: cdk-artifacts
           path: |
@@ -76,25 +97,25 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.determine-environment.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download CDK artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cdk-artifacts
           path: .
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           cache: 'npm'
 
       - name: Install root dependencies
         run: npm ci
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
