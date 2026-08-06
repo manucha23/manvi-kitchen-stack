@@ -1,21 +1,47 @@
+export enum OrderStatus {
+  CREATED = 'CREATED',
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  CONFIRMED = 'CONFIRMED',
+  INKITCHEN = 'INKITCHEN',
+  READY = 'READY',
+  DISPATCHED = 'DISPATCHED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
 
 export interface OrderItem {
-  id: number;
+  itemId: string;
   name: string;
-  amount: number;
+  price: number;
   quantity: number;
+  amount: number;
 }
 
 export interface Order {
   orderId: string;
-  userId: string;
-  name: string;
-  address: string;
-  pinCode: number;
-  status: 'placed' | 'accepted' | 'cooking' | 'ready' | 'delivered';
-  instructions: string;
+  orderedBy: string;
+  customerName: string;
+  deliveryAddress: string;
+  customerPhone: string;
+  customerEmail?: string;
+  status: OrderStatus;
+  promisedDeliveryAt: string;
   items: OrderItem[];
-  createdAt: string;
-  updatedAt: string;
-  version: number;
+  totalAmount: number;
+  instructions?: string;
+  feedbackProvided: boolean;
+  feedbackRequestCount: number;
+  timestamp: string;
+  version?: number;
+  updatedAt?: string;
+  acceptanceStatus?: string; // 'accepted' or 'rejected'
+  rejectionReason?: string;
+}
+
+export interface IOrderFilters {
+  orderedBy?: string;
+  customerPhone?: string;
+  fromDate?: string;
+  toDate?: string;
+  orderStatus?: string[];
 }

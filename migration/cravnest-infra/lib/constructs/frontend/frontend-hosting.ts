@@ -2,10 +2,14 @@ import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
 
 export interface FrontendHostingProps {
   environment: string;
+  certificate?: acm.ICertificate;
+  domainName?: string;
+  geoRestriction?: cloudfront.GeoRestriction;
 }
 
 export class FrontendHosting extends Construct {
@@ -16,14 +20,14 @@ export class FrontendHosting extends Construct {
     super(scope, id);
 
     this.bucket = new s3.Bucket(this, 'FrontendBucket', {
-      bucketName: `cravnest-frontend-${props.environment}-${cdk.Aws.ACCOUNT_ID}`,
+      bucketName: `manvi-kitchen-frontend-${props.environment}-${cdk.Aws.ACCOUNT_ID}`,
       publicReadAccess: false,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    this.distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
+    const distributionConfig: any = {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -47,7 +51,16 @@ export class FrontendHosting extends Construct {
           ttl: cdk.Duration.minutes(30),
         },
       ],
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-    });
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      geoRestriction: props.geoRestriction,
+    };
+
+    // Add custom domain and certificate if provided
+    if (props.certificate && props.domainName) {
+      distributionConfig.domainNames = [props.domainName];
+      distributionConfig.certificate = props.certificate;
+    }
+
+    this.distribution = new cloudfront.Distribution(this, 'FrontendDistribution', distributionConfig);
   }
 }

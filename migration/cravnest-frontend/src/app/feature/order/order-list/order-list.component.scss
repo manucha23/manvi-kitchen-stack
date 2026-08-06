@@ -1,0 +1,13 @@
+// Styles moved to Tailwind classes in HTML and PrimeNG theming
+:host ::ng-deep {
+    .p-datatable {
+        .p-datatable-header {
+            background: transparent;
+            border: none;
+        }
+
+        .p-datatable-tbody>tr {
+            outline: none;
+        }
+    }
+}

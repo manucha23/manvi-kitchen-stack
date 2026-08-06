@@ -1,0 +1,93 @@
+import * as cdk from 'aws-cdk-lib';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { Construct } from 'constructs';
+
+import { nodeJs24Runtime } from './node-runtime';
+
+export interface WhatsAppInboundWorkerLambdaProps {
+  environment: string;
+  inboundQueue: sqs.IQueue;
+  nodeRuntime?: lambda.Runtime;
+  parameterPrefix: string;
+  conversationTable: dynamodb.ITable;
+  customerProfileTable: dynamodb.ITable;
+  cartTable: dynamodb.ITable;
+  cartEventTable: dynamodb.ITable;
+  orderTable: dynamodb.ITable;
+  itemTable: dynamodb.ITable;
+  orderLimitsConfigTable: dynamodb.ITable;
+  orderFunction: lambda.IFunction;
+  logRetentionDays?: logs.RetentionDays;
+}
+
+export const createWhatsAppInboundWorkerLambda = (
+  scope: Construct,
+  props: WhatsAppInboundWorkerLambdaProps,
+): lambda.Function => {
+  const logGroup = new logs.LogGroup(scope, 'WhatsAppInboundWorkerLogGroup', {
+    retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
+  const workerFunction = new lambda.Function(scope, 'WhatsAppInboundWorker', {
+    runtime: props.nodeRuntime ?? nodeJs24Runtime,
+    handler: 'dist/index.handler',
+    code: lambda.Code.fromAsset('lambda/whatsapp-worker', {
+      exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
+    }),
+    environment: {
+      ENVIRONMENT: props.environment,
+      WHATSAPP_ACCESS_TOKEN_PARAM: `${props.parameterPrefix}/access-token`,
+      WHATSAPP_PHONE_NUMBER_ID_PARAM: `${props.parameterPrefix}/phone-number-id`,
+      WHATSAPP_GRAPH_API_VERSION: 'v25.0',
+      WHATSAPP_CONVERSATION_TABLE: props.conversationTable.tableName,
+      CUSTOMER_PROFILE_TABLE: props.customerProfileTable.tableName,
+      CART_TABLE: props.cartTable.tableName,
+      CART_EVENT_TABLE: props.cartEventTable.tableName,
+      ORDER_TABLE: props.orderTable.tableName,
+      ITEM_TABLE: props.itemTable.tableName,
+      ORDER_LIMITS_CONFIG_TABLE: props.orderLimitsConfigTable.tableName,
+      ORDER_FUNCTION_NAME: props.orderFunction.functionName,
+      WHATSAPP_MENU_URL: props.environment === 'prod' ? 'https://cravnest.in/#menu' : 'https://test.cravnest.in/#menu',
+      BEDROCK_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+    },
+    timeout: cdk.Duration.seconds(60),
+    logGroup,
+  });
+
+  workerFunction.addEventSource(new eventSources.SqsEventSource(props.inboundQueue, {
+    batchSize: 1,
+  }));
+
+  workerFunction.addToRolePolicy(new iam.PolicyStatement({
+    actions: ['ssm:GetParameter'],
+    resources: [
+      `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter${props.parameterPrefix}/*`,
+    ],
+  }));
+
+  props.inboundQueue.grantConsumeMessages(workerFunction);
+  props.conversationTable.grantReadWriteData(workerFunction);
+  props.customerProfileTable.grantReadWriteData(workerFunction);
+  props.cartTable.grantReadWriteData(workerFunction);
+  props.cartEventTable.grantReadWriteData(workerFunction);
+  props.orderTable.grantReadData(workerFunction);
+  props.itemTable.grantReadData(workerFunction);
+  props.orderLimitsConfigTable.grantReadData(workerFunction);
+  props.orderFunction.grantInvoke(workerFunction);
+
+  workerFunction.addToRolePolicy(new iam.PolicyStatement({
+    actions: ['bedrock:InvokeModel*'],
+    resources: [
+      `arn:aws:bedrock:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0`,
+      'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
+    ],
+  }));
+
+  return workerFunction;
+};

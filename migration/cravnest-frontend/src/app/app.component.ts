@@ -1,27 +1,23 @@
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { AuthService } from './shared/services/auth.service';
-import { Observable } from 'rxjs';
-
-import { LoginComponent } from './core/login/login.component';
-import { OrderListComponent } from './feature/order/order-list/order-list.component';
+import { RouterOutlet } from '@angular/router';
+import { ToastModule } from 'primeng/toast';
+import { HeaderComponent } from './core/components/header/header.component';
+import { SideMenuComponent } from './core/components/side-menu/side-menu.component';
+import { SidebarService } from './core/services/sidebar.service';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
-  styleUrls: ['./app.component.sass'],
+  styleUrls: ['./app.component.scss'],
   standalone: true,
-  imports: [LoginComponent, OrderListComponent],
+  imports: [RouterOutlet, CommonModule, ToastModule, HeaderComponent, SideMenuComponent],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AppComponent implements OnInit {
-  title = "Manvi's Kitchen";
+export class AppComponent {
+  private authService = inject(AuthService);
+  public sidebarService = inject(SidebarService);
+
   isAuthenticated = this.authService.isAuthenticated;
-
-  constructor(private authService: AuthService) { }
-
-  ngOnInit() { }
-
-  logout() {
-    this.authService.logout();
-  }
 }

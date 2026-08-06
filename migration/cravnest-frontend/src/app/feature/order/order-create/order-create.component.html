@@ -1,54 +1,182 @@
-@if (isVisible()) {
-<div class="popup-overlay" (click)="close()">
-  <div class="popup-content" (click)="$event.stopPropagation()">
-    <div class="popup-header">
-      <h3>Create New Order</h3>
-      <button class="close-btn" (click)="close()">&times;</button>
-    </div>
-    <div class="popup-body">
-      <form (ngSubmit)="createOrder()" #orderForm="ngForm">
-        <div class="form-group">
-          <label>Customer Name:</label>
-          <input type="text" [ngModel]="order().name" (ngModelChange)="updateOrderField('name', $event)" name="name"
-            required>
-        </div>
-        <div class="form-group">
-          <label>Address:</label>
-          <textarea [ngModel]="order().address" (ngModelChange)="updateOrderField('address', $event)" name="address"
-            required></textarea>
-        </div>
-        <div class="form-group">
-          <label>Pin Code:</label>
-          <input type="number" [ngModel]="order().pinCode" (ngModelChange)="updateOrderField('pinCode', $event)"
-            name="pinCode" required>
-        </div>
-        <div class="form-group">
-          <label>Instructions:</label>
-          <textarea [ngModel]="order().instructions" (ngModelChange)="updateOrderField('instructions', $event)"
-            name="instructions"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Items:</label>
-          @for (item of order().items; track i; let i = $index) {
-          <div class="item-row">
-            <input type="text" [ngModel]="item.name" (ngModelChange)="updateItem(i, 'name', $event)"
-              [name]="'itemName' + i" placeholder="Item name" required>
-            <input type="number" [ngModel]="item.quantity" (ngModelChange)="updateItem(i, 'quantity', $event)"
-              [name]="'itemQty' + i" placeholder="Qty" required>
-            <input type="number" [ngModel]="item.amount" (ngModelChange)="updateItem(i, 'amount', $event)"
-              [name]="'itemAmount' + i" placeholder="Amount" required>
-            <button type="button" (click)="removeItem(i)" class="remove-btn">Remove</button>
+<p-dialog header="Create New Order" [modal]="true" [visible]="isVisible()" (onHide)="close()"
+  [style]="{ width: '55rem' }" [breakpoints]="{ '960px': '85vw', '641px': '100vw' }" [draggable]="false"
+  [resizable]="false"
+  styleClass="rounded-none sm:rounded-2xl overflow-hidden shadow-2xl h-full sm:h-auto max-h-screen sm:max-h-[90vh] mx-0 sm:mx-auto"
+  contentStyleClass="p-0 sm:p-6"
+  headerStyleClass="border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 px-6 py-4">
+
+  <div class="flex flex-col h-full bg-surface-0 dark:bg-surface-900">
+    <div class="p-4 sm:p-0 overflow-y-auto flex-1">
+      <form [formGroup]="orderForm" (ngSubmit)="createOrder()">
+        <p-fluid class="flex flex-col gap-6 sm:gap-8">
+
+          <!-- Customer Info Section -->
+          <div class="bg-surface-0 dark:bg-surface-900 p-1">
+            <h3 class="text-sm font-bold text-primary uppercase tracking-wider mb-4 flex items-center gap-2"><i
+                class="pi pi-user"></i> Customer Details</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="field">
+                <label for="customerName"
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Customer
+                  Name</label>
+                <input pInputText id="customerName" formControlName="customerName" placeholder="Enter customer name"
+                  class="w-full rounded-xl border-surface-300 dark:border-surface-600 focus:border-primary px-4 py-3" />
+              </div>
+              <div class="field">
+                <label for="customerPhone"
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Contact
+                  Number</label>
+                <p-iconfield>
+                  <p-inputicon><i class="pi pi-phone text-surface-400"></i></p-inputicon>
+                  <input pInputText id="customerPhone" formControlName="customerPhone" placeholder="+91-XXXXXXXXXX"
+                    class="w-full rounded-xl pl-10 border-surface-300 dark:border-surface-600 focus:border-primary px-4 py-3" />
+                </p-iconfield>
+              </div>
+            </div>
           </div>
-          }
-          <button type="button" (click)="addItem()" class="add-btn">Add Item</button>
-        </div>
-        <div class="form-actions">
-          <button type="submit" [disabled]="!orderForm.valid || creating()" class="submit-btn">
-            {{creating() ? 'Creating...' : 'Create Order'}}
-          </button>
-        </div>
+
+          <!-- Schedule Section -->
+          <div class="bg-surface-0 dark:bg-surface-900 p-1">
+            <h3 class="text-sm font-bold text-primary uppercase tracking-wider mb-4 flex items-center gap-2"><i
+                class="pi pi-calendar"></i> Delivery Schedule</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="field">
+                <label
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Delivery
+                  Promise</label>
+                <div
+                  class="min-h-12 rounded-xl border border-surface-300 dark:border-surface-600 px-4 py-3 bg-surface-50 dark:bg-surface-800 flex items-center font-bold text-surface-900 dark:text-surface-0">
+                  {{ deliveryPromise().label }}
+                </div>
+              </div>
+              <div class="field">
+                <label
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Promise</label>
+                <div
+                  class="min-h-12 rounded-xl border border-surface-300 dark:border-surface-600 px-4 py-3 bg-surface-50 dark:bg-surface-800 flex items-center font-bold text-surface-900 dark:text-surface-0">
+                  Within 60 minutes
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Items Section -->
+          <div
+            class="bg-surface-50 dark:bg-surface-800/30 -mx-4 sm:mx-0 p-4 sm:p-6 rounded-none sm:rounded-2xl border-y sm:border border-surface-200 dark:border-surface-700">
+            <div class="flex justify-between items-center mb-5">
+              <h3 class="text-sm font-bold text-primary uppercase tracking-wider m-0 flex items-center gap-2"><i
+                  class="pi pi-shopping-cart"></i> Order Items</h3>
+            </div>
+
+            <div class="space-y-4" formArrayName="items">
+              @for (item of items.controls; track i; let i = $index) {
+              <div [formGroupName]="i"
+                class="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4 sm:p-5 bg-surface-0 dark:bg-surface-800 rounded-2xl shadow-sm border border-surface-100 dark:border-surface-700 hover:shadow-md transition-all duration-300 animate-fade-in-up relative group">
+
+                <div
+                  class="absolute -top-3 -left-3 w-6 h-6 bg-surface-200 dark:bg-surface-700 text-surface-500 rounded-full flex items-center justify-center text-xs font-bold ring-4 ring-surface-50 dark:ring-surface-800">
+                  {{i + 1}}</div>
+
+                <div class="flex-1 w-full pt-1 sm:pt-0">
+                  <label
+                    class="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 md:hidden">Menu
+                    Item</label>
+                  <p-select [options]="getAvailableItems(i)" formControlName="selectedItem" optionLabel="name"
+                    [filter]="true" filterBy="name" [showClear]="true" placeholder="Select an Item"
+                    styleClass="w-full rounded-xl" (onChange)="onItemSelected(i, $event)">
+                    <ng-template #selectedItem let-selectedOption>
+                      @if (selectedOption) {
+                      <div class="flex items-center gap-3">
+                        <img [src]="selectedOption.imageUrl" class="w-8 h-8 rounded-lg object-cover shadow-sm" />
+                        <span class="font-semibold">{{ selectedOption.name }}</span>
+                      </div>
+                      }
+                    </ng-template>
+                    <ng-template let-menuItem #item>
+                      <div class="flex items-center gap-3 py-1">
+                        <img [src]="menuItem.imageUrl" class="w-10 h-10 rounded-lg object-cover shadow-sm" />
+                        <div class="flex flex-col">
+                          <span class="font-bold text-surface-900 dark:text-surface-0">{{ menuItem.name }}</span>
+                          <span class="text-sm font-medium text-primary">{{ menuItem.price | currency:'INR' }}</span>
+                        </div>
+                      </div>
+                    </ng-template>
+                  </p-select>
+                </div>
+
+                <div
+                  class="flex items-center gap-3 sm:gap-4 w-full md:w-auto mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-t-0 border-surface-100 dark:border-surface-700">
+                  <div class="flex-1 md:w-32">
+                    <label
+                      class="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 md:hidden">Quantity</label>
+                    <p-inputNumber formControlName="quantity" placeholder="Qty" [showButtons]="true" [min]="1"
+                      styleClass="w-full" inputStyleClass="w-full text-center font-bold rounded-xl"
+                      buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" />
+                  </div>
+                  <div class="flex-1 md:w-36">
+                    <label
+                      class="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5 md:hidden">Total
+                      Amount</label>
+                    <p-inputNumber [ngModel]="calculateRowAmount(i)" [ngModelOptions]="{standalone: true}"
+                      placeholder="₹0.00" mode="currency" currency="INR" locale="en-IN" [disabled]="true"
+                      styleClass="w-full"
+                      inputStyleClass="w-full font-extrabold text-right bg-surface-50 dark:bg-surface-900 rounded-xl" />
+                  </div>
+                  <div class="md:self-center mt-4 md:mt-0 pl-1">
+                    <p-button icon="pi pi-trash" severity="danger" [rounded]="true" [text]="true"
+                      (click)="removeItem(i)" pTooltip="Remove Item" tooltipPosition="top" />
+                  </div>
+                </div>
+              </div>
+              }
+              <p-button label="Add Item" icon="pi pi-plus" (click)="addItem()" severity="secondary" size="small"
+                [rounded]="true" styleClass="shadow-sm font-semibold px-4" />
+              @if (items.length === 0) {
+              <div
+                class="text-center p-8 bg-surface-0 dark:bg-surface-800 rounded-2xl border border-dashed border-surface-300 dark:border-surface-600">
+                <p class="text-surface-500 font-medium m-0">No items added. Click "Add Item" to begin.</p>
+              </div>
+              }
+            </div>
+          </div>
+
+          <!-- Address & Instructions Section -->
+          <div class="bg-surface-0 dark:bg-surface-900 p-1 pb-4">
+            <h3 class="text-sm font-bold text-primary uppercase tracking-wider mb-4 flex items-center gap-2"><i
+                class="pi pi-map"></i> Delivery & Notes</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="field">
+                <label for="deliveryAddress"
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Delivery
+                  Address</label>
+                <textarea pTextarea id="deliveryAddress" formControlName="deliveryAddress" rows="3"
+                  placeholder="Full delivery address with pincode"
+                  class="w-full rounded-xl border-surface-300 dark:border-surface-600 focus:border-primary resize-none p-4 leading-relaxed"></textarea>
+              </div>
+              <div class="field">
+                <label for="instructions"
+                  class="block font-semibold mb-1.5 text-sm text-surface-700 dark:text-surface-300">Special
+                  Instructions</label>
+                <textarea pTextarea id="instructions" formControlName="instructions" rows="3"
+                  placeholder="Optional notes for kitchen (e.g. Less spicy, Extra napkins)"
+                  class="w-full rounded-xl border-surface-300 dark:border-surface-600 focus:border-primary resize-none p-4 leading-relaxed"></textarea>
+              </div>
+            </div>
+          </div>
+
+        </p-fluid>
       </form>
     </div>
   </div>
-</div>
-}
+
+  <ng-template pTemplate="footer">
+    <div
+      class="bg-surface-0 dark:bg-surface-900 border-surface-200 dark:border-surface-700 p-4 sm:p-6 flex flex-col-reverse sm:flex-row justify-end gap-3 mt-auto">
+      <p-button label="Cancel" severity="secondary" [text]="true" (click)="close()"
+        styleClass="w-full sm:w-auto font-semibold" size="large" />
+      <p-button label="Finalize Order" icon="pi pi-check" [loading]="creating()" (click)="createOrder()"
+        [disabled]="orderForm.invalid || creating() || items.length === 0" severity="primary"
+        styleClass="w-full sm:w-auto font-bold shadow-md hover:shadow-lg transition-shadow" size="large" />
+    </div>
+  </ng-template>
+</p-dialog>

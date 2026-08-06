@@ -3,50 +3,51 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
+import { nodeJs24Runtime } from './node-runtime';
 
 export interface ItemLambdasProps {
   itemTable: dynamodb.Table;
   imageBucket: s3.Bucket;
+  pendingImageBucket: s3.Bucket;
   imageDistribution: cloudfront.Distribution;
-  inventoryTable: dynamodb.Table;
-  slotAvailabilityTable: dynamodb.Table;
+  imageDomain: string;
+  adminGroupName: string;
+  allowedOrigins?: string;
+  logRetentionDays?: logs.RetentionDays;
 }
 
 export class ItemLambdas extends Construct {
   public readonly itemFunction: lambda.Function;
-  public readonly liveAlias: lambda.Alias;
 
   constructor(scope: Construct, id: string, props: ItemLambdasProps) {
     super(scope, id);
 
-    this.itemFunction = new lambda.Function(this, 'ItemHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromInline(
-        'exports.handler = async () => ({ statusCode: 503, body: JSON.stringify({ message: "Service not yet deployed" }) });'
-      ),
-      environment: {
-        ITEM_TABLE: props.itemTable.tableName,
-        IMAGE_BUCKET: props.imageBucket.bucketName,
-        IMAGE_CLOUDFRONT_DOMAIN: props.imageDistribution.distributionDomainName,
-        INVENTORY_TABLE: props.inventoryTable.tableName,
-        SLOT_AVAILABILITY_TABLE: props.slotAvailabilityTable.tableName,
-      },
-      timeout: cdk.Duration.seconds(30),
+    const logGroup = new logs.LogGroup(this, 'ItemHandlerLogGroup', {
+      retention: props.logRetentionDays ?? logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    const initialVersion = this.itemFunction.currentVersion;
-
-    this.liveAlias = new lambda.Alias(this, 'LiveAlias', {
-      aliasName: 'LIVE',
-      version: initialVersion,
-      description: 'Stable production traffic alias',
+    this.itemFunction = new lambda.Function(this, 'ItemHandler', {
+      runtime: nodeJs24Runtime,
+      handler: 'dist/index.handler',
+      code: lambda.Code.fromAsset('lambda/items', {
+        exclude: ['src', '*.ts', 'tsconfig.json', '*.md', '.git*'],
+      }),
+      environment: { 
+        ITEM_TABLE: props.itemTable.tableName,
+        IMAGE_BUCKET: props.imageBucket.bucketName,
+        PENDING_IMAGE_BUCKET: props.pendingImageBucket.bucketName,
+        IMAGE_DOMAIN: props.imageDomain,
+        ADMIN_GROUP_NAME: props.adminGroupName,
+        ALLOWED_ORIGIN: props.allowedOrigins || '*',
+      },
+      timeout: cdk.Duration.seconds(30),
+      logGroup,
     });
 
     props.itemTable.grantReadWriteData(this.itemFunction);
-    props.imageBucket.grantReadWrite(this.itemFunction);
-    props.inventoryTable.grantReadData(this.itemFunction);
-    props.slotAvailabilityTable.grantReadData(this.itemFunction);
+    props.pendingImageBucket.grantPut(this.itemFunction);
   }
 }

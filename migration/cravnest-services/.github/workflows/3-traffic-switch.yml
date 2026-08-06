@@ -8,11 +8,19 @@ on:
         required: true
         type: choice
         options:
-          - orders
+          - admin
+          - auth-session
+          - cart-maintenance
+          - customers
+          - image-processor
           - items
-          - slot-management
-          - ttl-cleanup
           - order-audit
+          - order-invoice-email
+          - orders
+          - ttl-cleanup
+          - whatsapp-notification
+          - whatsapp-webhook
+          - whatsapp-worker
       environment:
         description: 'Target environment'
         required: true

@@ -4,10 +4,18 @@
   "description": "Lambda service code for the Cravnest cloud kitchen SaaS platform",
   "private": true,
   "scripts": {
-    "build:orders": "cd lambda/orders && npm ci && npm run build",
+    "build:admin": "cd lambda/admin && npm ci && npm run build",
+    "build:auth-session": "cd lambda/auth-session && npm ci && npm run build",
+    "build:cart-maintenance": "cd lambda/cart-maintenance && npm ci && npm run build",
+    "build:customers": "cd lambda/customers && npm ci && npm run build",
+    "build:image-processor": "cd lambda/image-processor && npm ci && npm run build",
     "build:items": "cd lambda/items && npm ci && npm run build",
-    "build:slot-management": "cd lambda/slot-management && npm ci && npm run build",
+    "build:order-audit": "cd lambda/order-audit && npm ci && npm run build",
+    "build:order-invoice-email": "cd lambda/order-invoice-email && npm ci && npm run build",
+    "build:orders": "cd lambda/orders && npm ci && npm run build",
     "build:ttl-cleanup": "cd lambda/ttl-cleanup && npm ci && npm run build",
-    "build:order-audit": "cd lambda/order-audit && npm ci && npm run build"
+    "build:whatsapp-notification": "cd lambda/whatsapp-notification && npm ci && npm run build",
+    "build:whatsapp-webhook": "cd lambda/whatsapp-webhook && npm ci && npm run build",
+    "build:whatsapp-worker": "cd lambda/whatsapp-worker && npm ci && npm run build"
   }
 }

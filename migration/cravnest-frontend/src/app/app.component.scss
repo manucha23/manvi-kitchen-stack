@@ -1,0 +1,33 @@
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--p-content-background);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  margin-top: 60px; // Offset for fixed header
+  min-height: calc(100vh - 60px);
+  position: relative;
+}
+
+.app-content {
+  flex: 1;
+  width: 100%;
+  padding: 1.5rem;
+  transition: padding-left 0.3s cubic-bezier(0, 0, 0.2, 1);
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  @media (min-width: 768px) {
+    &.sidebar-open {
+      padding-left: calc(260px + 2rem);
+    }
+  }
+
+  @media (max-width: 767px) {
+    padding: 1rem;
+  }
+}
