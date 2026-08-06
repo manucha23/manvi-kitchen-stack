@@ -1,0 +1,80 @@
+name: Destroy CDK Stack
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+      confirmation:
+        description: 'Type the environment name again to confirm destruction'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [[ "${{ github.event.inputs.confirmation }}" != "${{ github.event.inputs.environment }}" ]]; then
+            echo "❌ Confirmation mismatch. You must type '${{ github.event.inputs.environment }}' exactly."
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+
+  destroy:
+    needs: [validate]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: List stacks before destruction
+        run: npx cdk list -c environment=${{ github.event.inputs.environment }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Destroy CDK stack
+        run: |
+          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
+          export CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}
+          npx cdk destroy \
+            -c environment=${{ github.event.inputs.environment }} \
+            --all --force
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Verify destruction
+        run: |
+          echo "✅ Destruction completed for environment: ${{ github.event.inputs.environment }}"
+          npx cdk list -c environment=${{ github.event.inputs.environment }} || echo "No stacks remaining"
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION }}

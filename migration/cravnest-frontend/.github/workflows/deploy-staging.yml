@@ -1,0 +1,71 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Read config from SSM
+        id: config
+        run: |
+          ENV=test
+          get_param() {
+            aws ssm get-parameter --name "/cravnest/${ENV}/$1" --query Parameter.Value --output text
+          }
+          echo "api-url=$(get_param api-url)" >> $GITHUB_OUTPUT
+          echo "user-pool-id=$(get_param user-pool-id)" >> $GITHUB_OUTPUT
+          echo "user-pool-client-id=$(get_param user-pool-client-id)" >> $GITHUB_OUTPUT
+          echo "bucket=$(get_param frontend-bucket-name)" >> $GITHUB_OUTPUT
+          echo "distribution=$(get_param frontend-distribution-id)" >> $GITHUB_OUTPUT
+
+      - name: Build frontend
+        run: |
+          envsubst < src/assets/env.template.js > src/assets/env.js
+          npm run build
+        env:
+          API_URL: ${{ steps.config.outputs.api-url }}
+          USER_POOL_ID: ${{ steps.config.outputs.user-pool-id }}
+          USER_POOL_CLIENT_ID: ${{ steps.config.outputs.user-pool-client-id }}
+          REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: aws s3 sync dist/cravnest-frontend/browser s3://${{ steps.config.outputs.bucket }}/ --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.config.outputs.distribution }} \
+            --paths "/*"
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Frontend deployed to staging" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bucket:** ${{ steps.config.outputs.bucket }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

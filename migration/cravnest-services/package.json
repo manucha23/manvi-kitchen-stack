@@ -1,0 +1,13 @@
+{
+  "name": "cravnest-services",
+  "version": "1.0.0",
+  "description": "Lambda service code for the Cravnest cloud kitchen SaaS platform",
+  "private": true,
+  "scripts": {
+    "build:orders": "cd lambda/orders && npm ci && npm run build",
+    "build:items": "cd lambda/items && npm ci && npm run build",
+    "build:slot-management": "cd lambda/slot-management && npm ci && npm run build",
+    "build:ttl-cleanup": "cd lambda/ttl-cleanup && npm ci && npm run build",
+    "build:order-audit": "cd lambda/order-audit && npm ci && npm run build"
+  }
+}
