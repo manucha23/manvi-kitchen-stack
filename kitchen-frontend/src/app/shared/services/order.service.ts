@@ -58,19 +58,29 @@ export class OrderService {
   private fetchOrders(filters?: IOrderFilters, limit: number = 10, isReset: boolean = false): void {
     const requestGeneration = this.requestGeneration;
     this._loading.set(true);
-    let params: any = { limit };
-    if (filters) {
-      if (filters.orderedBy) params.orderedBy = filters.orderedBy;
-      if (filters.customerPhone) params.customerPhone = filters.customerPhone;
-      if (filters.fromDate) params.fromDate = filters.fromDate;
-      if (filters.toDate) params.toDate = filters.toDate;
-      if (filters.orderStatus && filters.orderStatus.length > 0) {
-        params.orderStatus = filters.orderStatus.join(',');
-      }
+    const params: Record<string, string | number> = { limit };
+
+    if (filters?.orderedBy) {
+      params['orderedBy'] = filters.orderedBy;
+    }
+    if (filters?.customerPhone) {
+      params['customerPhone'] = filters.customerPhone;
+    }
+    if (filters?.fromDate) {
+      params['fromDate'] = filters.fromDate;
+    }
+    if (filters?.toDate) {
+      params['toDate'] = filters.toDate;
+    }
+    if (filters?.orderStatus) {
+      params['orderStatus'] = filters.orderStatus;
+    }
+    if (filters?.sortOrder) {
+      params['sortOrder'] = filters.sortOrder;
     }
 
     if (!isReset && this.nextToken) {
-      params.nextToken = this.nextToken;
+      params['nextToken'] = this.nextToken;
     }
 
     this.http
@@ -141,7 +151,7 @@ export class OrderService {
   createOrder(order: any): Observable<any> {
     return this.http.post(this.apiUrl, order).pipe(
       tap(() => {
-        this.loadOrders(); // Refresh list after creation
+        this.loadOrders(this.currentFilters);
       }),
     );
   }

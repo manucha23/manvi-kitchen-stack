@@ -32,16 +32,24 @@ export interface Order {
   feedbackProvided: boolean;
   feedbackRequestCount: number;
   timestamp: string;
+  createdAt?: string;
   version?: number;
   updatedAt?: string;
   acceptanceStatus?: string; // 'accepted' or 'rejected'
   rejectionReason?: string;
 }
 
+export type OrderSortOrder = 'asc' | 'desc';
+
 export interface IOrderFilters {
   orderedBy?: string;
+  /** Exact match on customerPhone GSI (admin list). */
   customerPhone?: string;
+  /** ISO timestamps — filters on order createdAt. */
   fromDate?: string;
   toDate?: string;
-  orderStatus?: string[];
+  /** Single status value; key on status index or filter when searching by phone. */
+  orderStatus?: OrderStatus;
+  /** API sorts by createdAt; default is desc when omitted. */
+  sortOrder?: OrderSortOrder;
 }
