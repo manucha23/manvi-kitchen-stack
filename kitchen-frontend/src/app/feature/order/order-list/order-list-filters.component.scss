@@ -1,0 +1,43 @@
+@media (max-width: 1023px) {
+  .filter-panel__body--collapsed {
+    display: none;
+  }
+
+  .filter-panel__body:not(.filter-panel__body--collapsed) {
+    margin-top: 0.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .filter-panel__body {
+    display: block !important;
+  }
+}
+
+.filter-row {
+  scrollbar-width: thin;
+}
+
+:host ::ng-deep .filter-search,
+:host ::ng-deep .filter-search input {
+  width: 100%;
+}
+
+:host ::ng-deep .filter-date,
+:host ::ng-deep .filter-date .p-datepicker,
+:host ::ng-deep .filter-date .p-datepicker-input {
+  width: 100%;
+}
+
+:host ::ng-deep .filter-status,
+:host ::ng-deep .filter-status .p-select {
+  width: 100%;
+}
+
+:host ::ng-deep .filter-mode-toggle.p-selectbutton {
+  display: inline-flex;
+}
+
+:host ::ng-deep .filter-mode-toggle .p-togglebutton {
+  padding: 0.5rem 0.625rem;
+}

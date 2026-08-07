@@ -1,0 +1,54 @@
+<div class="order-list-filters mb-6 animate-fade-in-up">
+  @if (collapsedOnMobile()) {
+  <button type="button"
+    class="filter-panel__toggle lg:hidden w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 shadow-sm"
+    (click)="toggleMobileFilters()" [attr.aria-expanded]="mobileExpanded()">
+    <span class="flex items-center gap-2 min-w-0">
+      <i class="pi pi-sliders-h text-primary text-sm"></i>
+      <span class="font-semibold text-surface-900 dark:text-surface-0 text-sm">Filters</span>
+      @if (activeFilterCount() > 0) {
+      <span
+        class="inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-primary text-primary-contrast text-[10px] font-bold">
+        {{ activeFilterCount() }}
+      </span>
+      }
+    </span>
+    <i class="pi text-surface-500 text-sm" [class.pi-chevron-up]="mobileExpanded()"
+      [class.pi-chevron-down]="!mobileExpanded()"></i>
+  </button>
+  }
+
+  <div
+    class="filter-panel__body w-full lg:w-[90%] lg:mx-auto bg-surface-0 dark:bg-surface-900 p-3 md:p-4 rounded-2xl shadow-sm border border-surface-200 dark:border-surface-800"
+    [class.filter-panel__body--collapsed]="collapsedOnMobile() && !mobileExpanded()">
+    <div class="filter-row flex flex-col gap-3 lg:flex-row lg:flex-nowrap lg:items-center lg:gap-4 lg:w-full">
+      <div class="flex items-center gap-2 w-full lg:flex-[2] lg:min-w-0">
+        <p-selectbutton [options]="searchModeOptions" [ngModel]="searchMode()" (ngModelChange)="onSearchModeChange($event)"
+          optionValue="value" styleClass="filter-mode-toggle shrink-0" [allowEmpty]="false">
+          <ng-template #item let-option>
+            <i [class]="option.icon" [attr.title]="option.title"></i>
+          </ng-template>
+        </p-selectbutton>
+
+        <p-iconfield class="filter-search flex-1 min-w-0">
+          <p-inputicon>
+            <i [class]="searchIcon() + ' text-surface-400 text-sm'"></i>
+          </p-inputicon>
+          <input pInputText [type]="searchInputType()" [ngModel]="searchText()" (ngModelChange)="onSearchValueChange($event)"
+            [placeholder]="searchPlaceholder()" class="w-full rounded-xl text-sm" [class.uppercase]="isOrderIdMode()"
+            [attr.inputmode]="isOrderIdMode() ? 'text' : 'tel'" [attr.autocomplete]="isOrderIdMode() ? 'off' : 'tel'" />
+        </p-iconfield>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-1 lg:min-w-0 gap-2 lg:gap-4">
+        <p-datepicker [ngModel]="rangeDates()" (ngModelChange)="onDateRangeChange($event)" selectionMode="range"
+          [readonlyInput]="true" dateFormat="dd/mm/yy" placeholder="Created date" [showClear]="true" [showIcon]="true"
+          appendTo="body" styleClass="filter-date w-full lg:flex-1 lg:min-w-0" inputStyleClass="rounded-xl text-sm w-full" />
+
+        <p-select [options]="statusOptions" [ngModel]="selectedStatus()"
+          (ngModelChange)="selectedStatus.set($event); onStatusChange()" appendTo="body" [showClear]="false"
+          placeholder="Status" styleClass="filter-status w-full lg:flex-1 lg:min-w-0 rounded-xl text-sm" />
+      </div>
+    </div>
+  </div>
+</div>

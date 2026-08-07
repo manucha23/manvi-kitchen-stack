@@ -48,6 +48,42 @@ export class OrderService {
     this.fetchOrders(filters, limit, true);
   }
 
+  loadOrderById(orderId: string, listFilters?: IOrderFilters): void {
+    this.currentFilters = listFilters;
+    this.nextToken = undefined;
+    this._hasMore.set(false);
+    this._orders.set([]);
+    this.requestGeneration++;
+
+    const requestGeneration = this.requestGeneration;
+    this._loading.set(true);
+
+    this.http.get<Order>(`${this.apiUrl}/${orderId}`).subscribe({
+      next: (order) => {
+        if (requestGeneration !== this.requestGeneration) {
+          return;
+        }
+        const matches = !listFilters || this.matchesListFilters(order, listFilters);
+        this._orders.set(matches ? [order] : []);
+        this._loading.set(false);
+      },
+      error: (error) => {
+        if (requestGeneration !== this.requestGeneration) {
+          return;
+        }
+        if (error.status === 404) {
+          this._orders.set([]);
+        } else {
+          console.error('Error loading order:', error);
+          const errorMsg = error?.error?.error || 'Failed to load order';
+          this.notificationService.showError('Fetch Error', errorMsg);
+        }
+        this._hasMore.set(false);
+        this._loading.set(false);
+      },
+    });
+  }
+
   loadMoreOrders(limit: number = 10): void {
     if (this._loading() || !this._hasMore()) {
       return;
@@ -154,5 +190,21 @@ export class OrderService {
         this.loadOrders(this.currentFilters);
       }),
     );
+  }
+
+  private matchesListFilters(order: Order, filters: IOrderFilters): boolean {
+    if (filters.orderStatus && order.status !== filters.orderStatus) {
+      return false;
+    }
+
+    const createdAt = order.createdAt ?? order.timestamp;
+    if (filters.fromDate && createdAt < filters.fromDate) {
+      return false;
+    }
+    if (filters.toDate && createdAt > filters.toDate) {
+      return false;
+    }
+
+    return true;
   }
 }

@@ -41,6 +41,28 @@ export interface Order {
 
 export type OrderSortOrder = 'asc' | 'desc';
 
+export type OrderSearchMode = 'phone' | 'orderId';
+
+export const ORDER_ID_PATTERN = /^[A-Z0-9]{6}$/;
+
+export interface OrderListFilterState {
+  searchMode: OrderSearchMode;
+  searchText: string;
+  rangeDates?: Date[];
+  selectedStatus?: OrderStatus;
+}
+
+export enum OrderListFilterChangeType {
+  SEARCH = 'search',
+  DATE = 'date',
+  STATUS = 'status',
+}
+
+export interface OrderListFilterChange {
+  type: OrderListFilterChangeType;
+  state: OrderListFilterState;
+}
+
 export interface IOrderFilters {
   orderedBy?: string;
   /** Exact match on customerPhone GSI (admin list). */

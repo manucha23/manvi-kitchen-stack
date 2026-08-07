@@ -14,9 +14,12 @@ import {
   Order,
   OrderItem,
   OrderStatus,
+  ORDER_ID_PATTERN,
+  OrderListFilterChange,
+  OrderListFilterChangeType,
+  OrderListFilterState,
 } from '../../../shared/models/order';
-
-import { CommonModule } from '@angular/common'; // For pipes: number, date, uppercase
+import { CommonModule } from '@angular/common';
 import { OrderCreateComponent } from '../order-create/order-create.component';
 import { NotificationService } from '../../../shared/services/notification.service';
 import { FormsModule } from '@angular/forms';
@@ -25,19 +28,10 @@ import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { SelectModule } from 'primeng/select';
 import { DialogModule } from 'primeng/dialog';
-import { IconFieldModule } from 'primeng/iconfield';
-import { InputIconModule } from 'primeng/inputicon';
-import { InputTextModule } from 'primeng/inputtext';
-import { DatePickerModule } from 'primeng/datepicker';
 import { SkeletonModule } from 'primeng/skeleton';
-import { debounceTime, Subject } from 'rxjs';
 import { SortEvent } from 'primeng/api';
+import { OrderListFiltersComponent } from './order-list-filters.component';
 
-enum FilterType {
-  SEARCH = 'search',
-  DATE = 'date',
-  STATUS = 'status',
-}
 @Component({
   selector: 'app-order-list',
   templateUrl: './order-list.component.html',
@@ -51,12 +45,9 @@ enum FilterType {
     TagModule,
     SelectModule,
     DialogModule,
-    IconFieldModule,
-    InputIconModule,
-    InputTextModule,
-    DatePickerModule,
     SkeletonModule,
     OrderCreateComponent,
+    OrderListFiltersComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -118,17 +109,15 @@ export class OrderListComponent implements OnInit, OnDestroy {
     this.loading() ? [...this.orders(), ...this.loadingPlaceholders] : this.orders(),
   );
 
-  FILTER_TYPE = FilterType;
-
-  // Filter state
-  searchText = '';
-  rangeDates: Date[] | undefined;
-  selectedStatus: OrderStatus | undefined = OrderStatus.CONFIRMED;
   /** Only createdAt is sortable — matches API sortOrder on createdAt index. */
   sortField = 'createdAt';
   sortOrder = -1;
   private lastAppliedSort: { field: string; order: number } | null = null;
-  private searchSubject = new Subject<FilterType>();
+  private filterState: OrderListFilterState = {
+    searchMode: 'phone',
+    searchText: '',
+    selectedStatus: OrderStatus.CONFIRMED,
+  };
   private mobileLoadObserver?: IntersectionObserver;
   private desktopLoadObserver?: IntersectionObserver;
 
@@ -182,11 +171,21 @@ export class OrderListComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.lastAppliedSort = { field: this.sortField, order: this.sortOrder };
     this.loadOrders();
+  }
 
-    // Setup debounced search
-    this.searchSubject.pipe(debounceTime(400)).subscribe((type) => {
-      this.executeSearch(type);
-    });
+  ngOnDestroy(): void {
+    this.mobileLoadObserver?.disconnect();
+    this.desktopLoadObserver?.disconnect();
+  }
+
+  onFiltersChange(change: OrderListFilterChange): void {
+    this.filterState = change.state;
+
+    if (change.type === OrderListFilterChangeType.DATE && this.hasPartialDateRange()) {
+      return;
+    }
+
+    this.applyFilters();
   }
 
   loadMore(): void {
@@ -208,36 +207,6 @@ export class OrderListComponent implements OnInit, OnDestroy {
     return !order || order.orderId.startsWith('loading-');
   }
 
-  ngOnDestroy(): void {
-    this.mobileLoadObserver?.disconnect();
-    this.desktopLoadObserver?.disconnect();
-    this.searchSubject.complete();
-  }
-
-  onFilterSearchChanges(filterType: FilterType): void {
-    this.searchSubject.next(filterType);
-  }
-
-  onDateRangeChange(dates: Date[] | Date | null | undefined): void {
-    if (dates == null) {
-      this.rangeDates = undefined;
-      this.onFilterSearchChanges(FilterType.DATE);
-      return;
-    }
-
-    this.rangeDates = Array.isArray(dates) ? dates : [dates];
-    this.onFilterSearchChanges(FilterType.DATE);
-  }
-
-  executeSearch(filterType: FilterType): void {
-    if (filterType === FilterType.DATE && this.hasPartialDateRange()) {
-      return;
-    }
-
-    this.scrollOrdersToTop();
-    this.orderService.loadOrders(this.buildFilters());
-  }
-
   onTableSort(event: SortEvent): void {
     if (event.field !== 'createdAt' || event.order == null || event.order === 0) {
       return;
@@ -253,8 +222,52 @@ export class OrderListComponent implements OnInit, OnDestroy {
     this.lastAppliedSort = { field: event.field, order: event.order };
     this.sortField = event.field;
     this.sortOrder = event.order;
+    this.applyFilters();
+  }
+
+  loadOrders(): void {
+    this.applyFilters();
+  }
+
+  private applyFilters(): void {
     this.scrollOrdersToTop();
-    this.orderService.loadOrders(this.buildFilters());
+
+    if (this.filterState.searchMode === 'orderId') {
+      const orderId = this.filterState.searchText.trim().toUpperCase();
+      if (!orderId) {
+        this.orderService.loadOrders(this.buildListFilters());
+        return;
+      }
+      if (!ORDER_ID_PATTERN.test(orderId)) {
+        return;
+      }
+      this.orderService.loadOrderById(orderId, this.buildListFilters());
+      return;
+    }
+
+    this.orderService.loadOrders(this.buildListFilters());
+  }
+
+  private buildListFilters(): IOrderFilters {
+    const filters: IOrderFilters = {};
+
+    const customerPhone = this.normalizeCustomerPhone(this.filterState.searchText);
+    if (customerPhone) {
+      filters.customerPhone = customerPhone;
+    }
+
+    if (this.hasCompleteDateRange()) {
+      filters.fromDate = this.toDayBoundaryISOString(this.filterState.rangeDates![0], 'start');
+      filters.toDate = this.toDayBoundaryISOString(this.filterState.rangeDates![1], 'end');
+    }
+
+    if (this.filterState.selectedStatus) {
+      filters.orderStatus = this.filterState.selectedStatus;
+    }
+
+    filters.sortOrder = this.sortOrder === 1 ? 'asc' : 'desc';
+
+    return filters;
   }
 
   private toDayBoundaryISOString(date: Date, boundary: 'start' | 'end'): string {
@@ -268,44 +281,17 @@ export class OrderListComponent implements OnInit, OnDestroy {
     return boundaryDate.toISOString();
   }
 
-  loadOrders(): void {
-    this.scrollOrdersToTop();
-    this.orderService.loadOrders(this.buildFilters());
-  }
-
-  private buildFilters(): IOrderFilters {
-    const filters: IOrderFilters = {};
-
-    const customerPhone = this.normalizeCustomerPhone(this.searchText);
-    if (customerPhone) {
-      filters.customerPhone = customerPhone;
-    }
-
-    if (this.hasCompleteDateRange()) {
-      filters.fromDate = this.toDayBoundaryISOString(this.rangeDates![0], 'start');
-      filters.toDate = this.toDayBoundaryISOString(this.rangeDates![1], 'end');
-    }
-
-    if (this.selectedStatus) {
-      filters.orderStatus = this.selectedStatus;
-    }
-
-    filters.sortOrder = this.sortOrder === 1 ? 'asc' : 'desc';
-
-    return filters;
-  }
-
   private hasCompleteDateRange(): boolean {
-    return Boolean(this.rangeDates?.[0] && this.rangeDates?.[1]);
+    return Boolean(this.filterState.rangeDates?.[0] && this.filterState.rangeDates?.[1]);
   }
 
   private hasPartialDateRange(): boolean {
-    const hasStart = Boolean(this.rangeDates?.[0]);
-    const hasEnd = Boolean(this.rangeDates?.[1]);
+    const dates = this.filterState.rangeDates;
+    const hasStart = Boolean(dates?.[0]);
+    const hasEnd = Boolean(dates?.[1]);
     return hasStart !== hasEnd;
   }
 
-  /** API matches customerPhone exactly on GSI — normalize to stored +digits format. */
   private normalizeCustomerPhone(value: string): string {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -351,8 +337,7 @@ export class OrderListComponent implements OnInit, OnDestroy {
     this.auditLoading.set(true);
 
     this.orderService.getOrderAudit(orderId).subscribe({
-      next: (data: Order[]) => {
-        // this.auditDetails.set(data.sort((a, b) => b.version - a.version));
+      next: () => {
         this.auditLoading.set(false);
       },
       error: (error) => {
@@ -369,7 +354,6 @@ export class OrderListComponent implements OnInit, OnDestroy {
   }
 
   onOrderCreated(): void {
-    // List is refreshed by service
     this.showCreatePopup.set(false);
     this.scrollOrdersToTop();
   }
