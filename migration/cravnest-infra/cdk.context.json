@@ -1,0 +1,6 @@
+{
+  "acknowledged-issue-numbers": [
+    34892
+  ],
+  "cloudFrontCertificateArn:test": "arn:aws:acm:us-east-1:272916400750:certificate/b2aa7f94-c206-4bcb-841f-4c04d38dba37"
+}

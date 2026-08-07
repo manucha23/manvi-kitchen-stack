@@ -1,0 +1,126 @@
+name: "2 - Release New Version"
+
+on:
+  workflow_dispatch:
+    inputs:
+      lambda:
+        description: 'Lambda to release'
+        required: true
+        type: choice
+        options:
+          - admin
+          - auth-session
+          - cart-maintenance
+          - customers
+          - image-processor
+          - items
+          - order-audit
+          - order-invoice-email
+          - orders
+          - ttl-cleanup
+          - whatsapp-notification
+          - whatsapp-webhook
+          - whatsapp-worker
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+      canary_percentage:
+        description: 'Traffic % to shift to new version via LIVE alias (0 = publish only, no traffic shift)'
+        required: false
+        default: '0'
+        type: string
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Purpose: Publish the current $LATEST as a new immutable Lambda version.
+# Optionally start canary traffic shifting on the LIVE alias.
+#
+# Examples:
+#   canary_percentage=0   → version published, LIVE alias unchanged
+#   canary_percentage=10  → LIVE alias: 90% old version, 10% new version
+#   canary_percentage=50  → LIVE alias: 50% / 50% split
+#
+# Run Pipeline 3 to promote to 100% or rollback.
+# ─────────────────────────────────────────────────────────────────────────────
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Read function name from SSM
+        id: ssm
+        run: |
+          FUNCTION_NAME=$(aws ssm get-parameter \
+            --name "/cravnest/${{ inputs.environment }}/lambda/${{ inputs.lambda }}/function-name" \
+            --query Parameter.Value --output text)
+          echo "function-name=${FUNCTION_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Publish new Lambda version
+        id: publish
+        run: |
+          VERSION=$(aws lambda publish-version \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --description "Release from commit ${{ github.sha }} by ${{ github.actor }}" \
+            --query Version --output text)
+          echo "new-version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Published version: ${VERSION}"
+
+      - name: Get current LIVE alias target version
+        id: current
+        run: |
+          CURRENT=$(aws lambda get-alias \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --name LIVE \
+            --query FunctionVersion --output text)
+          echo "stable-version=${CURRENT}" >> $GITHUB_OUTPUT
+          echo "Current LIVE version: ${CURRENT}"
+
+      - name: Apply canary traffic shift (if requested)
+        if: ${{ inputs.canary_percentage != '0' && inputs.canary_percentage != '' }}
+        run: |
+          CANARY_WEIGHT=$(echo "scale=2; ${{ inputs.canary_percentage }} / 100" | bc)
+          aws lambda update-alias \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --name LIVE \
+            --function-version ${{ steps.current.outputs.stable-version }} \
+            --routing-config "AdditionalVersionWeights={\"${{ steps.publish.outputs.new-version }}\":${CANARY_WEIGHT}}"
+          echo "Canary shift applied: ${{ inputs.canary_percentage }}% → v${{ steps.publish.outputs.new-version }}"
+
+      - name: Store pending version in SSM
+        run: |
+          aws ssm put-parameter \
+            --name "/cravnest/${{ inputs.environment }}/lambda/${{ inputs.lambda }}/pending-version" \
+            --value "${{ steps.publish.outputs.new-version }}" \
+            --type String \
+            --overwrite
+
+      - name: Release summary
+        run: |
+          echo "### 🚀 Version ${{ steps.publish.outputs.new-version }} published for \`${{ inputs.lambda }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Function:** ${{ steps.ssm.outputs.function-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New version:** ${{ steps.publish.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous stable:** ${{ steps.current.outputs.stable-version }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.canary_percentage }}" != "0" && -n "${{ inputs.canary_percentage }}" ]]; then
+            echo "- **Traffic split:** $((100 - ${{ inputs.canary_percentage }}))% → v${{ steps.current.outputs.stable-version }} | ${{ inputs.canary_percentage }}% → v${{ steps.publish.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Next step:** Run Pipeline 3 to promote or rollback" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **LIVE alias:** unchanged (no canary shift)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Next step:** Run Pipeline 3 to promote v${{ steps.publish.outputs.new-version }} to 100%" >> $GITHUB_STEP_SUMMARY
+          fi

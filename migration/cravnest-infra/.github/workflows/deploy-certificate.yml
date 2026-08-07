@@ -1,0 +1,79 @@
+name: Deploy CloudFront Certificate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/constructs/certificates/cloudfront-certificate.ts'
+      - 'bin/cloudfront-certificate.ts'
+      - '.github/workflows/deploy-certificate.yml'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  deploy-certificate:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials via OIDC for us-east-1
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+
+      - name: Bootstrap CDK us-east-1 (if needed)
+        run: |
+          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
+          export CDK_DEFAULT_REGION=us-east-1
+          npx cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/us-east-1 --region us-east-1
+        env:
+          AWS_REGION: us-east-1
+
+      - name: Deploy CloudFront certificate
+        run: |
+          export CDK_DEFAULT_ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
+          export CDK_DEFAULT_REGION=us-east-1
+          npx cdk deploy CloudFrontCertificate-test --require-approval=never --region us-east-1 --app "npx ts-node --prefer-ts-exts bin/cloudfront-certificate.ts"
+        env:
+          AWS_REGION: us-east-1
+
+      - name: Update certificate ARN in cdk.context.json
+        run: |
+          CERT_ARN=$(aws cloudformation describe-stacks \
+            --stack-name CloudFrontCertificate-test \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`CertificateArn`].OutputValue' \
+            --output text)
+
+          echo "New certificate ARN: $CERT_ARN"
+
+          if [ -n "$CERT_ARN" ] && [ "$CERT_ARN" != "None" ]; then
+            jq --arg arn "$CERT_ARN" '."cloudFrontCertificateArn:test" = $arn' cdk.context.json > cdk.context.json.tmp
+            mv cdk.context.json.tmp cdk.context.json
+          else
+            echo "⚠️ CERT_ARN was empty or None. Skipping cdk.context.json update."
+          fi
+        env:
+          AWS_REGION: us-east-1
+
+      - name: Commit updated cdk.context.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cdk.context.json
+          git diff --staged --quiet || git commit -m "chore: update CloudFront certificate ARN [skip ci]"
+          git push

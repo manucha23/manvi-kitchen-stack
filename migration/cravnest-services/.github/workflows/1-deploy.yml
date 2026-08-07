@@ -1,0 +1,109 @@
+name: "1 - Deploy to $LATEST"
+
+on:
+  workflow_dispatch:
+    inputs:
+      lambda:
+        description: 'Lambda to build and deploy'
+        required: true
+        type: choice
+        options:
+          - admin
+          - auth-session
+          - cart-maintenance
+          - customers
+          - image-processor
+          - items
+          - order-audit
+          - order-invoice-email
+          - orders
+          - ttl-cleanup
+          - whatsapp-notification
+          - whatsapp-webhook
+          - whatsapp-worker
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Purpose: Build the selected lambda, upload ZIP to S3, update $LATEST code.
+# No version is published and no alias is changed — LIVE traffic is unaffected.
+# Use this for rapid iteration in test, or as the first step before releasing.
+# ─────────────────────────────────────────────────────────────────────────────
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+          cache-dependency-path: lambda/${{ inputs.lambda }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: lambda/${{ inputs.lambda }}
+
+      - name: Build TypeScript
+        run: npm run build
+        working-directory: lambda/${{ inputs.lambda }}
+
+      - name: Create deployment ZIP
+        run: |
+          cd lambda/${{ inputs.lambda }}
+          ZIP_NAME="${{ inputs.lambda }}-${{ github.sha }}.zip"
+          zip -r "${ZIP_NAME}" dist/ node_modules/ --exclude "node_modules/.cache/*"
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "ZIP_PATH=lambda/${{ inputs.lambda }}/${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload ZIP to S3
+        run: |
+          aws s3 cp ${{ env.ZIP_PATH }} \
+            s3://${{ secrets.LAMBDA_DEPLOY_BUCKET }}/lambda/${{ inputs.lambda }}/${{ env.ZIP_NAME }}
+
+      - name: Read function name from SSM
+        id: ssm
+        run: |
+          FUNCTION_NAME=$(aws ssm get-parameter \
+            --name "/cravnest/${{ inputs.environment }}/lambda/${{ inputs.lambda }}/function-name" \
+            --query Parameter.Value --output text)
+          echo "function-name=${FUNCTION_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Update Lambda function code ($LATEST)
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --s3-bucket ${{ secrets.LAMBDA_DEPLOY_BUCKET }} \
+            --s3-key lambda/${{ inputs.lambda }}/${{ env.ZIP_NAME }}
+
+      - name: Wait for update to complete
+        run: |
+          aws lambda wait function-updated \
+            --function-name ${{ steps.ssm.outputs.function-name }}
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ \`${{ inputs.lambda }}\` deployed to \$LATEST" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Function:** ${{ steps.ssm.outputs.function-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LIVE alias:** unchanged — run Pipeline 2 to publish a version" >> $GITHUB_STEP_SUMMARY

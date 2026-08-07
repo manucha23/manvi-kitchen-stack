@@ -1,0 +1,154 @@
+name: "3 - Traffic Switch (Promote / Rollback)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      lambda:
+        description: 'Lambda to target'
+        required: true
+        type: choice
+        options:
+          - admin
+          - auth-session
+          - cart-maintenance
+          - customers
+          - image-processor
+          - items
+          - order-audit
+          - order-invoice-email
+          - orders
+          - ttl-cleanup
+          - whatsapp-notification
+          - whatsapp-webhook
+          - whatsapp-worker
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - promote
+          - rollback
+      target_version:
+        description: |
+          Version number to make LIVE (e.g. "5").
+          Leave empty with action=promote to auto-use the pending version from SSM.
+          Required for rollback.
+        required: false
+        type: string
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Purpose: Atomically switch the LIVE alias to point to a specific version.
+# - promote: moves 100% traffic to target_version (clears any canary split)
+# - rollback: moves 100% traffic back to a previous stable version
+#
+# All traffic switching is alias-only — no CDK deploy needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Read function name from SSM
+        id: ssm
+        run: |
+          FUNCTION_NAME=$(aws ssm get-parameter \
+            --name "/cravnest/${{ inputs.environment }}/lambda/${{ inputs.lambda }}/function-name" \
+            --query Parameter.Value --output text)
+          echo "function-name=${FUNCTION_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Resolve target version
+        id: resolve
+        run: |
+          TARGET="${{ inputs.target_version }}"
+
+          if [[ -z "${TARGET}" && "${{ inputs.action }}" == "promote" ]]; then
+            # Auto-use pending version from SSM
+            TARGET=$(aws ssm get-parameter \
+              --name "/cravnest/${{ inputs.environment }}/lambda/${{ inputs.lambda }}/pending-version" \
+              --query Parameter.Value --output text 2>/dev/null || echo "")
+            if [[ -z "${TARGET}" ]]; then
+              echo "❌ No pending version found in SSM and no target_version provided."
+              exit 1
+            fi
+            echo "Auto-resolved pending version: ${TARGET}"
+          fi
+
+          if [[ -z "${TARGET}" ]]; then
+            echo "❌ target_version is required for rollback."
+            exit 1
+          fi
+
+          echo "target=${TARGET}" >> $GITHUB_OUTPUT
+
+      - name: List available versions (for audit)
+        run: |
+          echo "Available versions for ${{ steps.ssm.outputs.function-name }}:"
+          aws lambda list-versions-by-function \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --query 'Versions[*].{Version:Version,Description:Description,LastModified:LastModified}' \
+            --output table
+
+      - name: Get current LIVE alias state (before switch)
+        id: before
+        run: |
+          CURRENT=$(aws lambda get-alias \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --name LIVE \
+            --query FunctionVersion --output text)
+          echo "version=${CURRENT}" >> $GITHUB_OUTPUT
+
+      - name: Switch LIVE alias to target version (100% traffic)
+        run: |
+          # Pass empty routing-config to clear any canary split
+          aws lambda update-alias \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --name LIVE \
+            --function-version ${{ steps.resolve.outputs.target }} \
+            --routing-config '{}'
+
+      - name: Update live-version SSM param
+        run: |
+          aws ssm put-parameter \
+            --name "/cravnest/${{ inputs.environment }}/lambda/${{ inputs.lambda }}/live-version" \
+            --value "${{ steps.resolve.outputs.target }}" \
+            --type String \
+            --overwrite
+
+      - name: Verify alias state (after switch)
+        run: |
+          aws lambda get-alias \
+            --function-name ${{ steps.ssm.outputs.function-name }} \
+            --name LIVE \
+            --query '{Version:FunctionVersion,RoutingConfig:RoutingConfig}' \
+            --output table
+
+      - name: Traffic switch summary
+        run: |
+          ACTION_EMOJI=$([[ "${{ inputs.action }}" == "rollback" ]] && echo "⏪" || echo "🟢")
+          echo "### ${ACTION_EMOJI} LIVE alias switched for \`${{ inputs.lambda }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action:** ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Function:** ${{ steps.ssm.outputs.function-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous version:** ${{ steps.before.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New LIVE version:** ${{ steps.resolve.outputs.target }} (100% traffic)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Switched at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

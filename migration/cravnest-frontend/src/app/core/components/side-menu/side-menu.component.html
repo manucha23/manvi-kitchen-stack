@@ -1,0 +1,39 @@
+<p-drawer
+  [visible]="sidebarService.isOpen()"
+  (visibleChange)="onVisibleChange($event)"
+  [modal]="isMobile"
+  [dismissible]="isMobile"
+  [closable]="isMobile"
+  position="left"
+  styleClass="app-sidebar-drawer"
+  [blockScroll]="isMobile">
+  
+  <div class="sidebar-wrapper">
+    <!-- Mobile Sidebar Header -->
+    @if (isMobile) {
+      <div class="sidebar-mobile-header">
+        <i class="pi pi-box logo-icon"></i>
+        <span class="app-title">Manvi's Kitchen</span>
+      </div>
+    }
+
+    <!-- Navigation Menu Items -->
+    <nav class="sidebar-nav">
+      <ul class="nav-list">
+        @for (item of menuItems; track item.route) {
+          <li class="nav-item">
+            <a 
+              [routerLink]="item.route" 
+              routerLinkActive="active-item"
+              (click)="onMenuItemClick()"
+              class="nav-link"
+              pRipple>
+              <i [class]="item.icon + ' nav-icon'"></i>
+              <span class="nav-label">{{ item.label }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    </nav>
+  </div>
+</p-drawer>

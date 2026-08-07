@@ -1,0 +1,51 @@
+<div class="login-container">
+  <div class="login-card animate-zoom-in">
+
+    <!-- Left Side -->
+    <div class="left-panel">
+      <!-- Logo -->
+      <div class="absolute top-8 left-8 flex items-center gap-2 animate-fade-in-left" style="animation-delay: 0.2s">
+        <i class="pi pi-box text-2xl text-slate-800"></i>
+        <span class="text-xl font-bold text-slate-800 tracking-wide font-serif italic">Kitchen Setup</span>
+      </div>
+
+      <!-- Form -->
+      <div class="w-full max-w-xs mx-auto animate-fade-in-left" style="animation-delay: 0.4s">
+        @if (error()) {
+        <div class="text-center">
+          <span class="text-sm text-red-500 font-serif italic">{{ error() }}</span>
+          <div class="mt-4">
+            <p-button label="RETRY" [loading]="loading()" type="button" styleClass="w-full" class="w-full"
+              (onClick)="startLogin()"></p-button>
+          </div>
+        </div>
+        } @else if (loggedOut()) {
+        <div class="signed-out-panel">
+          <div class="signed-out-icon" aria-hidden="true">
+            <i class="pi pi-check"></i>
+          </div>
+          <p class="signed-out-kicker">Signed out</p>
+          <h1>Thanks for using Cravnest.</h1>
+          <p class="signed-out-copy">
+            Your admin session has ended. You can safely close this browser tab.
+          </p>
+          <p-button label="SIGN IN AGAIN" [loading]="loading()" type="button" styleClass="w-full" class="w-full"
+            (onClick)="startLogin()"></p-button>
+        </div>
+        }
+      </div>
+
+      <!-- Copyright -->
+      <div class="absolute bottom-6 left-8 text-xs text-gray-400 font-medium animate-fade-in-left"
+        style="animation-delay: 0.6s">
+        &copy; 2026 Manvi Kitchen LLC.
+      </div>
+    </div>
+
+    <!-- Right Side -->
+    <div class="right-panel animate-fade-in-right" style="background-image: url('/assets/images/login-bowl.png');">
+      <div class="overlay"></div>
+    </div>
+
+  </div>
+</div>

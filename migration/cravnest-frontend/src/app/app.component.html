@@ -1,0 +1,15 @@
+<p-toast />
+
+@if (isAuthenticated()) {
+  <div class="app-layout">
+    <app-header />
+    <div class="app-body">
+      <app-side-menu />
+      <main class="app-content" [class.sidebar-open]="sidebarService.isOpen()">
+        <router-outlet />
+      </main>
+    </div>
+  </div>
+} @else {
+  <router-outlet />
+}
