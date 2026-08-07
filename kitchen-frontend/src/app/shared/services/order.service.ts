@@ -6,6 +6,13 @@ import { IOrderFilters, Order } from '../models/order';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from './notification.service';
 
+interface OrderListResponse {
+  items: Order[];
+  count: number;
+  hasMore: boolean;
+  nextToken?: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -19,14 +26,39 @@ export class OrderService {
   private _loading = signal(false);
   public readonly loading = this._loading.asReadonly();
 
+  private _hasMore = signal(true);
+  public readonly hasMore = this._hasMore.asReadonly();
+
+  private nextToken: string | undefined = undefined;
+  private currentFilters: IOrderFilters | undefined = undefined;
+  private requestGeneration = 0;
+
   constructor(
     private http: HttpClient,
     private notificationService: NotificationService,
   ) {}
 
-  loadOrders(filters?: IOrderFilters): void {
+  loadOrders(filters?: IOrderFilters, limit: number = 10): void {
+    this.currentFilters = filters;
+    this.nextToken = undefined;
+    this._hasMore.set(true);
+    this._orders.set([]);
+    this.requestGeneration++;
+
+    this.fetchOrders(filters, limit, true);
+  }
+
+  loadMoreOrders(limit: number = 10): void {
+    if (this._loading() || !this._hasMore()) {
+      return;
+    }
+    this.fetchOrders(this.currentFilters, limit, false);
+  }
+
+  private fetchOrders(filters?: IOrderFilters, limit: number = 10, isReset: boolean = false): void {
+    const requestGeneration = this.requestGeneration;
     this._loading.set(true);
-    let params: any = {};
+    let params: any = { limit };
     if (filters) {
       if (filters.orderedBy) params.orderedBy = filters.orderedBy;
       if (filters.customerPhone) params.customerPhone = filters.customerPhone;
@@ -37,15 +69,33 @@ export class OrderService {
       }
     }
 
+    if (!isReset && this.nextToken) {
+      params.nextToken = this.nextToken;
+    }
+
     this.http
-      .get<{ items: Order[] }>(this.apiUrl, { params })
-      .pipe(map((response) => response.items))
+      .get<OrderListResponse>(this.apiUrl, { params })
       .subscribe({
-        next: (orders) => {
-          this._orders.set(orders);
+        next: (response) => {
+          if (requestGeneration !== this.requestGeneration) {
+            return;
+          }
+
+          const newItems = response.items || [];
+          this.nextToken = response.nextToken;
+          this._hasMore.set(Boolean(response.hasMore));
+
+          if (isReset) {
+            this._orders.set(newItems);
+          } else {
+            this._orders.update((prev) => [...prev, ...newItems]);
+          }
           this._loading.set(false);
         },
         error: (error) => {
+          if (requestGeneration !== this.requestGeneration) {
+            return;
+          }
           console.error('Error loading orders:', error);
           const errorMsg = error?.error?.error || 'Failed to load orders';
           this.notificationService.showError('Fetch Error', errorMsg);

@@ -1,8 +1,12 @@
 import {
   Component,
   OnInit,
+  OnDestroy,
   signal,
+  computed,
   ChangeDetectionStrategy,
+  ViewChild,
+  ElementRef,
 } from '@angular/core';
 import { OrderService } from '../../../shared/services/order.service';
 import {
@@ -16,7 +20,7 @@ import { CommonModule } from '@angular/common'; // For pipes: number, date, uppe
 import { OrderCreateComponent } from '../order-create/order-create.component';
 import { NotificationService } from '../../../shared/services/notification.service';
 import { FormsModule } from '@angular/forms';
-import { TableModule } from 'primeng/table';
+import { TableModule, Table } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { SelectModule } from 'primeng/select';
@@ -55,15 +59,64 @@ enum FilterType {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OrderListComponent implements OnInit {
+export class OrderListComponent implements OnInit, OnDestroy {
+  @ViewChild('dt') dt?: Table;
+  @ViewChild('desktopScrollContainer') desktopScrollContainer?: ElementRef<HTMLElement>;
+  @ViewChild('mobileLoadTrigger')
+  set mobileLoadTrigger(element: ElementRef<HTMLElement> | undefined) {
+    this.mobileLoadObserver?.disconnect();
+
+    if (!element || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
+    this.mobileLoadObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          this.loadMore();
+        }
+      },
+      {
+        root: element.nativeElement.closest('.mobile-order-list'),
+        rootMargin: '0px 0px 240px',
+      },
+    );
+    this.mobileLoadObserver.observe(element.nativeElement);
+  }
+
+  @ViewChild('desktopLoadTrigger')
+  set desktopLoadTrigger(element: ElementRef<HTMLElement> | undefined) {
+    this.desktopLoadObserver?.disconnect();
+
+    if (!element || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
+    this.desktopLoadObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          this.loadMore();
+        }
+      },
+      { root: element.nativeElement.parentElement, rootMargin: '0px 0px 256px' },
+    );
+    this.desktopLoadObserver.observe(element.nativeElement);
+  }
+
   orders = this.orderService.orders;
   loading = this.orderService.loading;
+  hasMore = this.orderService.hasMore;
   showAuditPopup = signal(false);
   auditLoading = signal(false);
   auditDetails = signal<Order[]>([]);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
-  placeholderOrders = Array(5).fill({}) as Order[];
+  readonly loadingPlaceholders = Array.from({ length: 4 }, (_, index) => ({
+    orderId: `loading-${index}`,
+  })) as Order[];
+  readonly tableRows = computed(() =>
+    this.loading() ? [...this.orders(), ...this.loadingPlaceholders] : this.orders(),
+  );
 
   FILTER_TYPE = FilterType;
 
@@ -72,6 +125,8 @@ export class OrderListComponent implements OnInit {
   rangeDates: Date[] | undefined;
   selectedStatus: OrderStatus | undefined = OrderStatus.CONFIRMED;
   private searchSubject = new Subject<FilterType>();
+  private mobileLoadObserver?: IntersectionObserver;
+  private desktopLoadObserver?: IntersectionObserver;
 
   statusOptions = Object.values(OrderStatus).map((status) => ({
     label: this.getStatusLabel(status),
@@ -117,6 +172,7 @@ export class OrderListComponent implements OnInit {
   constructor(
     private orderService: OrderService,
     private notificationService: NotificationService,
+    private hostElement: ElementRef<HTMLElement>,
   ) {}
 
   ngOnInit(): void {
@@ -126,6 +182,31 @@ export class OrderListComponent implements OnInit {
     this.searchSubject.pipe(debounceTime(400)).subscribe((type) => {
       this.executeSearch(type);
     });
+  }
+
+  loadMore(): void {
+    if (this.hasMore() && !this.loading()) {
+      this.orderService.loadMoreOrders(10);
+    }
+  }
+
+  onDesktopScroll(event: Event): void {
+    const element = event.target as HTMLElement;
+    const remainingScroll = element.scrollHeight - element.scrollTop - element.clientHeight;
+
+    if (remainingScroll <= 256) {
+      this.loadMore();
+    }
+  }
+
+  isLoadingPlaceholder(order: Order | undefined): boolean {
+    return !order || order.orderId.startsWith('loading-');
+  }
+
+  ngOnDestroy(): void {
+    this.mobileLoadObserver?.disconnect();
+    this.desktopLoadObserver?.disconnect();
+    this.searchSubject.complete();
   }
 
   onFilterSearchChanges(filterType: FilterType): void {
@@ -147,6 +228,8 @@ export class OrderListComponent implements OnInit {
     if (this.selectedStatus) {
       filters.orderStatus = [this.selectedStatus];
     }
+    this.dt?.reset();
+    this.scrollOrdersToTop();
     this.orderService.loadOrders(filters);
   }
 
@@ -173,7 +256,15 @@ export class OrderListComponent implements OnInit {
     if (this.selectedStatus) {
       filters.orderStatus = [this.selectedStatus];
     }
+    this.dt?.reset();
+    this.scrollOrdersToTop();
     this.orderService.loadOrders(filters);
+  }
+
+  private scrollOrdersToTop(): void {
+    this.desktopScrollContainer?.nativeElement.scrollTo({ top: 0 });
+    const appContent = this.hostElement.nativeElement.closest('.app-content') as HTMLElement | null;
+    appContent?.scrollTo({ top: 0 });
   }
 
   getTotalAmount(items: OrderItem[]): number {
@@ -226,5 +317,6 @@ export class OrderListComponent implements OnInit {
   onOrderCreated(): void {
     // List is refreshed by service
     this.showCreatePopup.set(false);
+    this.scrollOrdersToTop();
   }
 }
