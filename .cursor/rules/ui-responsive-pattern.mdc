@@ -1,0 +1,41 @@
+---
+description: Mobile-first UI/UX patterns for kitchen-frontend — follow for all UI changes
+globs: kitchen-frontend/**/*.{html,scss,component.ts}
+alwaysApply: false
+---
+
+# UI Responsive Pattern (kitchen-frontend)
+
+Follow this guide for **every UI change** in kitchen-frontend. Full reference: `kitchen-frontend/docs/ui_responsive_pattern.md`.
+
+## Mobile-first layout
+
+- **Do not force `p-table` on mobile.** Use responsive structural switching at the `lg` breakpoint (1024px).
+- **Mobile (<1024px)**: Vertical card feed (`block lg:hidden`) with clear hierarchy — Order ID/Status → Customer → Date → Total → Address → sticky actions. Use `line-clamp-2`, weight contrast (`font-extrabold` vs `text-surface-500`).
+- **Desktop (≥1024px)**: Keep `p-table` (`hidden lg:block`) with `p-datatable-lg`, clean padding, simplified borders, `hover:bg-surface-50`.
+
+## Dialogs, forms & filters
+
+- **Dialogs**: Mobile = full-screen / bottom-sheet (`100vw`/`100vh`); desktop = rounded, shadow-heavy ~85vw modal.
+- **Forms**: `grid grid-cols-1 md:grid-cols-2` — stack on mobile, side-by-side on desktop.
+- **Item lists**: Stacked interactive cards with `animate-fade-in-up` stagger on add — not dense grids.
+- **Filters**: Standalone rounded-2xl "Command Center" card; stack vertically on mobile; use `p-iconfield` for input context.
+
+## Tailwind & design system
+
+- **Padding**: `p-4 sm:p-6 lg:p-8` on containers.
+- **Surfaces**: Primary cards on `bg-surface-0` over `bg-surface-50` (dark: `bg-surface-950`).
+- **Typography**: Tight tracking (`tracking-tight`) for headers; `tracking-wider` + `text-[10px]` uppercase for sub-labels.
+- **Motion**: `animate-fade-in` for page headers; `animate-fade-in-up` for cards/new items; `transition-all duration-300 hover:shadow-md` on interactive cards.
+- **Skeletons**: CSS `animate-pulse` loaders shaped like final content — always prefer over blank states.
+
+## PrimeNG
+
+- Prefer `styleClass` / `contentStyleClass` with Tailwind over custom CSS overrides.
+- Use `rounded="true"` on `p-button` / `p-tag`; `rounded-2xl` / `rounded-3xl` on dialogs and cards.
+- Dropdowns: `rounded-xl`, `border-surface-300 focus:border-primary` on `p-select`.
+
+## Scalability
+
+- Centralize tokens in `styles.scss` — no hardcoded hex colors.
+- Extract reusable patterns (e.g. mobile order card) into standalone dumb components when duplicated.

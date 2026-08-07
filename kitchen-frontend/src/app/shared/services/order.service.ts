@@ -99,6 +99,7 @@ export class OrderService {
           console.error('Error loading orders:', error);
           const errorMsg = error?.error?.error || 'Failed to load orders';
           this.notificationService.showError('Fetch Error', errorMsg);
+          this._hasMore.set(false);
           this._loading.set(false);
         },
       });

@@ -245,7 +245,9 @@
         }
       </ng-template>
     </p-table>
+    @if (hasMore() && orders().length > 0) {
     <div #desktopLoadTrigger class="h-px" aria-hidden="true"></div>
+    }
     </div>
   </div>
 
