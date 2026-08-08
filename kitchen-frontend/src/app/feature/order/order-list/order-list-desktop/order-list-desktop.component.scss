@@ -1,0 +1,42 @@
+:host {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.desktop-table-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+:host ::ng-deep {
+  .order-table-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .order-table-scroll .p-datatable-table-container {
+    overflow: visible !important;
+  }
+
+  .p-datatable {
+    .p-datatable-header {
+      background: transparent;
+      border: none;
+    }
+
+    .p-datatable-tbody > tr {
+      outline: none;
+    }
+
+    .p-datatable-thead > tr > th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+  }
+}

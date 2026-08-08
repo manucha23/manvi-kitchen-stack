@@ -1,7 +1,6 @@
 import {
   Component,
   OnInit,
-  OnDestroy,
   signal,
   computed,
   ChangeDetectionStrategy,
@@ -12,7 +11,6 @@ import { OrderService } from '../../../shared/services/order.service';
 import {
   IOrderFilters,
   Order,
-  OrderItem,
   OrderStatus,
   ORDER_ID_PATTERN,
   OrderListFilterChange,
@@ -22,15 +20,14 @@ import {
 import { CommonModule } from '@angular/common';
 import { OrderCreateComponent } from '../order-create/order-create.component';
 import { NotificationService } from '../../../shared/services/notification.service';
-import { FormsModule } from '@angular/forms';
-import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
-import { SelectModule } from 'primeng/select';
 import { DialogModule } from 'primeng/dialog';
-import { SkeletonModule } from 'primeng/skeleton';
 import { SortEvent } from 'primeng/api';
-import { OrderListFiltersComponent } from './order-list-filters.component';
+import { OrderListFiltersComponent } from './order-list-filter/order-list-filters.component';
+import { OrderListMobileComponent } from './order-list-mobile/order-list-mobile.component';
+import { OrderListDesktopComponent } from './order-list-desktop/order-list-desktop.component';
+import { OrderStatusOption } from './order-list.types';
 
 @Component({
   selector: 'app-order-list',
@@ -39,60 +36,19 @@ import { OrderListFiltersComponent } from './order-list-filters.component';
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
-    TableModule,
     ButtonModule,
     TagModule,
-    SelectModule,
     DialogModule,
-    SkeletonModule,
     OrderCreateComponent,
     OrderListFiltersComponent,
+    OrderListMobileComponent,
+    OrderListDesktopComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OrderListComponent implements OnInit, OnDestroy {
-  @ViewChild('desktopScrollContainer') desktopScrollContainer?: ElementRef<HTMLElement>;
-  @ViewChild('mobileLoadTrigger')
-  set mobileLoadTrigger(element: ElementRef<HTMLElement> | undefined) {
-    this.mobileLoadObserver?.disconnect();
-
-    if (!element || typeof IntersectionObserver === 'undefined') {
-      return;
-    }
-
-    this.mobileLoadObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          this.loadMore();
-        }
-      },
-      {
-        root: element.nativeElement.closest('.mobile-order-list'),
-        rootMargin: '0px 0px 240px',
-      },
-    );
-    this.mobileLoadObserver.observe(element.nativeElement);
-  }
-
-  @ViewChild('desktopLoadTrigger')
-  set desktopLoadTrigger(element: ElementRef<HTMLElement> | undefined) {
-    this.desktopLoadObserver?.disconnect();
-
-    if (!element || typeof IntersectionObserver === 'undefined') {
-      return;
-    }
-
-    this.desktopLoadObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          this.loadMore();
-        }
-      },
-      { root: element.nativeElement.parentElement, rootMargin: '0px 0px 256px' },
-    );
-    this.desktopLoadObserver.observe(element.nativeElement);
-  }
+export class OrderListComponent implements OnInit {
+  @ViewChild(OrderListMobileComponent) mobileView?: OrderListMobileComponent;
+  @ViewChild(OrderListDesktopComponent) desktopView?: OrderListDesktopComponent;
 
   orders = this.orderService.orders;
   loading = this.orderService.loading;
@@ -109,7 +65,6 @@ export class OrderListComponent implements OnInit, OnDestroy {
     this.loading() ? [...this.orders(), ...this.loadingPlaceholders] : this.orders(),
   );
 
-  /** Only createdAt is sortable — matches API sortOrder on createdAt index. */
   sortField = 'createdAt';
   sortOrder = -1;
   private lastAppliedSort: { field: string; order: number } | null = null;
@@ -118,16 +73,59 @@ export class OrderListComponent implements OnInit, OnDestroy {
     searchText: '',
     selectedStatus: OrderStatus.CONFIRMED,
   };
-  private mobileLoadObserver?: IntersectionObserver;
-  private desktopLoadObserver?: IntersectionObserver;
 
-  statusOptions = Object.values(OrderStatus).map((status) => ({
-    label: this.getStatusLabel(status),
+  readonly statusOptions: OrderStatusOption[] = Object.values(OrderStatus).map((status) => ({
+    label: status === OrderStatus.CREATED ? 'Order Placed' : status,
     value: status,
   }));
 
-  getStatusLabel(status: string): string {
-    return status === OrderStatus.CREATED ? 'Order Placed' : status;
+  constructor(
+    private orderService: OrderService,
+    private notificationService: NotificationService,
+    private hostElement: ElementRef<HTMLElement>,
+  ) {}
+
+  ngOnInit(): void {
+    this.lastAppliedSort = { field: this.sortField, order: this.sortOrder };
+    this.loadOrders();
+  }
+
+  onFiltersChange(change: OrderListFilterChange): void {
+    this.filterState = change.state;
+
+    if (change.type === OrderListFilterChangeType.DATE && this.hasPartialDateRange()) {
+      return;
+    }
+
+    this.applyFilters();
+  }
+
+  loadMore(): void {
+    if (this.hasMore() && !this.loading()) {
+      this.orderService.loadMoreOrders(10);
+    }
+  }
+
+  onTableSort(event: SortEvent): void {
+    if (event.field !== 'createdAt' || event.order == null || event.order === 0) {
+      return;
+    }
+
+    if (
+      this.lastAppliedSort?.field === event.field &&
+      this.lastAppliedSort?.order === event.order
+    ) {
+      return;
+    }
+
+    this.lastAppliedSort = { field: event.field, order: event.order };
+    this.sortField = event.field;
+    this.sortOrder = event.order;
+    this.applyFilters();
+  }
+
+  loadOrders(): void {
+    this.applyFilters();
   }
 
   getStatusSeverity(
@@ -162,71 +160,48 @@ export class OrderListComponent implements OnInit, OnDestroy {
     }
   }
 
-  constructor(
-    private orderService: OrderService,
-    private notificationService: NotificationService,
-    private hostElement: ElementRef<HTMLElement>,
-  ) {}
-
-  ngOnInit(): void {
-    this.lastAppliedSort = { field: this.sortField, order: this.sortOrder };
-    this.loadOrders();
+  updateOrderStatus(orderId: string, newStatus: OrderStatus): void {
+    this.orderService.updateOrderStatus(orderId, newStatus).subscribe({
+      next: () => {
+        this.loadOrders();
+        this.notificationService.showSuccess(
+          'Order Updated',
+          `Order ${orderId} status changed to ${newStatus}`,
+        );
+      },
+      error: (error) => {
+        const errorMsg = error?.error?.error || 'Could not update order status';
+        this.notificationService.showError('Update Failed', errorMsg);
+      },
+    });
   }
 
-  ngOnDestroy(): void {
-    this.mobileLoadObserver?.disconnect();
-    this.desktopLoadObserver?.disconnect();
+  showAuditDetails(orderId: string, event: Event): void {
+    event.preventDefault();
+    this.selectedOrderId.set(orderId);
+    this.showAuditPopup.set(true);
+    this.auditLoading.set(true);
+
+    this.orderService.getOrderAudit(orderId).subscribe({
+      next: () => {
+        this.auditLoading.set(false);
+      },
+      error: (error) => {
+        console.error('Error fetching audit details:', error);
+        this.auditLoading.set(false);
+      },
+    });
   }
 
-  onFiltersChange(change: OrderListFilterChange): void {
-    this.filterState = change.state;
-
-    if (change.type === OrderListFilterChangeType.DATE && this.hasPartialDateRange()) {
-      return;
-    }
-
-    this.applyFilters();
+  closeAuditPopup(): void {
+    this.showAuditPopup.set(false);
+    this.auditDetails.set([]);
+    this.selectedOrderId.set('');
   }
 
-  loadMore(): void {
-    if (this.hasMore() && !this.loading()) {
-      this.orderService.loadMoreOrders(10);
-    }
-  }
-
-  onDesktopScroll(event: Event): void {
-    const element = event.target as HTMLElement;
-    const remainingScroll = element.scrollHeight - element.scrollTop - element.clientHeight;
-
-    if (remainingScroll <= 256) {
-      this.loadMore();
-    }
-  }
-
-  isLoadingPlaceholder(order: Order | undefined): boolean {
-    return !order || order.orderId.startsWith('loading-');
-  }
-
-  onTableSort(event: SortEvent): void {
-    if (event.field !== 'createdAt' || event.order == null || event.order === 0) {
-      return;
-    }
-
-    if (
-      this.lastAppliedSort?.field === event.field &&
-      this.lastAppliedSort?.order === event.order
-    ) {
-      return;
-    }
-
-    this.lastAppliedSort = { field: event.field, order: event.order };
-    this.sortField = event.field;
-    this.sortOrder = event.order;
-    this.applyFilters();
-  }
-
-  loadOrders(): void {
-    this.applyFilters();
+  onOrderCreated(): void {
+    this.showCreatePopup.set(false);
+    this.scrollOrdersToTop();
   }
 
   private applyFilters(): void {
@@ -302,59 +277,9 @@ export class OrderListComponent implements OnInit, OnDestroy {
   }
 
   private scrollOrdersToTop(): void {
-    this.desktopScrollContainer?.nativeElement.scrollTo({ top: 0 });
+    this.desktopView?.scrollToTop();
+    this.mobileView?.scrollToTop();
     const appContent = this.hostElement.nativeElement.closest('.app-content') as HTMLElement | null;
     appContent?.scrollTo({ top: 0 });
-  }
-
-  getTotalAmount(items: OrderItem[]): number {
-    return items.reduce(
-      (total, item) => total + item.amount * item.quantity,
-      0,
-    );
-  }
-
-  updateOrderStatus(orderId: string, newStatus: OrderStatus): void {
-    this.orderService.updateOrderStatus(orderId, newStatus).subscribe({
-      next: () => {
-        this.loadOrders();
-        this.notificationService.showSuccess(
-          'Order Updated',
-          `Order ${orderId} status changed to ${newStatus}`,
-        );
-      },
-      error: (error) => {
-        const errorMsg = error?.error?.error || 'Could not update order status';
-        this.notificationService.showError('Update Failed', errorMsg);
-      },
-    });
-  }
-
-  showAuditDetails(orderId: string, event: Event): void {
-    event.preventDefault();
-    this.selectedOrderId.set(orderId);
-    this.showAuditPopup.set(true);
-    this.auditLoading.set(true);
-
-    this.orderService.getOrderAudit(orderId).subscribe({
-      next: () => {
-        this.auditLoading.set(false);
-      },
-      error: (error) => {
-        console.error('Error fetching audit details:', error);
-        this.auditLoading.set(false);
-      },
-    });
-  }
-
-  closeAuditPopup(): void {
-    this.showAuditPopup.set(false);
-    this.auditDetails.set([]);
-    this.selectedOrderId.set('');
-  }
-
-  onOrderCreated(): void {
-    this.showCreatePopup.set(false);
-    this.scrollOrdersToTop();
   }
 }

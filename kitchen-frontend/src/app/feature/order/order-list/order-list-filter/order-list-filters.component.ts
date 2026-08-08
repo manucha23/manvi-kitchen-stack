@@ -23,7 +23,7 @@ import {
   OrderListFilterState,
   OrderSearchMode,
   OrderStatus,
-} from '../../../shared/models/order';
+} from '../../../../shared/models/order';
 
 interface SearchModeOption {
   value: OrderSearchMode;

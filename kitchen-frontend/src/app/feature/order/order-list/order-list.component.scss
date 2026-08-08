@@ -1,58 +1,37 @@
-// Styles moved to Tailwind classes in HTML and PrimeNG theming
-:host ::ng-deep {
-    .order-table-scroll {
-        height: clamp(18rem, calc(100dvh - 22.5rem), 42rem) !important;
-        overflow: auto;
-        overscroll-behavior: contain;
-    }
+@media (min-width: 1024px) {
+  :host {
+    display: block;
+    height: calc(100dvh - 60px - 3rem);
+  }
 
-    // The outer fixed-height container owns both scroll axes. PrimeNG's
-    // default nested container otherwise places its horizontal scrollbar
-    // immediately after a short table instead of at the bottom.
-    .order-table-scroll .p-datatable-table-container {
-        overflow: visible !important;
-    }
+  .order-list-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
 
-    .p-datatable {
-        .p-datatable-header {
-            background: transparent;
-            border: none;
-        }
+  .order-list-page__header,
+  app-order-list-filters {
+    flex-shrink: 0;
+  }
 
-        .p-datatable-tbody>tr {
-            outline: none;
-        }
-
-        .p-datatable-thead > tr > th {
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-    }
+  app-order-list-desktop {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
 }
 
 @media (max-width: 1023px) {
-    :host {
-        display: block;
-    }
+  :host {
+    display: block;
+  }
 
-    .order-list-page {
-        height: calc(100dvh - 5.75rem);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .mobile-order-list {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-
-        &::-webkit-scrollbar {
-            display: none;
-        }
-    }
+  .order-list-page {
+    height: calc(100dvh - 5.75rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 }

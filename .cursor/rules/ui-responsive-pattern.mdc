@@ -1,9 +1,6 @@
 ---
-description: Mobile-first UI/UX patterns for kitchen-frontend — follow for all UI changes
-globs: kitchen-frontend/**/*.{html,scss,component.ts}
-alwaysApply: false
+alwaysApply: true
 ---
-
 # UI Responsive Pattern (kitchen-frontend)
 
 Follow this guide for **every UI change** in kitchen-frontend. Full reference: `kitchen-frontend/docs/ui_responsive_pattern.md`.
