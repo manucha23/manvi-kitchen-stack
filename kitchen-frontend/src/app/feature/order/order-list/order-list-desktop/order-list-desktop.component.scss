@@ -41,6 +41,19 @@
       outline: none;
     }
 
+    .p-datatable-tbody > tr.order-row--selected {
+      background-color: color-mix(in srgb, var(--p-primary-color) 14%, var(--p-content-background)) !important;
+
+      > td {
+        background-color: inherit !important;
+        border-color: color-mix(in srgb, var(--p-primary-color) 25%, transparent);
+      }
+
+      &:hover {
+        background-color: color-mix(in srgb, var(--p-primary-color) 20%, var(--p-content-background)) !important;
+      }
+    }
+
     .p-datatable-thead > tr > th {
       position: sticky;
       top: 0;

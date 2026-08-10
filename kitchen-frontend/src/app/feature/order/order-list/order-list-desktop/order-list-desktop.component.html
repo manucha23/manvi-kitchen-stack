@@ -1,103 +1,231 @@
 <div
+
   class="desktop-table-card hidden lg:flex flex-col flex-1 min-h-0 bg-surface-0 dark:bg-surface-900 rounded-3xl shadow-sm border border-surface-200 dark:border-surface-800 overflow-hidden animate-fade-in-up">
+
   <div #scrollContainer class="order-table-scroll" (scroll)="onScroll($event)">
+
     <p-table [value]="tableRows()" styleClass="p-datatable-lg text-[14px]" [tableStyle]="{ 'min-width': '110rem' }"
+
       [customSort]="true" [sortField]="sortField()" [sortOrder]="sortOrder()" (onSort)="sortChange.emit($event)">
 
+
+
       <ng-template #header>
+
         <tr>
-          <th class="whitespace-nowrap rounded-tl-xl text-surface-500 font-semibold">Order ID</th>
-          <th class="whitespace-nowrap text-surface-500 font-semibold">Customer</th>
-          <th class="whitespace-nowrap text-surface-500 font-semibold">Phone</th>
-          <th pSortableColumn="createdAt" class="whitespace-nowrap text-surface-500 font-semibold">Created
-            <p-sortIcon field="createdAt" />
+
+          <th class="w-12 rounded-tl-xl">
+
+            <p-checkbox [binary]="true" [ngModel]="allVisibleSelected()"
+
+              (ngModelChange)="onHeaderCheckboxChange($event)"
+
+              ariaLabel="Select all visible orders" />
+
           </th>
+
+          <th class="whitespace-nowrap text-surface-500 font-semibold">Order ID</th>
+
+          <th class="whitespace-nowrap text-surface-500 font-semibold">Customer</th>
+
+          <th class="whitespace-nowrap text-surface-500 font-semibold">Phone</th>
+
+          <th pSortableColumn="createdAt" class="whitespace-nowrap text-surface-500 font-semibold">Created
+
+            <p-sortIcon field="createdAt" />
+
+          </th>
+
           <th class="whitespace-nowrap text-surface-500 font-semibold">Promise</th>
+
           <th class="text-surface-500 font-semibold">Address</th>
+
           <th class="whitespace-nowrap text-surface-500 font-semibold">Total</th>
+
           <th class="whitespace-nowrap text-surface-500 font-semibold">Status</th>
+
           <th class="whitespace-nowrap text-surface-500 font-semibold">Update Status</th>
+
         </tr>
+
       </ng-template>
+
+
 
       <ng-template #body let-order>
+
         @if (isLoadingPlaceholder(order)) {
+
         <tr class="h-[64px]">
+
+          <td><p-skeleton shape="circle" size="1.25rem" /></td>
+
           <td><p-skeleton width="70%" /></td>
+
           <td><p-skeleton width="80%" /></td>
+
           <td><p-skeleton width="75%" /></td>
+
           <td><p-skeleton width="75%" /></td>
+
           <td><p-skeleton width="90%" /></td>
+
           <td><p-skeleton width="50%" /></td>
+
           <td><p-skeleton width="60%" /></td>
+
           <td><p-skeleton width="80%" /></td>
+
           <td><p-skeleton width="70%" /></td>
+
         </tr>
+
         } @else {
-        <tr class="group hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors h-[64px]">
+
+        <tr class="group transition-colors h-[64px]"
+          [class.order-row--selected]="isSelected(order.orderId)"
+          [class.hover:bg-surface-50]="!isSelected(order.orderId)"
+          [class.dark:hover:bg-surface-800/50]="!isSelected(order.orderId)">
+
           <td>
+
+            <p-checkbox [binary]="true" [ngModel]="isSelected(order.orderId)"
+
+              (ngModelChange)="onRowCheckboxChange(order, $event)"
+
+              [attr.aria-label]="'Select order ' + order.orderId" />
+
+          </td>
+
+          <td>
+
             <a href="#" (click)="onAuditClick(order.orderId, $event)"
+
               class="font-bold text-primary hover:text-primary-600 transition-colors">
+
               {{order.orderId}}
+
             </a>
+
           </td>
+
           <td class="font-medium text-surface-900 dark:text-surface-0">
+
             {{order.customerName}}
+
           </td>
+
           <td class="whitespace-nowrap text-surface-600 dark:text-surface-300">
+
             {{order.customerPhone}}
+
           </td>
+
           <td class="whitespace-nowrap">
+
             <span class="text-[14px] text-surface-500">{{(order.createdAt ?? order.timestamp) | date:'dd/MM/yyyy'}}</span>
+
           </td>
+
           <td class="whitespace-nowrap">
+
             <div class="flex flex-row gap-1">
+
               <span class="font-medium">{{order.promisedDeliveryAt | date:'mediumDate'}}</span>
+
               <span class="text-[14px] text-surface-500">{{order.promisedDeliveryAt | date:'shortTime'}}</span>
+
             </div>
+
           </td>
+
           <td>
+
             <div class="text-[14px] text-surface-600 dark:text-surface-300 line-clamp-2 leading-snug max-w-xs">
+
               {{order.deliveryAddress}}
+
             </div>
+
           </td>
+
           <td>
+
             <span class="font-bold text-[14px] text-surface-900 dark:text-surface-0 tracking-tight">
+
               ₹{{order.totalAmount | number:'1.2-2'}}
+
             </span>
+
           </td>
+
           <td>
+
             <p-tag [value]="getStatusLabel(order.status) | uppercase" [severity]="getStatusSeverity(order.status)" rounded="true"
+
               styleClass="font-bold tracking-wider text-[14px] px-2 py-1" />
+
           </td>
+
           <td>
+
             <p-select [options]="statusOptions()" [ngModel]="order.status"
+
               (onChange)="onStatusChange(order.orderId, $event.value)" appendTo="body"
-              styleClass="w-40 rounded-xl" />
+
+              styleClass="w-40 rounded-xl" [disabled]="selectionMode()" />
+
           </td>
+
         </tr>
+
         }
+
       </ng-template>
 
+
+
       <ng-template #emptymessage>
+
         @if (!loading()) {
+
         <tr>
-          <td colspan="9">
+
+          <td colspan="10">
+
             <div class="text-center p-16">
+
               <div
+
                 class="w-20 h-20 bg-surface-50 dark:bg-surface-800 rounded-full flex items-center justify-center mx-auto mb-4">
+
                 <i class="pi pi-inbox text-4xl text-surface-400"></i>
+
               </div>
+
               <h3 class="text-xl font-bold text-surface-900 dark:text-surface-0 mb-1">No Orders Found</h3>
+
               <p class="text-surface-500">Try adjusting your filters or create a new order.</p>
+
             </div>
+
           </td>
+
         </tr>
+
         }
+
       </ng-template>
+
     </p-table>
+
     @if (hasMore() && orders().length > 0) {
+
     <div #loadTrigger class="h-px" aria-hidden="true"></div>
+
     }
+
   </div>
+
 </div>
+

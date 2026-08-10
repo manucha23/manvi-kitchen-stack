@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+.bulk-ops__bar {
+  animation: bulk-bar-enter 0.25s ease-out;
+}
+
+@keyframes bulk-bar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bulk-ops__mobile {
+  animation: bulk-bar-enter 0.25s ease-out;
+}
+
+:host ::ng-deep .bulk-ops__action-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+}

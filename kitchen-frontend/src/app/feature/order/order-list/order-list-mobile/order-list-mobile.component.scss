@@ -21,4 +21,10 @@
       display: none;
     }
   }
+
+  .order-card--selected {
+    background-color: color-mix(in srgb, var(--p-primary-color) 12%, var(--p-content-background));
+    border-color: color-mix(in srgb, var(--p-primary-color) 45%, var(--p-content-border-color));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--p-primary-color) 30%, transparent);
+  }
 }

@@ -1,0 +1,61 @@
+<div class="bulk-ops animate-fade-in-up" role="region" aria-label="Bulk order actions">
+  <!-- Mobile: compact bar (replaces filters) -->
+  <div
+    class="bulk-ops__mobile lg:hidden w-full bg-surface-0 dark:bg-surface-900 p-3 rounded-2xl shadow-sm border border-surface-200 dark:border-surface-800">
+    <div class="flex items-center justify-between gap-2 mb-3">
+      <p class="m-0 font-bold text-surface-900 dark:text-surface-0 text-sm tracking-tight">
+        {{ selectionLabel() }}
+      </p>
+      <div class="flex items-center gap-2 shrink-0">
+        @if (!allVisibleSelected()) {
+        <p-button label="All" icon="pi pi-check-square" severity="secondary" [outlined]="true" rounded="true"
+          size="small" styleClass="bulk-ops__action-btn" (onClick)="selectAll.emit()" />
+        }
+        <p-button label="Clear" icon="pi pi-times" severity="danger" [outlined]="true" rounded="true" size="small"
+          styleClass="bulk-ops__action-btn" (onClick)="clearSelection.emit()" />
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <p-select [options]="statusOptions()" [ngModel]="targetStatus()"
+        (ngModelChange)="targetStatus.set($event)" appendTo="body" placeholder="New status"
+        styleClass="bulk-ops__status flex-1 min-w-0 rounded-xl" />
+      <p-button label="Update" icon="pi pi-sync" severity="primary" rounded="true"
+        styleClass="shrink-0 whitespace-nowrap" [loading]="applying()" [disabled]="!targetStatus() || applying()"
+        (onClick)="onApply()" />
+    </div>
+  </div>
+
+  <!-- Desktop: full command bar -->
+  <div
+    class="bulk-ops__bar hidden lg:block w-[90%] mx-auto bg-primary-50 dark:bg-primary-950/40 p-3 md:p-4 rounded-2xl shadow-sm border border-primary-200 dark:border-primary-800/60">
+    <div class="flex flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <div
+          class="shrink-0 w-10 h-10 rounded-xl bg-primary text-primary-contrast flex items-center justify-center shadow-sm">
+          <i class="pi pi-check-square text-lg" aria-hidden="true"></i>
+        </div>
+        <p class="m-0 font-bold text-surface-900 dark:text-surface-0 tracking-tight text-base">
+          {{ selectionLabel() }}
+        </p>
+        <div class="flex items-center gap-2 shrink-0">
+          @if (!allVisibleSelected()) {
+          <p-button label="Select all" icon="pi pi-check-square" severity="secondary" [outlined]="true" rounded="true"
+            size="small" styleClass="bulk-ops__action-btn" (onClick)="selectAll.emit()" />
+          }
+          <p-button label="Clear" icon="pi pi-times" severity="danger" [outlined]="true" rounded="true" size="small"
+            styleClass="bulk-ops__action-btn" (onClick)="clearSelection.emit()" />
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <p-select [options]="statusOptions()" [ngModel]="targetStatus()"
+          (ngModelChange)="targetStatus.set($event)" appendTo="body" placeholder="New status"
+          styleClass="bulk-ops__status w-48 rounded-xl" />
+        <p-button label="Update status" icon="pi pi-sync" severity="primary" rounded="true"
+          styleClass="whitespace-nowrap" [loading]="applying()" [disabled]="!targetStatus() || applying()"
+          (onClick)="onApply()" />
+      </div>
+    </div>
+  </div>
+</div>

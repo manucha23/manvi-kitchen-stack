@@ -13,6 +13,7 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
+import { CheckboxModule } from 'primeng/checkbox';
 import { SortEvent } from 'primeng/api';
 import { Order, OrderStatus } from '../../../../shared/models/order';
 import { OrderStatusOption } from '../order-list.types';
@@ -20,7 +21,7 @@ import { OrderStatusOption } from '../order-list.types';
 @Component({
   selector: 'app-order-list-desktop',
   standalone: true,
-  imports: [CommonModule, FormsModule, TableModule, TagModule, SelectModule, SkeletonModule],
+  imports: [CommonModule, FormsModule, TableModule, TagModule, SelectModule, SkeletonModule, CheckboxModule],
   templateUrl: './order-list-desktop.component.html',
   styleUrl: './order-list-desktop.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,9 +34,14 @@ export class OrderListDesktopComponent implements OnDestroy {
   statusOptions = input.required<OrderStatusOption[]>();
   sortField = input.required<string>();
   sortOrder = input.required<number>();
+  selectionMode = input(false);
+  selectedOrderIds = input<Set<string>>(new Set());
 
   auditClick = output<{ orderId: string; event: Event }>();
   statusChange = output<{ orderId: string; status: OrderStatus }>();
+  selectionToggle = output<Order>();
+  selectAllToggle = output<void>();
+  clearSelection = output<void>();
   sortChange = output<SortEvent>();
   loadMoreRequest = output<void>();
 
@@ -86,6 +92,30 @@ export class OrderListDesktopComponent implements OnDestroy {
 
   onStatusChange(orderId: string, status: OrderStatus): void {
     this.statusChange.emit({ orderId, status });
+  }
+
+  isSelected(orderId: string): boolean {
+    return this.selectedOrderIds().has(orderId);
+  }
+
+  allVisibleSelected(): boolean {
+    const selectable = this.orders().filter((order) => !this.isLoadingPlaceholder(order));
+    return selectable.length > 0 && selectable.every((order) => this.isSelected(order.orderId));
+  }
+
+  onHeaderCheckboxChange(checked: boolean): void {
+    if (checked) {
+      this.selectAllToggle.emit();
+      return;
+    }
+    this.clearSelection.emit();
+  }
+
+  onRowCheckboxChange(order: Order, checked: boolean): void {
+    const currentlySelected = this.isSelected(order.orderId);
+    if (checked !== currentlySelected) {
+      this.selectionToggle.emit(order);
+    }
   }
 
   isLoadingPlaceholder(order: Order | undefined): boolean {

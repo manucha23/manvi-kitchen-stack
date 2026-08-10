@@ -26,6 +26,7 @@ import { OrderListFiltersComponent } from './order-list-filter/order-list-filter
 import { OrderListMobileComponent } from './order-list-mobile/order-list-mobile.component';
 import { OrderListDesktopComponent } from './order-list-desktop/order-list-desktop.component';
 import { OrderHistoryComponent } from '../order-history/order-history.component';
+import { OrderBulkOperationsComponent } from './order-bulk-operations/order-bulk-operations.component';
 import { OrderStatusOption } from './order-list.types';
 
 @Component({
@@ -41,6 +42,7 @@ import { OrderStatusOption } from './order-list.types';
     OrderListMobileComponent,
     OrderListDesktopComponent,
     OrderHistoryComponent,
+    OrderBulkOperationsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -54,6 +56,12 @@ export class OrderListComponent implements OnInit {
   showHistoryPopup = signal(false);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
+  selectedOrders = signal<Map<string, number>>(new Map());
+  readonly selectionMode = computed(() => this.selectedOrders().size > 0);
+  readonly selectedOrderIds = computed(() => new Set(this.selectedOrders().keys()));
+  readonly selectedOrdersList = computed(() =>
+    Array.from(this.selectedOrders().entries()).map(([orderId, version]) => ({ orderId, version })),
+  );
   readonly loadingPlaceholders = Array.from({ length: 4 }, (_, index) => ({
     orderId: `loading-${index}`,
   })) as Order[];
@@ -87,6 +95,7 @@ export class OrderListComponent implements OnInit {
   }
 
   onFiltersChange(change: OrderListFilterChange): void {
+    this.clearSelection();
     this.filterState = change.state;
 
     if (change.type === OrderListFilterChangeType.DATE && this.hasPartialDateRange()) {
@@ -149,6 +158,36 @@ export class OrderListComponent implements OnInit {
         this.notificationService.showError('Update Failed', errorMsg);
       },
     });
+  }
+
+  toggleOrderSelection(order: Order): void {
+    if (!order.version) {
+      return;
+    }
+
+    this.selectedOrders.update((current) => {
+      const next = new Map(current);
+      if (next.has(order.orderId)) {
+        next.delete(order.orderId);
+      } else {
+        next.set(order.orderId, order.version!);
+      }
+      return next;
+    });
+  }
+
+  selectAllVisibleOrders(): void {
+    const next = new Map<string, number>();
+    for (const order of this.orders()) {
+      if (order.version) {
+        next.set(order.orderId, order.version);
+      }
+    }
+    this.selectedOrders.set(next);
+  }
+
+  clearSelection(): void {
+    this.selectedOrders.set(new Map());
   }
 
   onOrderCreated(): void {

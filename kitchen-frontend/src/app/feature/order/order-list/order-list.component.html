@@ -11,17 +11,28 @@
     </div>
   </div>
 
+  @if (selectionMode()) {
+  <app-order-bulk-operations class="mb-4 lg:mb-6" [selectedOrders]="selectedOrdersList()"
+    [visibleCount]="orders().length" [statusOptions]="statusOptions" (clearSelection)="clearSelection()"
+    (selectAll)="selectAllVisibleOrders()" (bulkUpdated)="loadOrders()" />
+  } @else {
   <app-order-list-filters [collapsedOnMobile]="true" (filtersChange)="onFiltersChange($event)" />
+  }
 
   <app-order-list-mobile [orders]="orders()" [loading]="loading()" [hasMore]="hasMore()"
-    [statusOptions]="statusOptions" [loadingPlaceholders]="loadingPlaceholders" (auditClick)="openOrderHistory($event.orderId, $event.event)"
-    (statusChange)="updateOrderStatus($event.orderId, $event.status)" (loadMoreRequest)="loadMore()" />
+    [statusOptions]="statusOptions" [loadingPlaceholders]="loadingPlaceholders"
+    [selectionMode]="selectionMode()" [selectedOrderIds]="selectedOrderIds()"
+    (auditClick)="openOrderHistory($event.orderId, $event.event)"
+    (statusChange)="updateOrderStatus($event.orderId, $event.status)"
+    (selectionToggle)="toggleOrderSelection($event)" (loadMoreRequest)="loadMore()" />
 
   <app-order-list-desktop [orders]="orders()" [tableRows]="tableRows()" [loading]="loading()" [hasMore]="hasMore()"
     [statusOptions]="statusOptions" [sortField]="sortField" [sortOrder]="sortOrder"
+    [selectionMode]="selectionMode()" [selectedOrderIds]="selectedOrderIds()"
     (auditClick)="openOrderHistory($event.orderId, $event.event)"
-    (statusChange)="updateOrderStatus($event.orderId, $event.status)" (sortChange)="onTableSort($event)"
-    (loadMoreRequest)="loadMore()" />
+    (statusChange)="updateOrderStatus($event.orderId, $event.status)"
+    (selectionToggle)="toggleOrderSelection($event)" (selectAllToggle)="selectAllVisibleOrders()"
+    (clearSelection)="clearSelection()" (sortChange)="onTableSort($event)" (loadMoreRequest)="loadMore()" />
 
   @if(showCreatePopup()) {
   <app-order-create [isVisible]="showCreatePopup()" (orderCreated)="onOrderCreated()"

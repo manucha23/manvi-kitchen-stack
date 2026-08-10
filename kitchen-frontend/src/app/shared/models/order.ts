@@ -102,3 +102,25 @@ export interface OrderHistoryResponse {
   orderId: string;
   history: OrderAuditRecord[];
 }
+
+export interface BulkOrderVersion {
+  orderId: string;
+  version: number;
+}
+
+export interface BulkUpdateOrdersRequest {
+  orders: BulkOrderVersion[];
+  update: { status: OrderStatus };
+}
+
+export interface BulkUpdateFailure {
+  orderId: string;
+  message: string;
+}
+
+export interface BulkUpdateOrdersResponse {
+  updated: Order[];
+  failed: BulkUpdateFailure[];
+  updatedCount: number;
+  failedCount: number;
+}

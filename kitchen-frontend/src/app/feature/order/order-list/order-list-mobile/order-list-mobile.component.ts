@@ -29,10 +29,16 @@ export class OrderListMobileComponent implements OnDestroy {
   hasMore = input.required<boolean>();
   statusOptions = input.required<OrderStatusOption[]>();
   loadingPlaceholders = input.required<Order[]>();
+  selectionMode = input(false);
+  selectedOrderIds = input<Set<string>>(new Set());
 
   auditClick = output<{ orderId: string; event: Event }>();
   statusChange = output<{ orderId: string; status: OrderStatus }>();
+  selectionToggle = output<Order>();
   loadMoreRequest = output<void>();
+
+  private longPressTimer?: ReturnType<typeof setTimeout>;
+  private longPressTriggered = false;
 
   @ViewChild('listContainer') listContainer?: ElementRef<HTMLElement>;
 
@@ -61,6 +67,7 @@ export class OrderListMobileComponent implements OnDestroy {
   private loadObserver?: IntersectionObserver;
 
   ngOnDestroy(): void {
+    this.clearLongPressTimer();
     this.loadObserver?.disconnect();
   }
 
@@ -69,12 +76,60 @@ export class OrderListMobileComponent implements OnDestroy {
   }
 
   onAuditClick(orderId: string, event: Event): void {
+    if (this.selectionMode()) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     this.auditClick.emit({ orderId, event });
   }
 
   onStatusChange(orderId: string, status: OrderStatus): void {
     this.statusChange.emit({ orderId, status });
+  }
+
+  isSelected(orderId: string): boolean {
+    return this.selectedOrderIds().has(orderId);
+  }
+
+  onCardPointerDown(order: Order): void {
+    this.longPressTriggered = false;
+    this.clearLongPressTimer();
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTriggered = true;
+      this.selectionToggle.emit(order);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(40);
+      }
+    }, 500);
+  }
+
+  onCardPointerUp(): void {
+    this.clearLongPressTimer();
+  }
+
+  onCardPointerMove(): void {
+    this.clearLongPressTimer();
+  }
+
+  onCardClick(order: Order, event: Event): void {
+    if (this.longPressTriggered) {
+      event.preventDefault();
+      this.longPressTriggered = false;
+      return;
+    }
+
+    if (this.selectionMode()) {
+      event.preventDefault();
+      this.selectionToggle.emit(order);
+    }
+  }
+
+  private clearLongPressTimer(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = undefined;
+    }
   }
 
   getStatusLabel(status: string): string {

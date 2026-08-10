@@ -2,7 +2,15 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { IOrderFilters, Order, OrderAuditRecord, OrderHistoryResponse } from '../models/order';
+import {
+  BulkOrderVersion,
+  BulkUpdateOrdersResponse,
+  IOrderFilters,
+  Order,
+  OrderAuditRecord,
+  OrderHistoryResponse,
+  OrderStatus,
+} from '../models/order';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from './notification.service';
 
@@ -162,6 +170,33 @@ export class OrderService {
     return this.http
       .get<OrderHistoryResponse>(`${this.apiUrl}/${orderId}/history`)
       .pipe(map((response) => response.history));
+  }
+
+  bulkUpdateOrderStatus(
+    orders: BulkOrderVersion[],
+    status: OrderStatus,
+  ): Observable<BulkUpdateOrdersResponse> {
+    return this.http
+      .patch<BulkUpdateOrdersResponse>(`${this.apiUrl}/bulk`, {
+        orders,
+        update: { status },
+      })
+      .pipe(
+        tap((response) => {
+          const updatedMap = new Map(
+            (response.updated ?? []).map((order) => [order.orderId, order]),
+          );
+          if (updatedMap.size === 0) {
+            return;
+          }
+          this._orders.update((current) =>
+            current.map((order) => {
+              const updated = updatedMap.get(order.orderId);
+              return updated ? { ...order, ...updated } : order;
+            }),
+          );
+        }),
+      );
   }
 
   updateOrderStatus(orderId: string, status: string): Observable<any> {
