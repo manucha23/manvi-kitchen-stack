@@ -83,7 +83,7 @@
                     Item</label>
                   <p-select [options]="getAvailableItems(i)" formControlName="selectedItem" optionLabel="name"
                     [filter]="true" filterBy="name" [showClear]="true" placeholder="Select an Item"
-                    styleClass="w-full rounded-xl" (onChange)="onItemSelected(i, $event)">
+                    appendTo="body" styleClass="w-full rounded-xl" (onChange)="onItemSelected(i, $event)">
                     <ng-template #selectedItem let-selectedOption>
                       @if (selectedOption) {
                       <div class="flex items-center gap-3">

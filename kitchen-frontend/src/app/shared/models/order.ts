@@ -75,3 +75,30 @@ export interface IOrderFilters {
   /** API sorts by createdAt; default is desc when omitted. */
   sortOrder?: OrderSortOrder;
 }
+
+export type AuditChangeType = 'CREATED' | 'STATUS_CHANGE' | 'UPDATED' | 'DELETED';
+
+export type AuditEventType = 'INSERT' | 'MODIFY' | 'REMOVE';
+
+export interface FieldChange {
+  from?: unknown;
+  to?: unknown;
+}
+
+export interface OrderAuditRecord {
+  orderId: string;
+  timestamp: string;
+  eventType: AuditEventType;
+  changeType: AuditChangeType;
+  oldStatus?: string;
+  newStatus?: string;
+  changedFields?: string[];
+  changes?: Record<string, FieldChange>;
+  oldImage?: Record<string, unknown>;
+  newImage?: Record<string, unknown>;
+}
+
+export interface OrderHistoryResponse {
+  orderId: string;
+  history: OrderAuditRecord[];
+}

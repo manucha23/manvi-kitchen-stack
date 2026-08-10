@@ -1,0 +1,30 @@
+:host ::ng-deep {
+  .order-history-timeline {
+    width: 100%;
+
+    .p-timeline-event-opposite {
+      display: none;
+      flex: 0 0 0 !important;
+      padding: 0 !important;
+      max-width: 0 !important;
+    }
+
+    .p-timeline-event {
+      min-height: auto;
+    }
+
+    .p-timeline-event-content {
+      flex: 1 1 auto;
+      line-height: 1.4;
+      padding-left: 0.75rem;
+    }
+
+    .p-timeline-event-separator {
+      flex: 0 0 auto;
+    }
+
+    .p-timeline-event-connector {
+      background-color: var(--p-surface-300);
+    }
+  }
+}

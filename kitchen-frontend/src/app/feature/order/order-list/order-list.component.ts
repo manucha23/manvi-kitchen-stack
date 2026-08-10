@@ -21,12 +21,11 @@ import { CommonModule } from '@angular/common';
 import { OrderCreateComponent } from '../order-create/order-create.component';
 import { NotificationService } from '../../../shared/services/notification.service';
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
-import { DialogModule } from 'primeng/dialog';
 import { SortEvent } from 'primeng/api';
 import { OrderListFiltersComponent } from './order-list-filter/order-list-filters.component';
 import { OrderListMobileComponent } from './order-list-mobile/order-list-mobile.component';
 import { OrderListDesktopComponent } from './order-list-desktop/order-list-desktop.component';
+import { OrderHistoryComponent } from '../order-history/order-history.component';
 import { OrderStatusOption } from './order-list.types';
 
 @Component({
@@ -37,12 +36,11 @@ import { OrderStatusOption } from './order-list.types';
   imports: [
     CommonModule,
     ButtonModule,
-    TagModule,
-    DialogModule,
     OrderCreateComponent,
     OrderListFiltersComponent,
     OrderListMobileComponent,
     OrderListDesktopComponent,
+    OrderHistoryComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -53,9 +51,7 @@ export class OrderListComponent implements OnInit {
   orders = this.orderService.orders;
   loading = this.orderService.loading;
   hasMore = this.orderService.hasMore;
-  showAuditPopup = signal(false);
-  auditLoading = signal(false);
-  auditDetails = signal<Order[]>([]);
+  showHistoryPopup = signal(false);
   selectedOrderId = signal('');
   showCreatePopup = signal(false);
   readonly loadingPlaceholders = Array.from({ length: 4 }, (_, index) => ({
@@ -128,36 +124,15 @@ export class OrderListComponent implements OnInit {
     this.applyFilters();
   }
 
-  getStatusSeverity(
-    status: string,
-  ):
-    | 'success'
-    | 'info'
-    | 'warn'
-    | 'danger'
-    | 'secondary'
-    | 'contrast'
-    | undefined {
-    switch (status) {
-      case OrderStatus.CREATED:
-        return 'info';
-      case OrderStatus.PENDING_PAYMENT:
-        return 'warn';
-      case OrderStatus.CONFIRMED:
-        return 'success';
-      case OrderStatus.INKITCHEN:
-        return 'warn';
-      case OrderStatus.READY:
-        return 'success';
-      case OrderStatus.DISPATCHED:
-        return 'info';
-      case OrderStatus.COMPLETED:
-        return 'secondary';
-      case OrderStatus.CANCELLED:
-        return 'danger';
-      default:
-        return 'info';
-    }
+  openOrderHistory(orderId: string, event: Event): void {
+    event.preventDefault();
+    this.selectedOrderId.set(orderId);
+    this.showHistoryPopup.set(true);
+  }
+
+  closeHistoryPopup(): void {
+    this.showHistoryPopup.set(false);
+    this.selectedOrderId.set('');
   }
 
   updateOrderStatus(orderId: string, newStatus: OrderStatus): void {
@@ -174,29 +149,6 @@ export class OrderListComponent implements OnInit {
         this.notificationService.showError('Update Failed', errorMsg);
       },
     });
-  }
-
-  showAuditDetails(orderId: string, event: Event): void {
-    event.preventDefault();
-    this.selectedOrderId.set(orderId);
-    this.showAuditPopup.set(true);
-    this.auditLoading.set(true);
-
-    this.orderService.getOrderAudit(orderId).subscribe({
-      next: () => {
-        this.auditLoading.set(false);
-      },
-      error: (error) => {
-        console.error('Error fetching audit details:', error);
-        this.auditLoading.set(false);
-      },
-    });
-  }
-
-  closeAuditPopup(): void {
-    this.showAuditPopup.set(false);
-    this.auditDetails.set([]);
-    this.selectedOrderId.set('');
   }
 
   onOrderCreated(): void {

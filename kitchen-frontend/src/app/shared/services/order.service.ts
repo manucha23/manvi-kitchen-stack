@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { IOrderFilters, Order } from '../models/order';
+import { IOrderFilters, Order, OrderAuditRecord, OrderHistoryResponse } from '../models/order';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from './notification.service';
 
@@ -158,9 +158,9 @@ export class OrderService {
       .pipe(map((response) => response.items));
   }
 
-  getOrderAudit(orderId: string): Observable<any[]> {
+  getOrderAudit(orderId: string): Observable<OrderAuditRecord[]> {
     return this.http
-      .get<{ history: any[] }>(`${this.apiUrl}/${orderId}/history`)
+      .get<OrderHistoryResponse>(`${this.apiUrl}/${orderId}/history`)
       .pipe(map((response) => response.history));
   }
 
