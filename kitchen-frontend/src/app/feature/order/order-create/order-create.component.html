@@ -171,12 +171,12 @@
 
   <ng-template pTemplate="footer">
     <div
-      class="bg-surface-0 dark:bg-surface-900 border-surface-200 dark:border-surface-700 p-4 sm:p-6 flex flex-col-reverse sm:flex-row justify-end gap-3 mt-auto">
+      class="bg-surface-0 dark:bg-surface-900 border-surface-200 dark:border-surface-700 p-4 sm:p-6 flex flex-row justify-end gap-3 mt-auto">
       <p-button label="Cancel" severity="secondary" [text]="true" (click)="close()"
-        styleClass="w-full sm:w-auto font-semibold" size="large" />
+        styleClass="flex-1 sm:flex-none font-semibold" size="large" />
       <p-button label="Finalize Order" icon="pi pi-check" [loading]="creating()" (click)="createOrder()"
         [disabled]="orderForm.invalid || creating() || items.length === 0" severity="primary"
-        styleClass="w-full sm:w-auto font-bold shadow-md hover:shadow-lg transition-shadow" size="large" />
+        styleClass="flex-1 sm:flex-none font-bold shadow-md hover:shadow-lg transition-shadow" size="large" />
     </div>
   </ng-template>
 </p-dialog>
